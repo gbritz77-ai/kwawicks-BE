@@ -1,0 +1,41 @@
+{
+    "memory":  "1024",
+    "executionRoleArn":  "arn:aws:iam::808180620139:role/kwawicks-ecsTaskExecutionRole",
+    "family":  "kwawicks-task",
+    "networkMode":  "awsvpc",
+    "requiresCompatibilities":  [
+                                    "FARGATE"
+                                ],
+    "containerDefinitions":  [
+                                 {
+                                     "name":  "kwawicks-api",
+                                     "logConfiguration":  {
+                                                              "logDriver":  "awslogs",
+                                                              "options":  {
+                                                                              "awslogs-region":  "af-south-1",
+                                                                              "awslogs-stream-prefix":  "ecs",
+                                                                              "awslogs-group":  "/ecs/kwawicks-api"
+                                                                          }
+                                                          },
+                                     "environment":  [
+                                                         {
+                                                             "value":  "Production",
+                                                             "name":  "ASPNETCORE_ENVIRONMENT"
+                                                         },
+                                                         {
+                                                             "value":  "http://+:8080",
+                                                             "name":  "ASPNETCORE_URLS"
+                                                         }
+                                                     ],
+                                     "essential":  true,
+                                     "image":  "808180620139.dkr.ecr.af-south-1.amazonaws.com/kwawicks-backend:latest",
+                                     "portMappings":  [
+                                                          {
+                                                              "protocol":  "tcp",
+                                                              "containerPort":  8080
+                                                          }
+                                                      ]
+                                 }
+                             ],
+    "cpu":  "512"
+}

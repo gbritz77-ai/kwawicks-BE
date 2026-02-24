@@ -2,6 +2,7 @@
 using Amazon.CognitoIdentityProvider;
 using Amazon.DynamoDBv2;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using KwaWicks.Application.Interfaces;
@@ -13,29 +14,26 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// -------------------- CORS (UI) --------------------
+// -------------------- CORS --------------------
 const string UiCors = "UiCors";
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(UiCors, policy =>
     {
-        policy
-            .SetIsOriginAllowed(origin =>
-            {
-                if (string.IsNullOrWhiteSpace(origin)) return false;
-                if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
-
-                var hostOk = uri.Host is "localhost" or "127.0.0.1";
-                if (!hostOk) return false;
-
-                var schemeOk = uri.Scheme is "http" or "https";
-                if (!schemeOk) return false;
-
-                return uri.Port >= 5173 && uri.Port <= 5180;
-            })
+        // Local dev (Vite)
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:5174",
+                "http://127.0.0.1:5174",
+                "https://main.d137tsnrxezsdg.amplifyapp.com"
+            )
             .AllowAnyHeader()
             .AllowAnyMethod();
+
+        // NOTE: Add your Amplify/CloudFront origins here when ready, e.g.
+        // .WithOrigins("https://your-ui-domain.com")
     });
 });
 
@@ -70,12 +68,10 @@ builder.Services.AddSwaggerGen(c =>
 var awsRegion = builder.Configuration["Aws:Region"] ?? "af-south-1";
 var tableName = builder.Configuration["Aws:DynamoTableName"] ?? "kwawicks";
 
-// DynamoDB client can be singleton
 builder.Services.AddSingleton<IAmazonDynamoDB>(_ =>
     new AmazonDynamoDBClient(RegionEndpoint.GetBySystemName(awsRegion))
 );
 
-// Repositories: use factory because they require (ddb, tableName)
 builder.Services.AddScoped<ISpeciesRepository>(sp =>
 {
     var ddb = sp.GetRequiredService<IAmazonDynamoDB>();
@@ -88,19 +84,21 @@ builder.Services.AddScoped<IClientRepository>(sp =>
     return new ClientRepository(ddb, tableName);
 });
 
-// Application services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
 
 // -------------------- Cognito JWT Auth --------------------
 var cognitoRegion = builder.Configuration["Cognito:Region"] ?? "af-south-1";
-var userPoolId = builder.Configuration["Cognito:UserPoolId"] ?? throw new InvalidOperationException("Missing Cognito:UserPoolId");
+var userPoolId = builder.Configuration["Cognito:UserPoolId"]
+                 ?? throw new InvalidOperationException("Missing Cognito:UserPoolId");
+
 var authority = $"https://cognito-idp.{cognitoRegion}.amazonaws.com/{userPoolId}";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.Authority = authority;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -120,7 +118,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("DriverOnly", p => p.RequireRole("Driver"));
 });
 
-// -------------------- Cognito Client (for login endpoint) --------------------
+// -------------------- Cognito Client --------------------
 builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(_ =>
 {
     var region = RegionEndpoint.GetBySystemName(cognitoRegion);
@@ -129,10 +127,22 @@ builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(_ =>
 
 var app = builder.Build();
 
+// ✅ Behind ALB: trust X-Forwarded-* headers
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+// ✅ Do NOT redirect to HTTPS in production behind an HTTP ALB
+// If you later add HTTPS listener on the ALB, you can re-enable this safely.
+if (app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+// Swagger: keep always on for now (you can restrict later)
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseHttpsRedirection();
 
 // CORS before auth
 app.UseCors(UiCors);
@@ -141,5 +151,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// ✅ Add root + health endpoints (fixes your ALB 404 + health checks)
+app.MapGet("/", () => Results.Ok("KwaWicks API is running"));
+app.MapGet("/health", () => Results.Ok("ok"));
 
 app.Run();
