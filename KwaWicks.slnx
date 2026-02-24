@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <File Path="create-table.json" />
+    <Project Path="src/KwaWicks.Api/KwaWicks.Api.csproj" />
+    <Project Path="src/KwaWicks.Application/KwaWicks.Application.csproj" />
+    <Project Path="src/KwaWicks.Domain/KwaWicks.Domain.csproj" />
+    <Project Path="src/KwaWicks.Infrastructure/KwaWicks.Infrastructure.csproj" />
+  </Folder>
+</Solution>

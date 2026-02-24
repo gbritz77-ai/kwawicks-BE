@@ -1,0 +1,6 @@
+@KwaWicks.Api_HostAddress = http://localhost:5155
+
+GET {{KwaWicks.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
