@@ -146,12 +146,12 @@ app.UseSwaggerUI();
 
 // CORS before auth
 app.UseCors(UiCors);
-app.UseAuthentication();
-app.UseAuthorization();
 
 app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok())
    .RequireCors(UiCors);
 
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 // ✅ Add root + health endpoints (fixes your ALB 404 + health checks)
