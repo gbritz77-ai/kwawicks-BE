@@ -30,7 +30,8 @@ builder.Services.AddCors(options =>
                 "https://main.d137tsnrxezsdg.amplifyapp.com"
             )
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials();
 
         // NOTE: Add your Amplify/CloudFront origins here when ready, e.g.
         // .WithOrigins("https://your-ui-domain.com")
