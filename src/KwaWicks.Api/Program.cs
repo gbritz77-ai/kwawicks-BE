@@ -30,8 +30,7 @@ builder.Services.AddCors(options =>
                 "https://main.d137tsnrxezsdg.amplifyapp.com"
             )
             .AllowAnyHeader()
-            .AllowAnyMethod()
-            .AllowCredentials();
+            .AllowAnyMethod();
 
         // NOTE: Add your Amplify/CloudFront origins here when ready, e.g.
         // .WithOrigins("https://your-ui-domain.com")
@@ -147,9 +146,11 @@ app.UseSwaggerUI();
 
 // CORS before auth
 app.UseCors(UiCors);
-
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok())
+   .RequireCors(UiCors);
 
 app.MapControllers();
 
