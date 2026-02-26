@@ -1,0 +1,23 @@
+{
+    "Version":  "2012-10-17",
+    "Statement":  [
+                      {
+                          "Effect":  "Allow",
+                          "Resource":  [
+                                           "arn:aws:dynamodb:af-south-1:808180620139:table/kwawicks",
+                                           "arn:aws:dynamodb:af-south-1:808180620139:table/kwawicks/index/*"
+                                       ],
+                          "Action":  [
+                                         "dynamodb:DescribeTable",
+                                         "dynamodb:GetItem",
+                                         "dynamodb:PutItem",
+                                         "dynamodb:UpdateItem",
+                                         "dynamodb:DeleteItem",
+                                         "dynamodb:Query",
+                                         "dynamodb:Scan",
+                                         "dynamodb:BatchGetItem",
+                                         "dynamodb:BatchWriteItem"
+                                     ]
+                      }
+                  ]
+}

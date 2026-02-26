@@ -1,6 +1,7 @@
 {
     "memory":  "1024",
     "executionRoleArn":  "arn:aws:iam::808180620139:role/kwawicks-ecsTaskExecutionRole",
+	"taskRoleArn": "arn:aws:iam::808180620139:role/kwawicks-ecsTaskRole",
     "family":  "kwawicks-task",
     "networkMode":  "awsvpc",
     "requiresCompatibilities":  [
@@ -39,3 +40,6 @@
                              ],
     "cpu":  "512"
 }
+
+
+
