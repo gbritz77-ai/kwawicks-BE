@@ -1,0 +1,111 @@
+name: Deploy KwaWicks Backend to ECS
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: af-south-1
+  ECR_REPO: kwawicks-backend
+  ECS_CLUSTER: kwawicks-cluster
+  ECS_SERVICE: kwawicks-service
+  TASK_FAMILY: kwawicks-task
+  CONTAINER_NAME: kwawicks-api
+  LOG_GROUP: /ecs/kwawicks-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, push image
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          set -e
+          ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
+          IMAGE="${ECR_URI}:${GITHUB_SHA}"
+
+          docker build -t "${CONTAINER_NAME}" .
+          docker tag "${CONTAINER_NAME}:latest" "${IMAGE}"
+          docker tag "${CONTAINER_NAME}:latest" "${ECR_URI}:latest"
+
+          docker push "${IMAGE}"
+          docker push "${ECR_URI}:latest"
+
+          echo "ECR_URI=${ECR_URI}" >> $GITHUB_ENV
+          echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
+
+      - name: Build task definition JSON
+        run: |
+          set -e
+          EXEC_ROLE_ARN=$(aws iam get-role --role-name "kwawicks-ecsTaskExecutionRole" --query Role.Arn --output text)
+          TASK_ROLE_ARN=$(aws iam get-role --role-name "kwawicks-ecsTaskRole" --query Role.Arn --output text)
+
+          cat > taskdef.json <<EOF
+          {
+            "family": "${TASK_FAMILY}",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "${EXEC_ROLE_ARN}",
+            "taskRoleArn": "${TASK_ROLE_ARN}",
+            "containerDefinitions": [
+              {
+                "name": "${CONTAINER_NAME}",
+                "image": "${IMAGE}",
+                "essential": true,
+                "portMappings": [{ "containerPort": 8080, "protocol": "tcp" }],
+                "environment": [
+                  { "name": "ASPNETCORE_ENVIRONMENT", "value": "Production" },
+                  { "name": "ASPNETCORE_URLS", "value": "http://+:8080" }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "${LOG_GROUP}",
+                    "awslogs-region": "${AWS_REGION}",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+
+      - name: Register task definition
+        run: |
+          set -e
+          TD_ARN=$(aws ecs register-task-definition --cli-input-json file://taskdef.json --query "taskDefinition.taskDefinitionArn" --output text)
+          echo "TD_ARN=${TD_ARN}" >> $GITHUB_ENV
+          echo "Registered: ${TD_ARN}"
+
+      - name: Update ECS service
+        run: |
+          set -e
+          aws ecs update-service \
+            --cluster "${ECS_CLUSTER}" \
+            --service "${ECS_SERVICE}" \
+            --task-definition "${TD_ARN}" \
+            --force-new-deployment
+
+      - name: Show running task definition
+        run: |
+          aws ecs describe-services --cluster "${ECS_CLUSTER}" --services "${ECS_SERVICE}" --query "services[0].taskDefinition" --output text
