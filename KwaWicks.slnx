@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <File Path="create-table.json" />
+    <File Path="ecsTaskRole-trust.json" />
+    <File Path="github-oidc-trust.json" />
+    <File Path="kwawicks-github-deploy-policy.json" />
     <Project Path="src/KwaWicks.Api/KwaWicks.Api.csproj" />
     <Project Path="src/KwaWicks.Application/KwaWicks.Application.csproj" />
     <Project Path="src/KwaWicks.Domain/KwaWicks.Domain.csproj" />

@@ -1,0 +1,11 @@
+using KwaWicks.Application.DTOs;
+
+namespace KwaWicks.Application.Interfaces;
+
+public interface IDeliveryOrderService
+{
+    Task<string> CreateAsync(CreateDeliveryOrderRequest request, CancellationToken ct);
+    Task<DeliveryOrderResponse?> GetAsync(string deliveryOrderId, CancellationToken ct);
+    Task<List<DeliveryOrderResponse>> ListAsync(string? driverId, string? hubId, string? status, CancellationToken ct);
+    Task UpdateStatusAsync(string deliveryOrderId, string status, CancellationToken ct);
+}

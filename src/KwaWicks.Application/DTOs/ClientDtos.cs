@@ -7,7 +7,7 @@ public class CreateClientRequest
     public string ClientName { get; set; } = string.Empty;
     public string ClientAddress { get; set; } = string.Empty;
     public string ClientContactDetails { get; set; } = string.Empty;
-    public ClientType ClientType { get; set; } = ClientType.COD;
+    public ClientType ClientType { get; set; } = ClientType.CODCASH;
 }
 
 public class UpdateClientRequest
@@ -15,7 +15,7 @@ public class UpdateClientRequest
     public string ClientName { get; set; } = string.Empty;
     public string ClientAddress { get; set; } = string.Empty;
     public string ClientContactDetails { get; set; } = string.Empty;
-    public ClientType ClientType { get; set; } = ClientType.COD;
+    public ClientType ClientType { get; set; } = ClientType.CODCASH;
 }
 
 public class ClientDto

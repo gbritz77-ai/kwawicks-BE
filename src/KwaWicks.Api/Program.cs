@@ -1,6 +1,7 @@
 ﻿using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Amazon.DynamoDBv2;
+using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
@@ -8,6 +9,7 @@ using Microsoft.OpenApi.Models;
 using KwaWicks.Application.Interfaces;
 using KwaWicks.Application.Services;
 using KwaWicks.Infrastructure.DynamoDB;
+using KwaWicks.Infrastructure.S3;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,7 +23,6 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(UiCors, policy =>
     {
-        // Local dev (Vite)
         policy.WithOrigins(
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
@@ -31,9 +32,6 @@ builder.Services.AddCors(options =>
             )
             .AllowAnyHeader()
             .AllowAnyMethod();
-
-        // NOTE: Add your Amplify/CloudFront origins here when ready, e.g.
-        // .WithOrigins("https://your-ui-domain.com")
     });
 });
 
@@ -64,28 +62,49 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// -------------------- AWS DynamoDB --------------------
+// -------------------- AWS --------------------
 var awsRegion = builder.Configuration["Aws:Region"] ?? "af-south-1";
-var tableName = builder.Configuration["Aws:DynamoTableName"] ?? "kwawicks";
+
+// ✅ Use ONE config key (the one you're already using)
+// ✅ Fail fast if missing (prevents null tableName runtime errors)
+var tableName = builder.Configuration["Aws:DynamoTableName"]
+               ?? Environment.GetEnvironmentVariable("AWS_DYNAMO_TABLE_NAME")
+               ?? "kwawicks";
 
 builder.Services.AddSingleton<IAmazonDynamoDB>(_ =>
     new AmazonDynamoDBClient(RegionEndpoint.GetBySystemName(awsRegion))
 );
 
+builder.Services.AddSingleton<IAmazonS3>(_ =>
+    new AmazonS3Client(RegionEndpoint.GetBySystemName(awsRegion))
+);
+
+// Repositories (single-table PK/SK pattern)
 builder.Services.AddScoped<ISpeciesRepository>(sp =>
-{
-    var ddb = sp.GetRequiredService<IAmazonDynamoDB>();
-    return new SpeciesRepository(ddb, tableName);
-});
+    new SpeciesRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
 builder.Services.AddScoped<IClientRepository>(sp =>
-{
-    var ddb = sp.GetRequiredService<IAmazonDynamoDB>();
-    return new ClientRepository(ddb, tableName);
-});
+    new ClientRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IInvoiceRepository>(sp =>
+    new InvoiceRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
+builder.Services.AddScoped<IDeliveryOrderRepository>(sp =>
+    new DeliveryOrderRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
+builder.Services.AddScoped<IHubTaskRepository>(sp =>
+    new HubTaskRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
+// Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
+builder.Services.AddScoped<IDeliveryOrderService, DeliveryOrderService>();
+
+var receiptsBucket = builder.Configuration["Aws:S3:ReceiptsBucket"] ?? "kwawicks-receipts";
+builder.Services.AddSingleton<IS3Service>(sp =>
+    new S3Service(sp.GetRequiredService<IAmazonS3>(), receiptsBucket));
+
+builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 
 // -------------------- Cognito JWT Auth --------------------
 var cognitoRegion = builder.Configuration["Cognito:Region"] ?? "af-south-1";
@@ -133,20 +152,20 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-// ✅ Do NOT redirect to HTTPS in production behind an HTTP ALB
-// If you later add HTTPS listener on the ALB, you can re-enable this safely.
+// ✅ Only redirect in dev
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
-// Swagger: keep always on for now (you can restrict later)
+// Swagger
 app.UseSwagger();
 app.UseSwaggerUI();
 
 // CORS before auth
 app.UseCors(UiCors);
 
+// Preflight
 app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok())
    .RequireCors(UiCors);
 
@@ -154,7 +173,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// ✅ Add root + health endpoints (fixes your ALB 404 + health checks)
+// Root + health
 app.MapGet("/", () => Results.Ok("KwaWicks API is running"));
 app.MapGet("/health", () => Results.Ok("ok"));
 
