@@ -133,8 +133,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
-    options.AddPolicy("HubStaffOnly", p => p.RequireRole("HubStaff"));
-    options.AddPolicy("DriverOnly", p => p.RequireRole("Driver"));
+    options.AddPolicy("HubStaffOnly", p => p.RequireRole("Admin", "HubStaff"));
+    options.AddPolicy("DriverOnly", p => p.RequireRole("Admin", "Driver"));
 });
 
 // -------------------- Cognito Client --------------------
