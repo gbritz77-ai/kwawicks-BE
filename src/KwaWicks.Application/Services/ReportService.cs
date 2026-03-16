@@ -150,16 +150,29 @@ public class ReportService : IReportService
             .OrderByDescending(o => o.CreatedAt)
             .ToList();
 
-        var items = filtered.Select(o => new DeliveryStatusItem
+        var invoices = await _invoices.ListAsync(null, null, ct);
+        var invoiceByDo = invoices
+            .Where(i => !string.IsNullOrEmpty(i.DeliveryOrderId))
+            .ToDictionary(i => i.DeliveryOrderId, i => i);
+
+        var items = filtered.Select(o =>
         {
-            DeliveryOrderId = o.DeliveryOrderId,
-            Status = o.Status,
-            CustomerId = o.CustomerId,
-            DriverName = o.AssignedDriverName,
-            DeliveryAddress = $"{o.DeliveryAddressLine1}, {o.City}",
-            TotalItems = o.Lines.Sum(l => l.Quantity),
-            CreatedAt = o.CreatedAt,
-            UpdatedAt = o.UpdatedAt
+            invoiceByDo.TryGetValue(o.DeliveryOrderId, out var inv);
+            return new DeliveryStatusItem
+            {
+                DeliveryOrderId = o.DeliveryOrderId,
+                Status = o.Status,
+                CustomerId = o.CustomerId,
+                DriverName = o.AssignedDriverName,
+                DeliveryAddress = $"{o.DeliveryAddressLine1}, {o.City}",
+                TotalItems = o.Lines.Sum(l => l.Quantity),
+                CreatedAt = o.CreatedAt,
+                UpdatedAt = o.UpdatedAt,
+                InvoiceId = inv?.InvoiceId ?? "",
+                PaymentType = inv?.PaymentType ?? "",
+                PaymentStatus = inv?.PaymentStatus ?? "",
+                GrandTotal = inv?.GrandTotal ?? 0m
+            };
         }).ToList();
 
         return new DeliveryStatusSummaryResponse

@@ -95,6 +95,12 @@ public class DeliveryStatusItem
     public int TotalItems { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    // Invoice (populated when driver has completed delivery)
+    public string InvoiceId { get; set; } = "";
+    public string PaymentType { get; set; } = "";
+    public string PaymentStatus { get; set; } = "";
+    public decimal GrandTotal { get; set; }
 }
 
 // ── Driver: My Delivery History ──────────────────────────────────────────────
