@@ -57,6 +57,19 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("invoices")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Invoices(
+        [FromQuery] string? customerId,
+        [FromQuery] string? paymentStatus,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var result = await _reports.GetInvoicesAsync(customerId, paymentStatus, from, to, ct);
+        return Ok(result);
+    }
+
     [HttpGet("delivery-status")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> DeliveryStatus(

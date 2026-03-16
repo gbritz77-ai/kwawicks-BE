@@ -9,5 +9,6 @@ public interface IReportService
     Task<DriverPerformanceResponse> GetDriverPerformanceAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<ReturnsSummaryResponse> GetReturnsSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<DeliveryStatusSummaryResponse> GetDeliveryStatusSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
+    Task<List<InvoiceResponse>> GetInvoicesAsync(string? customerId, string? paymentStatus, DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<List<MyDeliveryItem>> GetMyDeliveriesAsync(string driverId, DateTime? from, DateTime? to, CancellationToken ct = default);
 }

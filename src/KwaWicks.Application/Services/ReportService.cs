@@ -186,6 +186,43 @@ public class ReportService : IReportService
         };
     }
 
+    public async Task<List<InvoiceResponse>> GetInvoicesAsync(string? customerId, string? paymentStatus, DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        var all = await _invoices.ListAsync(null, customerId, ct);
+
+        return all
+            .Where(i => string.IsNullOrEmpty(paymentStatus) || i.PaymentStatus == paymentStatus)
+            .Where(i => from == null || i.CreatedAt >= from.Value)
+            .Where(i => to == null || i.CreatedAt <= to.Value.AddDays(1))
+            .OrderByDescending(i => i.CreatedAt)
+            .Select(i => new InvoiceResponse
+            {
+                InvoiceId = i.InvoiceId,
+                CustomerId = i.CustomerId,
+                HubId = i.HubId,
+                DeliveryOrderId = i.DeliveryOrderId,
+                CreatedByDriverId = i.CreatedByDriverId,
+                Status = i.Status,
+                PaymentType = i.PaymentType,
+                PaymentStatus = i.PaymentStatus,
+                ReceiptS3Key = i.ReceiptS3Key,
+                SubTotal = i.SubTotal,
+                VatTotal = i.VatTotal,
+                GrandTotal = i.GrandTotal,
+                CreatedAt = i.CreatedAt,
+                UpdatedAt = i.UpdatedAt,
+                Lines = i.Lines.Select(l => new InvoiceLineResponse
+                {
+                    SpeciesId = l.SpeciesId,
+                    Quantity = l.Quantity,
+                    UnitPrice = l.UnitPrice,
+                    VatRate = l.VatRate,
+                    LineTotal = l.LineTotal
+                }).ToList()
+            })
+            .ToList();
+    }
+
     public async Task<List<MyDeliveryItem>> GetMyDeliveriesAsync(string driverId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         var orders = await _deliveryOrders.ListAsync(driverId, null, "Delivered", ct);
