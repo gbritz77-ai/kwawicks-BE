@@ -81,6 +81,25 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("statement")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> CustomerStatement(
+        [FromQuery] string customerId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _reports.GetCustomerStatementAsync(customerId, from, to, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
     // ── Driver ───────────────────────────────────────────────────────────────
 
     [HttpGet("my-deliveries")]

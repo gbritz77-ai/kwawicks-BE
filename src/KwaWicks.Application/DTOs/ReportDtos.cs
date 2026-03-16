@@ -104,6 +104,35 @@ public class DeliveryStatusItem
     public decimal GrandTotal { get; set; }
 }
 
+// ── Admin: Customer Statement ────────────────────────────────────────────────
+public class CustomerStatementResponse
+{
+    public string CustomerId { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public string CustomerAddress { get; set; } = "";
+    public string CustomerContact { get; set; } = "";
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+    public List<CustomerStatementLine> Lines { get; set; } = new();
+    public decimal TotalSubTotal { get; set; }
+    public decimal TotalVat { get; set; }
+    public decimal TotalGrandTotal { get; set; }
+    public decimal TotalPaid { get; set; }
+    public decimal TotalOutstanding { get; set; }
+}
+
+public class CustomerStatementLine
+{
+    public string InvoiceId { get; set; } = "";
+    public DateTime Date { get; set; }
+    public string PaymentType { get; set; } = "";
+    public string PaymentStatus { get; set; } = "";
+    public decimal SubTotal { get; set; }
+    public decimal VatTotal { get; set; }
+    public decimal GrandTotal { get; set; }
+}
+
 // ── Driver: My Delivery History ──────────────────────────────────────────────
 public class MyDeliveryItem
 {

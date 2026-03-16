@@ -230,6 +230,51 @@ public class ReportService : IReportService
             .ToList();
     }
 
+    public async Task<CustomerStatementResponse> GetCustomerStatementAsync(string customerId, DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        var client = await _clients.GetAsync(customerId, ct)
+            ?? throw new InvalidOperationException($"Customer not found: {customerId}");
+
+        var allInvoices = await _invoices.ListAsync(null, customerId, ct);
+
+        var filtered = allInvoices
+            .Where(i => from == null || i.CreatedAt >= from.Value)
+            .Where(i => to == null || i.CreatedAt <= to.Value.AddDays(1))
+            .OrderBy(i => i.CreatedAt)
+            .ToList();
+
+        var lines = filtered.Select(i => new CustomerStatementLine
+        {
+            InvoiceId = i.InvoiceId,
+            Date = i.CreatedAt,
+            PaymentType = i.PaymentType,
+            PaymentStatus = i.PaymentStatus,
+            SubTotal = i.SubTotal,
+            VatTotal = i.VatTotal,
+            GrandTotal = i.GrandTotal
+        }).ToList();
+
+        var totalGrand = lines.Sum(l => l.GrandTotal);
+        var totalPaid  = lines.Where(l => l.PaymentStatus == "Paid").Sum(l => l.GrandTotal);
+
+        return new CustomerStatementResponse
+        {
+            CustomerId = client.ClientId,
+            CustomerName = client.ClientName,
+            CustomerAddress = client.ClientAddress,
+            CustomerContact = client.ClientContactDetails,
+            From = from,
+            To = to,
+            GeneratedAt = DateTime.UtcNow,
+            Lines = lines,
+            TotalSubTotal = lines.Sum(l => l.SubTotal),
+            TotalVat = lines.Sum(l => l.VatTotal),
+            TotalGrandTotal = totalGrand,
+            TotalPaid = totalPaid,
+            TotalOutstanding = totalGrand - totalPaid
+        };
+    }
+
     public async Task<List<MyDeliveryItem>> GetMyDeliveriesAsync(string driverId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         var orders = await _deliveryOrders.ListAsync(driverId, null, "Delivered", ct);
