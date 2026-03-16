@@ -262,6 +262,16 @@ public class InvoiceService : IInvoiceService
             ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
 
         invoice.PaymentType = request.PaymentType;
+        // Payment stays Pending until admin confirms
+        invoice.UpdatedAt = DateTime.UtcNow;
+        await _invoiceRepo.UpdateAsync(invoice, ct);
+    }
+
+    public async Task ConfirmPaymentAsync(string invoiceId, CancellationToken ct)
+    {
+        var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
+            ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
+
         invoice.PaymentStatus = "Paid";
         invoice.Status = "Paid";
         invoice.UpdatedAt = DateTime.UtcNow;

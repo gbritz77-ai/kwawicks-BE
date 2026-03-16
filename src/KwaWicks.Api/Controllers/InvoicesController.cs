@@ -95,6 +95,24 @@ public class InvoicesController : ControllerBase
         }
     }
 
+    // PUT /api/invoices/{invoiceId}/confirm-payment  (Admin confirms receipt of payment)
+    [HttpPut("{invoiceId}/confirm-payment")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ConfirmPayment(string invoiceId, CancellationToken ct)
+    {
+        try
+        {
+            await _service.ConfirmPaymentAsync(invoiceId, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
     // GET /api/invoices/{invoiceId}/receipt-upload-url
     [HttpGet("{invoiceId}/receipt-upload-url")]
     [Authorize(Policy = "DriverOnly")]

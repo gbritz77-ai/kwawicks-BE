@@ -9,5 +9,6 @@ public interface IInvoiceService
     Task<InvoiceResponse?> GetAsync(string invoiceId, CancellationToken ct);
     Task<List<InvoiceResponse>> ListAsync(string? hubId, string? customerId, CancellationToken ct);
     Task RecordPaymentAsync(string invoiceId, RecordPaymentRequest request, CancellationToken ct);
+    Task ConfirmPaymentAsync(string invoiceId, CancellationToken ct);
     Task<ReceiptUploadUrlResponse> GetReceiptUploadUrlAsync(string invoiceId, CancellationToken ct);
 }
