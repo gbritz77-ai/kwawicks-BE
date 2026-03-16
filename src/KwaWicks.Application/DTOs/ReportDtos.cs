@@ -146,3 +146,21 @@ public class MyDeliveryItem
     public string PaymentType { get; set; } = "";
     public string PaymentStatus { get; set; } = "";
 }
+
+// ── Admin: Species Revenue ────────────────────────────────────────────────────
+public class SpeciesRevenueResponse
+{
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public List<string> Months { get; set; } = new();
+    public List<SpeciesRevenueSummary> Items { get; set; } = new();
+}
+
+public class SpeciesRevenueSummary
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int TotalQty { get; set; }
+    public decimal TotalRevenue { get; set; }
+    public Dictionary<string, decimal> RevenueByMonth { get; set; } = new();
+}

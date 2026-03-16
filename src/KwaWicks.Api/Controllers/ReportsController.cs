@@ -100,6 +100,17 @@ public class ReportsController : ControllerBase
         }
     }
 
+    [HttpGet("revenue-by-species")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> SpeciesRevenue(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var result = await _reports.GetSpeciesRevenueAsync(from, to, ct);
+        return Ok(result);
+    }
+
     [HttpGet("statements")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> AllCustomerStatements(

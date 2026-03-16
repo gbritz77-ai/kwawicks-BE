@@ -8,12 +8,14 @@ public class ReportService : IReportService
     private readonly IInvoiceRepository _invoices;
     private readonly IDeliveryOrderRepository _deliveryOrders;
     private readonly IClientRepository _clients;
+    private readonly ISpeciesRepository _species;
 
-    public ReportService(IInvoiceRepository invoices, IDeliveryOrderRepository deliveryOrders, IClientRepository clients)
+    public ReportService(IInvoiceRepository invoices, IDeliveryOrderRepository deliveryOrders, IClientRepository clients, ISpeciesRepository species)
     {
         _invoices = invoices;
         _deliveryOrders = deliveryOrders;
         _clients = clients;
+        _species = species;
     }
 
     public async Task<RevenueSummaryResponse> GetRevenueSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
@@ -274,6 +276,46 @@ public class ReportService : IReportService
             TotalPaid = totalPaid,
             TotalOutstanding = totalGrand - totalPaid
         };
+    }
+
+    public async Task<SpeciesRevenueResponse> GetSpeciesRevenueAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        var allInvoices = await _invoices.ListAsync(null, null, ct);
+
+        var filtered = allInvoices
+            .Where(i => from == null || i.CreatedAt >= from.Value)
+            .Where(i => to == null || i.CreatedAt <= to.Value.AddDays(1))
+            .ToList();
+
+        var allSpecies = await _species.ListAsync(ct);
+        var speciesById = allSpecies.ToDictionary(s => s.SpeciesId, s => s.Name);
+
+        var lines = filtered
+            .SelectMany(i => i.Lines.Select(l => new
+            {
+                l.SpeciesId,
+                l.Quantity,
+                l.LineTotal,
+                Month = i.CreatedAt.ToString("yyyy-MM")
+            }))
+            .ToList();
+
+        var months = lines.Select(l => l.Month).Distinct().OrderBy(m => m).ToList();
+
+        var items = lines
+            .GroupBy(l => l.SpeciesId)
+            .Select(g => new SpeciesRevenueSummary
+            {
+                SpeciesId = g.Key,
+                SpeciesName = speciesById.TryGetValue(g.Key, out var name) ? name : g.Key,
+                TotalQty = g.Sum(l => l.Quantity),
+                TotalRevenue = g.Sum(l => l.LineTotal),
+                RevenueByMonth = months.ToDictionary(m => m, m => g.Where(l => l.Month == m).Sum(l => l.LineTotal))
+            })
+            .OrderByDescending(s => s.TotalRevenue)
+            .ToList();
+
+        return new SpeciesRevenueResponse { From = from, To = to, Months = months, Items = items };
     }
 
     public async Task<List<CustomerStatementResponse>> GetAllCustomerStatementsAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
