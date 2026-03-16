@@ -113,6 +113,24 @@ public class InvoicesController : ControllerBase
         }
     }
 
+    // GET /api/invoices/{invoiceId}/receipt-view-url  (Admin views uploaded receipt)
+    [HttpGet("{invoiceId}/receipt-view-url")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReceiptViewUrl(string invoiceId, CancellationToken ct)
+    {
+        try
+        {
+            var url = await _service.GetReceiptViewUrlAsync(invoiceId, ct);
+            return Ok(new { url });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
     // GET /api/invoices/{invoiceId}/receipt-upload-url
     [HttpGet("{invoiceId}/receipt-upload-url")]
     [Authorize(Policy = "DriverOnly")]

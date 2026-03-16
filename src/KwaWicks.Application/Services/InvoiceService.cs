@@ -302,6 +302,18 @@ public class InvoiceService : IInvoiceService
         };
     }
 
+    // ── EFT receipt view ────────────────────────────────────────────────────
+    public async Task<string> GetReceiptViewUrlAsync(string invoiceId, CancellationToken ct)
+    {
+        var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
+            ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
+
+        if (string.IsNullOrEmpty(invoice.ReceiptS3Key))
+            throw new InvalidOperationException("No receipt has been uploaded for this invoice.");
+
+        return await _s3Service.GeneratePresignedViewUrlAsync(invoice.ReceiptS3Key, ct);
+    }
+
     private static InvoiceResponse MapToResponse(Invoice invoice) => new()
     {
         InvoiceId = invoice.InvoiceId,

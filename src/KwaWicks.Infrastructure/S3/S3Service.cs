@@ -29,4 +29,18 @@ public class S3Service : IS3Service
         var url = _s3.GetPreSignedURL(request);
         return Task.FromResult(url);
     }
+
+    public Task<string> GeneratePresignedViewUrlAsync(string key, CancellationToken ct)
+    {
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _bucketName,
+            Key = key,
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.AddMinutes(15)
+        };
+
+        var url = _s3.GetPreSignedURL(request);
+        return Task.FromResult(url);
+    }
 }
