@@ -36,6 +36,7 @@ public class OutstandingPaymentItem
     public decimal GrandTotal { get; set; }
     public DateTime CreatedAt { get; set; }
     public int DaysOutstanding { get; set; }
+    public string ReceiptS3Key { get; set; } = "";
 }
 
 // ── Admin: Driver Performance ────────────────────────────────────────────────

@@ -63,7 +63,8 @@ public class ReportService : IReportService
                 PaymentType = i.PaymentType,
                 GrandTotal = i.GrandTotal,
                 CreatedAt = i.CreatedAt,
-                DaysOutstanding = (int)(DateTime.UtcNow - i.CreatedAt).TotalDays
+                DaysOutstanding = (int)(DateTime.UtcNow - i.CreatedAt).TotalDays,
+                ReceiptS3Key = i.ReceiptS3Key
             })
             .ToList();
 
