@@ -276,6 +276,19 @@ public class ReportService : IReportService
         };
     }
 
+    public async Task<List<CustomerStatementResponse>> GetAllCustomerStatementsAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        var clients = await _clients.ListAsync(1000, ct);
+
+        var tasks = clients.Select(c => GetCustomerStatementAsync(c.ClientId, from, to, ct));
+        var results = await Task.WhenAll(tasks);
+
+        return results
+            .Where(s => s.Lines.Count > 0)
+            .OrderBy(s => s.CustomerName)
+            .ToList();
+    }
+
     public async Task<List<MyDeliveryItem>> GetMyDeliveriesAsync(string driverId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         var orders = await _deliveryOrders.ListAsync(driverId, null, "Delivered", ct);

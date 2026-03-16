@@ -100,6 +100,17 @@ public class ReportsController : ControllerBase
         }
     }
 
+    [HttpGet("statements")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> AllCustomerStatements(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var result = await _reports.GetAllCustomerStatementsAsync(from, to, ct);
+        return Ok(result);
+    }
+
     // ── Driver ───────────────────────────────────────────────────────────────
 
     [HttpGet("my-deliveries")]
