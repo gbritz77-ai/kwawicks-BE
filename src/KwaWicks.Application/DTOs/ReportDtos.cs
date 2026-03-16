@@ -74,6 +74,29 @@ public class ReturnsSummaryItem
     public int TotalReturns { get; set; }
 }
 
+// ── Admin: Delivery Status Summary ───────────────────────────────────────────
+public class DeliveryStatusSummaryResponse
+{
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public int OpenCount { get; set; }
+    public int InTransitCount { get; set; }
+    public int DeliveredCount { get; set; }
+    public List<DeliveryStatusItem> Orders { get; set; } = new();
+}
+
+public class DeliveryStatusItem
+{
+    public string DeliveryOrderId { get; set; } = "";
+    public string Status { get; set; } = "";
+    public string CustomerId { get; set; } = "";
+    public string DriverName { get; set; } = "";
+    public string DeliveryAddress { get; set; } = "";
+    public int TotalItems { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+}
+
 // ── Driver: My Delivery History ──────────────────────────────────────────────
 public class MyDeliveryItem
 {

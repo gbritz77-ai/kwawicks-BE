@@ -140,6 +140,39 @@ public class ReportService : IReportService
         return new ReturnsSummaryResponse { From = from, To = to, Items = items };
     }
 
+    public async Task<DeliveryStatusSummaryResponse> GetDeliveryStatusSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        var all = await _deliveryOrders.ListAsync(null, null, null, ct);
+
+        var filtered = all
+            .Where(o => from == null || o.CreatedAt >= from.Value)
+            .Where(o => to == null || o.CreatedAt <= to.Value.AddDays(1))
+            .OrderByDescending(o => o.CreatedAt)
+            .ToList();
+
+        var items = filtered.Select(o => new DeliveryStatusItem
+        {
+            DeliveryOrderId = o.DeliveryOrderId,
+            Status = o.Status,
+            CustomerId = o.CustomerId,
+            DriverName = o.AssignedDriverName,
+            DeliveryAddress = $"{o.DeliveryAddressLine1}, {o.City}",
+            TotalItems = o.Lines.Sum(l => l.Quantity),
+            CreatedAt = o.CreatedAt,
+            UpdatedAt = o.UpdatedAt
+        }).ToList();
+
+        return new DeliveryStatusSummaryResponse
+        {
+            From = from,
+            To = to,
+            OpenCount = items.Count(i => i.Status == "Open"),
+            InTransitCount = items.Count(i => i.Status == "OutForDelivery"),
+            DeliveredCount = items.Count(i => i.Status == "Delivered"),
+            Orders = items
+        };
+    }
+
     public async Task<List<MyDeliveryItem>> GetMyDeliveriesAsync(string driverId, DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         var orders = await _deliveryOrders.ListAsync(driverId, null, "Delivered", ct);

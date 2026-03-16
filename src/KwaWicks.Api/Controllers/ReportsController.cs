@@ -57,6 +57,17 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("delivery-status")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> DeliveryStatus(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var result = await _reports.GetDeliveryStatusSummaryAsync(from, to, ct);
+        return Ok(result);
+    }
+
     // ── Driver ───────────────────────────────────────────────────────────────
 
     [HttpGet("my-deliveries")]
