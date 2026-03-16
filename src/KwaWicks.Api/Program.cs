@@ -105,6 +105,7 @@ builder.Services.AddSingleton<IS3Service>(sp =>
     new S3Service(sp.GetRequiredService<IAmazonS3>(), receiptsBucket));
 
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 
 // -------------------- Cognito JWT Auth --------------------
 var cognitoRegion = builder.Configuration["Cognito:Region"] ?? "af-south-1";
