@@ -90,6 +90,7 @@ public class DeliveryStatusItem
     public string DeliveryOrderId { get; set; } = "";
     public string Status { get; set; } = "";
     public string CustomerId { get; set; } = "";
+    public string CustomerName { get; set; } = "";
     public string DriverName { get; set; } = "";
     public string DeliveryAddress { get; set; } = "";
     public int TotalItems { get; set; }

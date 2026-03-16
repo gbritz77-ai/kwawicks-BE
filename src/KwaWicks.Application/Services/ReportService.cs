@@ -7,11 +7,13 @@ public class ReportService : IReportService
 {
     private readonly IInvoiceRepository _invoices;
     private readonly IDeliveryOrderRepository _deliveryOrders;
+    private readonly IClientRepository _clients;
 
-    public ReportService(IInvoiceRepository invoices, IDeliveryOrderRepository deliveryOrders)
+    public ReportService(IInvoiceRepository invoices, IDeliveryOrderRepository deliveryOrders, IClientRepository clients)
     {
         _invoices = invoices;
         _deliveryOrders = deliveryOrders;
+        _clients = clients;
     }
 
     public async Task<RevenueSummaryResponse> GetRevenueSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
@@ -155,14 +157,19 @@ public class ReportService : IReportService
             .Where(i => !string.IsNullOrEmpty(i.DeliveryOrderId))
             .ToDictionary(i => i.DeliveryOrderId, i => i);
 
+        var clients = await _clients.ListAsync(1000, ct);
+        var clientById = clients.ToDictionary(c => c.ClientId, c => c.ClientName);
+
         var items = filtered.Select(o =>
         {
             invoiceByDo.TryGetValue(o.DeliveryOrderId, out var inv);
+            clientById.TryGetValue(o.CustomerId, out var clientName);
             return new DeliveryStatusItem
             {
                 DeliveryOrderId = o.DeliveryOrderId,
                 Status = o.Status,
                 CustomerId = o.CustomerId,
+                CustomerName = clientName ?? o.CustomerId,
                 DriverName = o.AssignedDriverName,
                 DeliveryAddress = $"{o.DeliveryAddressLine1}, {o.City}",
                 TotalItems = o.Lines.Sum(l => l.Quantity),
