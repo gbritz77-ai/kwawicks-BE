@@ -139,12 +139,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    // Financial data — Owner, Finance, and Admin
-    options.AddPolicy("FinancialAccess", p => p.RequireRole("Owner", "Finance", "Admin"));
+    // Financial data — Owner and Finance only (Admin is operational, not financial)
+    options.AddPolicy("FinancialAccess", p => p.RequireRole("Owner", "Finance"));
     // Operational access — all non-driver roles
     options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
-    // User management — all non-driver roles
-    options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
+    // User management — Owner and Admin only (Finance cannot manage users)
+    options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Admin"));
     // Driver endpoints — drivers only (Owner/Finance/Admin can also call if needed)
     options.AddPolicy("DriverOnly", p => p.RequireRole("Owner", "Finance", "Admin", "Driver"));
     // Legacy compat
