@@ -1,4 +1,4 @@
-﻿using KwaWicks.Application.DTOs;
+using KwaWicks.Application.DTOs;
 using KwaWicks.Application.Interfaces;
 using KwaWicks.Domain.Entities;
 
@@ -25,6 +25,9 @@ public class ClientService : IClientService
             ClientId = Guid.NewGuid().ToString("N"),
             ClientName = request.ClientName.Trim(),
             ClientAddress = request.ClientAddress?.Trim() ?? "",
+            ClientCity = request.ClientCity?.Trim() ?? "",
+            ClientProvince = request.ClientProvince?.Trim() ?? "",
+            ClientPostalCode = request.ClientPostalCode?.Trim() ?? "",
             ClientContactDetails = request.ClientContactDetails?.Trim() ?? "",
             ClientType = request.ClientType,
             CreatedAtUtc = now,
@@ -54,6 +57,9 @@ public class ClientService : IClientService
 
         existing.ClientName = string.IsNullOrWhiteSpace(request.ClientName) ? existing.ClientName : request.ClientName.Trim();
         existing.ClientAddress = request.ClientAddress?.Trim() ?? "";
+        existing.ClientCity = request.ClientCity?.Trim() ?? "";
+        existing.ClientProvince = request.ClientProvince?.Trim() ?? "";
+        existing.ClientPostalCode = request.ClientPostalCode?.Trim() ?? "";
         existing.ClientContactDetails = request.ClientContactDetails?.Trim() ?? "";
         existing.ClientType = request.ClientType;
         existing.UpdatedAtUtc = DateTime.UtcNow;
@@ -70,6 +76,9 @@ public class ClientService : IClientService
         ClientId = c.ClientId,
         ClientName = c.ClientName,
         ClientAddress = c.ClientAddress,
+        ClientCity = c.ClientCity,
+        ClientProvince = c.ClientProvince,
+        ClientPostalCode = c.ClientPostalCode,
         ClientContactDetails = c.ClientContactDetails,
         ClientType = c.ClientType,
         CreatedAtUtc = c.CreatedAtUtc,

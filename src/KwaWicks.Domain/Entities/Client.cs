@@ -13,6 +13,9 @@ public class Client
 
     public string ClientName { get; set; } = string.Empty;
     public string ClientAddress { get; set; } = string.Empty;
+    public string ClientCity { get; set; } = string.Empty;
+    public string ClientProvince { get; set; } = string.Empty;
+    public string ClientPostalCode { get; set; } = string.Empty;
 
     // keep it flexible: phone/email/notes etc
     public string ClientContactDetails { get; set; } = string.Empty;
