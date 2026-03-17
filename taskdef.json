@@ -1,9 +1,7 @@
 {
-    "memory":  "1024",
     "executionRoleArn":  "arn:aws:iam::808180620139:role/kwawicks-ecsTaskExecutionRole",
-	"taskRoleArn": "arn:aws:iam::808180620139:role/kwawicks-ecsTaskRole",
-    "family":  "kwawicks-task",
     "networkMode":  "awsvpc",
+    "cpu":  "512",
     "requiresCompatibilities":  [
                                     "FARGATE"
                                 ],
@@ -29,7 +27,7 @@
                                                          }
                                                      ],
                                      "essential":  true,
-                                     "image":  "808180620139.dkr.ecr.af-south-1.amazonaws.com/kwawicks-backend:latest",
+                                     "image":  "",
                                      "portMappings":  [
                                                           {
                                                               "protocol":  "tcp",
@@ -38,8 +36,7 @@
                                                       ]
                                  }
                              ],
-    "cpu":  "512"
+    "family":  "kwawicks-task",
+    "taskRoleArn":  "arn:aws:iam::808180620139:role/kwawicks-ecsTaskRole",
+    "memory":  "1024"
 }
-
-
-
