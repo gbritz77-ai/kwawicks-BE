@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.CognitoIdentityProvider" Version="4.0.5.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\KwaWicks.Domain\KwaWicks.Domain.csproj" />
   </ItemGroup>
 

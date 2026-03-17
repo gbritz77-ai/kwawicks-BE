@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using KwaWicks.Application.Interfaces;
 using KwaWicks.Application.Services;
+using KwaWicks.Application.DTOs;
 using KwaWicks.Infrastructure.DynamoDB;
 using KwaWicks.Infrastructure.S3;
 
@@ -112,6 +113,11 @@ var cognitoRegion = builder.Configuration["Cognito:Region"] ?? "af-south-1";
 var userPoolId = builder.Configuration["Cognito:UserPoolId"]
                  ?? throw new InvalidOperationException("Missing Cognito:UserPoolId");
 
+builder.Services.AddScoped<IUserManagementService>(sp =>
+    new UserManagementService(
+        sp.GetRequiredService<IAmazonCognitoIdentityProvider>(),
+        userPoolId));
+
 var authority = $"https://cognito-idp.{cognitoRegion}.amazonaws.com/{userPoolId}";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -133,9 +139,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
-    options.AddPolicy("HubStaffOnly", p => p.RequireRole("Admin", "HubStaff"));
-    options.AddPolicy("DriverOnly", p => p.RequireRole("Admin", "Driver"));
+    // Financial data — Owner and Finance only
+    options.AddPolicy("FinancialAccess", p => p.RequireRole("Owner", "Finance"));
+    // Operational access — all non-driver roles
+    options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
+    // User management — all non-driver roles
+    options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
+    // Driver endpoints — drivers only (Owner/Finance/Admin can also call if needed)
+    options.AddPolicy("DriverOnly", p => p.RequireRole("Owner", "Finance", "Admin", "Driver"));
+    // Legacy compat
+    options.AddPolicy("AdminOnly", p => p.RequireRole("Owner", "Finance", "Admin"));
+    options.AddPolicy("HubStaffOnly", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
 });
 
 // -------------------- Cognito Client --------------------

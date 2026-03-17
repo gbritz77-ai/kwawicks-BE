@@ -17,7 +17,7 @@ public class ReportsController : ControllerBase
     // ── Admin ────────────────────────────────────────────────────────────────
 
     [HttpGet("revenue")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "FinancialAccess")]
     public async Task<IActionResult> Revenue(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
@@ -28,7 +28,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("outstanding-payments")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "FinancialAccess")]
     public async Task<IActionResult> OutstandingPayments(CancellationToken ct)
     {
         var result = await _reports.GetOutstandingPaymentsAsync(ct);
@@ -36,7 +36,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("driver-performance")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "OperationalAccess")]
     public async Task<IActionResult> DriverPerformance(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
@@ -47,7 +47,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("returns")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "OperationalAccess")]
     public async Task<IActionResult> Returns(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
@@ -58,7 +58,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("invoices")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "FinancialAccess")]
     public async Task<IActionResult> Invoices(
         [FromQuery] string? customerId,
         [FromQuery] string? paymentStatus,
@@ -71,7 +71,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("delivery-status")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "OperationalAccess")]
     public async Task<IActionResult> DeliveryStatus(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
@@ -82,7 +82,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("statement")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "FinancialAccess")]
     public async Task<IActionResult> CustomerStatement(
         [FromQuery] string customerId,
         [FromQuery] DateTime? from,
@@ -101,7 +101,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("revenue-by-species")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "FinancialAccess")]
     public async Task<IActionResult> SpeciesRevenue(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
@@ -112,7 +112,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpGet("statements")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "FinancialAccess")]
     public async Task<IActionResult> AllCustomerStatements(
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
