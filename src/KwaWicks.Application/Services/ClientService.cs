@@ -29,6 +29,7 @@ public class ClientService : IClientService
             ClientProvince = request.ClientProvince?.Trim() ?? "",
             ClientPostalCode = request.ClientPostalCode?.Trim() ?? "",
             ClientContactDetails = request.ClientContactDetails?.Trim() ?? "",
+            ClientPhone = request.ClientPhone?.Trim() ?? "",
             ClientType = request.ClientType,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -61,6 +62,7 @@ public class ClientService : IClientService
         existing.ClientProvince = request.ClientProvince?.Trim() ?? "";
         existing.ClientPostalCode = request.ClientPostalCode?.Trim() ?? "";
         existing.ClientContactDetails = request.ClientContactDetails?.Trim() ?? "";
+        existing.ClientPhone = request.ClientPhone?.Trim() ?? "";
         existing.ClientType = request.ClientType;
         existing.UpdatedAtUtc = DateTime.UtcNow;
 
@@ -80,6 +82,7 @@ public class ClientService : IClientService
         ClientProvince = c.ClientProvince,
         ClientPostalCode = c.ClientPostalCode,
         ClientContactDetails = c.ClientContactDetails,
+        ClientPhone = c.ClientPhone,
         ClientType = c.ClientType,
         CreatedAtUtc = c.CreatedAtUtc,
         UpdatedAtUtc = c.UpdatedAtUtc

@@ -10,6 +10,7 @@ public class CreateClientRequest
     public string ClientProvince { get; set; } = string.Empty;
     public string ClientPostalCode { get; set; } = string.Empty;
     public string ClientContactDetails { get; set; } = string.Empty;
+    public string ClientPhone { get; set; } = string.Empty;
     public ClientType ClientType { get; set; } = ClientType.CODCASH;
 }
 
@@ -21,6 +22,7 @@ public class UpdateClientRequest
     public string ClientProvince { get; set; } = string.Empty;
     public string ClientPostalCode { get; set; } = string.Empty;
     public string ClientContactDetails { get; set; } = string.Empty;
+    public string ClientPhone { get; set; } = string.Empty;
     public ClientType ClientType { get; set; } = ClientType.CODCASH;
 }
 
@@ -33,6 +35,7 @@ public class ClientDto
     public string ClientProvince { get; set; } = string.Empty;
     public string ClientPostalCode { get; set; } = string.Empty;
     public string ClientContactDetails { get; set; } = string.Empty;
+    public string ClientPhone { get; set; } = string.Empty;
     public ClientType ClientType { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }

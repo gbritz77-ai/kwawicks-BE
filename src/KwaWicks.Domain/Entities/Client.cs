@@ -19,6 +19,7 @@ public class Client
 
     // keep it flexible: phone/email/notes etc
     public string ClientContactDetails { get; set; } = string.Empty;
+    public string ClientPhone { get; set; } = string.Empty;
 
     public ClientType ClientType { get; set; } = ClientType.CODCASH;
 
