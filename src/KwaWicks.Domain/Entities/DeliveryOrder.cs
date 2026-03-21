@@ -28,6 +28,7 @@ public class DeliveryOrderLine
 {
     public string SpeciesId { get; set; } = "";
     public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
 
     // Populated when driver completes delivery
     public int DeliveredQty { get; set; }

@@ -31,6 +31,15 @@ public class DeliveryOrdersController : ControllerBase
     {
         try
         {
+            // Only Owner and Finance may override the unit price on lines
+            bool hasPriceOverride = request.Lines?.Any(l => l.UnitPrice.HasValue) == true;
+            if (hasPriceOverride)
+            {
+                var roles = User.FindAll("cognito:groups").Select(c => c.Value).ToHashSet();
+                if (!roles.Contains("Owner") && !roles.Contains("Finance"))
+                    return Forbid();
+            }
+
             var id = await _service.CreateAsync(request, ct);
             return CreatedAtAction(nameof(GetById), new { deliveryOrderId = id }, new { deliveryOrderId = id });
         }

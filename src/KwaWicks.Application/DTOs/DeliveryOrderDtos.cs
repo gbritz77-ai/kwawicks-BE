@@ -19,6 +19,7 @@ public class CreateDeliveryOrderLine
 {
     public string SpeciesId { get; set; } = "";
     public int Quantity { get; set; }
+    public decimal? UnitPrice { get; set; }
 }
 
 public class UpdateDeliveryStatusRequest
@@ -48,6 +49,7 @@ public class DeliveryOrderLineResponse
 {
     public string SpeciesId { get; set; } = "";
     public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
     public int DeliveredQty { get; set; }
     public int ReturnedDeadQty { get; set; }
     public int ReturnedMutilatedQty { get; set; }

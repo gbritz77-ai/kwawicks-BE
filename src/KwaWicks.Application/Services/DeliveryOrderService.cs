@@ -72,7 +72,8 @@ public class DeliveryOrderService : IDeliveryOrderService
                 deliveryOrder.Lines.Add(new DeliveryOrderLine
                 {
                     SpeciesId = line.SpeciesId,
-                    Quantity = line.Quantity
+                    Quantity = line.Quantity,
+                    UnitPrice = line.UnitPrice ?? species.SellPrice ?? 0m
                 });
             }
 
@@ -155,6 +156,7 @@ public class DeliveryOrderService : IDeliveryOrderService
         {
             SpeciesId = l.SpeciesId,
             Quantity = l.Quantity,
+            UnitPrice = l.UnitPrice,
             DeliveredQty = l.DeliveredQty,
             ReturnedDeadQty = l.ReturnedDeadQty,
             ReturnedMutilatedQty = l.ReturnedMutilatedQty,
