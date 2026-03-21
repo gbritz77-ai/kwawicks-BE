@@ -254,7 +254,7 @@ public class InvoiceService : IInvoiceService
     // ── Payment ─────────────────────────────────────────────────────────────
     public async Task RecordPaymentAsync(string invoiceId, RecordPaymentRequest request, CancellationToken ct)
     {
-        var validTypes = new[] { "Cash", "EFT", "Credit" };
+        var validTypes = new[] { "Cash", "EFT", "Credit", "CardMachine" };
         if (!validTypes.Contains(request.PaymentType))
             throw new ArgumentException($"Invalid PaymentType '{request.PaymentType}'. Valid values: {string.Join(", ", validTypes)}");
 
