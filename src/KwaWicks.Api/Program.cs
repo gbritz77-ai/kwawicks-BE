@@ -1,4 +1,4 @@
-﻿using Amazon;
+using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Amazon.DynamoDBv2;
 using Amazon.S3;
@@ -11,6 +11,8 @@ using KwaWicks.Application.Services;
 using KwaWicks.Application.DTOs;
 using KwaWicks.Infrastructure.DynamoDB;
 using KwaWicks.Infrastructure.S3;
+using KwaWicks.Infrastructure.Pdf;
+using KwaWicks.Infrastructure.WhatsApp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,8 +68,6 @@ builder.Services.AddSwaggerGen(c =>
 // -------------------- AWS --------------------
 var awsRegion = builder.Configuration["Aws:Region"] ?? "af-south-1";
 
-// ✅ Use ONE config key (the one you're already using)
-// ✅ Fail fast if missing (prevents null tableName runtime errors)
 var tableName = builder.Configuration["Aws:DynamoTableName"]
                ?? Environment.GetEnvironmentVariable("AWS_DYNAMO_TABLE_NAME")
                ?? "kwawicks";
@@ -108,6 +108,10 @@ builder.Services.AddSingleton<IS3Service>(sp =>
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 
+// PDF + WhatsApp
+builder.Services.AddScoped<IPdfService, PdfService>();
+builder.Services.AddHttpClient<IWhatsAppService, WhatsAppService>();
+
 // -------------------- Cognito JWT Auth --------------------
 var cognitoRegion = builder.Configuration["Cognito:Region"] ?? "af-south-1";
 var userPoolId = builder.Configuration["Cognito:UserPoolId"]
@@ -118,7 +122,7 @@ builder.Services.AddScoped<IUserManagementService>(sp =>
         sp.GetRequiredService<IAmazonCognitoIdentityProvider>(),
         userPoolId));
 
-var authority = $"https://cognito-idp.{cognitoRegion}.amazonaws.com/{userPoolId}";
+var authority = "https://cognito-idp." + cognitoRegion + ".amazonaws.com/" + userPoolId;
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -139,15 +143,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    // Financial data — Owner and Finance only (Admin is operational, not financial)
     options.AddPolicy("FinancialAccess", p => p.RequireRole("Owner", "Finance"));
-    // Operational access — all non-driver roles
     options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
-    // User management — Owner and Admin only (Finance cannot manage users)
     options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Admin"));
-    // Driver endpoints — drivers only (Owner/Finance/Admin can also call if needed)
     options.AddPolicy("DriverOnly", p => p.RequireRole("Owner", "Finance", "Admin", "Driver"));
-    // Legacy compat
     options.AddPolicy("AdminOnly", p => p.RequireRole("Owner", "Finance", "Admin"));
     options.AddPolicy("HubStaffOnly", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
 });
@@ -161,26 +160,21 @@ builder.Services.AddSingleton<IAmazonCognitoIdentityProvider>(_ =>
 
 var app = builder.Build();
 
-// ✅ Behind ALB: trust X-Forwarded-* headers
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-// ✅ Only redirect in dev
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
-// Swagger
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// CORS before auth
 app.UseCors(UiCors);
 
-// Preflight
 app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok())
    .RequireCors(UiCors);
 
@@ -188,7 +182,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Root + health
 app.MapGet("/", () => Results.Ok("KwaWicks API is running"));
 app.MapGet("/health", () => Results.Ok("ok"));
 
