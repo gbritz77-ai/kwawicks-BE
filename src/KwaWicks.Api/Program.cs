@@ -96,6 +96,15 @@ builder.Services.AddScoped<IDeliveryOrderRepository>(sp =>
 builder.Services.AddScoped<IHubTaskRepository>(sp =>
     new HubTaskRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<ISupplierRepository>(sp =>
+    new SupplierRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
+builder.Services.AddScoped<IProcurementOrderRepository>(sp =>
+    new ProcurementOrderRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
+builder.Services.AddScoped<ICollectionRequestRepository>(sp =>
+    new CollectionRequestRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 // Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
@@ -107,6 +116,9 @@ builder.Services.AddSingleton<IS3Service>(sp =>
 
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<ISupplierService, SupplierService>();
+builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
+builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 
 // PDF + WhatsApp
 builder.Services.AddScoped<IPdfService, PdfService>();
@@ -144,11 +156,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("FinancialAccess", p => p.RequireRole("Owner", "Finance"));
-    options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
+    options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff", "Procurement"));
     options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Admin"));
     options.AddPolicy("DriverOnly", p => p.RequireRole("Owner", "Finance", "Admin", "Driver"));
     options.AddPolicy("AdminOnly", p => p.RequireRole("Owner", "Finance", "Admin"));
     options.AddPolicy("HubStaffOnly", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
+    options.AddPolicy("ProcurementAccess", p => p.RequireRole("Owner", "Procurement"));
+    options.AddPolicy("SupplierManagement", p => p.RequireRole("Owner", "Admin", "Procurement"));
+    options.AddPolicy("CollectionManagement", p => p.RequireRole("Owner", "Admin", "HubStaff"));
 });
 
 // -------------------- Cognito Client --------------------
