@@ -145,7 +145,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
             Status = item.TryGetValue("Status", out var st) ? st.S ?? "Pending" : "Pending",
             Notes = item.TryGetValue("Notes", out var notes) ? notes.S ?? "" : "",
             InvoiceS3Key = item.TryGetValue("InvoiceS3Key", out var inv) ? inv.S ?? "" : "",
-            DeliveryNoteS3Key = item.TryGetValue("DeliveryNoteS3Key", out var dn) ? dn.S ?? "" : "",
+            DeliveryNoteS3Key = item.TryGetValue("DeliveryNoteS3Key", out var dnKey) ? dnKey.S ?? "" : "",
             Lines = lines,
             CreatedAt = item.TryGetValue("CreatedAtUtc", out var ca)
                 ? DateTime.Parse(ca.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : DateTime.UtcNow,
