@@ -9,7 +9,7 @@ public class UserManagementService : IUserManagementService
 {
     private readonly IAmazonCognitoIdentityProvider _cognito;
     private readonly string _userPoolId;
-    private static readonly string[] KnownGroups = ["Owner", "Finance", "Admin", "HubStaff", "Driver"];
+    private static readonly string[] KnownGroups = ["Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver"];
 
     public UserManagementService(IAmazonCognitoIdentityProvider cognito, string userPoolId)
     {
