@@ -12,6 +12,7 @@ public class CollectionRequest
     public string Status { get; set; } = "Pending";
     public string Notes { get; set; } = "";
     public string InvoiceS3Key { get; set; } = "";
+    public string DeliveryNoteS3Key { get; set; } = "";
     public List<CollectionRequestLine> Lines { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

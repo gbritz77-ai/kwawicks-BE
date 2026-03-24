@@ -248,6 +248,20 @@ public class CollectionRequestService : ICollectionRequestService
         return new CollectionInvoiceUploadUrlResponse { UploadUrl = url, S3Key = key };
     }
 
+    public async Task<CollectionInvoiceUploadUrlResponse> GetDeliveryNoteUploadUrlAsync(string id, CancellationToken ct = default)
+    {
+        var cr = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {id}");
+
+        var key = $"collection/delivery-notes/{id}/{DateTime.UtcNow:yyyyMMddHHmmss}.jpg";
+        var url = await _s3.GeneratePresignedUploadUrlAsync(key, "image/jpeg", ct);
+
+        cr.DeliveryNoteS3Key = key;
+        await _repo.UpdateAsync(cr, ct);
+
+        return new CollectionInvoiceUploadUrlResponse { UploadUrl = url, S3Key = key };
+    }
+
     private static CollectionRequestResponse MapToResponse(CollectionRequest cr) => new()
     {
         CollectionRequestId = cr.CollectionRequestId,
@@ -260,6 +274,7 @@ public class CollectionRequestService : ICollectionRequestService
         Status = cr.Status,
         Notes = cr.Notes,
         InvoiceS3Key = cr.InvoiceS3Key,
+        DeliveryNoteS3Key = cr.DeliveryNoteS3Key,
         CreatedAt = cr.CreatedAt,
         UpdatedAt = cr.UpdatedAt,
         Lines = cr.Lines.Select(l => new CollectionRequestLineResponse

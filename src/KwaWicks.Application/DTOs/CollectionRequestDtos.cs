@@ -50,6 +50,7 @@ public class CollectionRequestResponse
     public string Status { get; set; } = "";
     public string Notes { get; set; } = "";
     public string InvoiceS3Key { get; set; } = "";
+    public string DeliveryNoteS3Key { get; set; } = "";
     public List<CollectionRequestLineResponse> Lines { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

@@ -123,6 +123,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
         ["Status"] = new AttributeValue { S = cr.Status ?? "Pending" },
         ["Notes"] = new AttributeValue { S = cr.Notes ?? "" },
         ["InvoiceS3Key"] = new AttributeValue { S = cr.InvoiceS3Key ?? "" },
+        ["DeliveryNoteS3Key"] = new AttributeValue { S = cr.DeliveryNoteS3Key ?? "" },
         ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(cr.Lines ?? new()) },
         ["CreatedAtUtc"] = new AttributeValue { S = cr.CreatedAt.ToString("O", CultureInfo.InvariantCulture) },
         ["UpdatedAtUtc"] = new AttributeValue { S = cr.UpdatedAt.ToString("O", CultureInfo.InvariantCulture) },
@@ -144,6 +145,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
             Status = item.TryGetValue("Status", out var st) ? st.S ?? "Pending" : "Pending",
             Notes = item.TryGetValue("Notes", out var notes) ? notes.S ?? "" : "",
             InvoiceS3Key = item.TryGetValue("InvoiceS3Key", out var inv) ? inv.S ?? "" : "",
+            DeliveryNoteS3Key = item.TryGetValue("DeliveryNoteS3Key", out var dn) ? dn.S ?? "" : "",
             Lines = lines,
             CreatedAt = item.TryGetValue("CreatedAtUtc", out var ca)
                 ? DateTime.Parse(ca.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : DateTime.UtcNow,
