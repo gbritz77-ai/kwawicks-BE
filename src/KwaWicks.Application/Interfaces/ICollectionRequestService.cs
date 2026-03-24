@@ -14,4 +14,5 @@ public interface ICollectionRequestService
     Task<CollectionRequestResponse> FinanceAcknowledgeAsync(string id, string invoiceS3Key, CancellationToken ct = default);
     Task<CollectionInvoiceUploadUrlResponse> GetInvoiceUploadUrlAsync(string id, CancellationToken ct = default);
     Task<CollectionInvoiceUploadUrlResponse> GetDeliveryNoteUploadUrlAsync(string id, CancellationToken ct = default);
+    Task<string> GetDeliveryNoteViewUrlAsync(string id, CancellationToken ct = default);
 }

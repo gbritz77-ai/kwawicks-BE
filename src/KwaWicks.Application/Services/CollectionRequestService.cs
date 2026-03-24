@@ -248,6 +248,17 @@ public class CollectionRequestService : ICollectionRequestService
         return new CollectionInvoiceUploadUrlResponse { UploadUrl = url, S3Key = key };
     }
 
+    public async Task<string> GetDeliveryNoteViewUrlAsync(string id, CancellationToken ct = default)
+    {
+        var cr = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {id}");
+
+        if (string.IsNullOrWhiteSpace(cr.DeliveryNoteS3Key))
+            throw new InvalidOperationException("No delivery note has been uploaded for this collection request.");
+
+        return await _s3.GeneratePresignedViewUrlAsync(cr.DeliveryNoteS3Key, 15, ct);
+    }
+
     public async Task<CollectionInvoiceUploadUrlResponse> GetDeliveryNoteUploadUrlAsync(string id, CancellationToken ct = default)
     {
         var cr = await _repo.GetAsync(id, ct)

@@ -107,6 +107,19 @@ public class CollectionRequestsController : ControllerBase
         catch (Exception ex) { return StatusCode(500, ex.Message); }
     }
 
+    [HttpGet("{id}/delivery-note-view-url")]
+    [Authorize(Policy = "FinancialAccess")]
+    public async Task<IActionResult> GetDeliveryNoteViewUrl(string id, CancellationToken ct)
+    {
+        try
+        {
+            var viewUrl = await _service.GetDeliveryNoteViewUrlAsync(id, ct);
+            return Ok(new { viewUrl });
+        }
+        catch (InvalidOperationException ex) { return NotFound(ex.Message); }
+        catch (Exception ex) { return StatusCode(500, ex.Message); }
+    }
+
     [HttpGet("{id}/delivery-note-upload-url")]
     [Authorize(Policy = "DriverOnly")]
     public async Task<IActionResult> GetDeliveryNoteUploadUrl(string id, CancellationToken ct)
