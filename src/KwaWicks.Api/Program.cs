@@ -156,7 +156,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("FinancialAccess", p => p.RequireRole("Owner", "Finance"));
-    options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff", "Procurement"));
+    options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver"));
     options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Admin"));
     options.AddPolicy("DriverOnly", p => p.RequireRole("Owner", "Finance", "Admin", "Driver"));
     options.AddPolicy("AdminOnly", p => p.RequireRole("Owner", "Finance", "Admin"));
