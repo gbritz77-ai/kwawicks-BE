@@ -122,6 +122,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
         ["HubId"] = new AttributeValue { S = cr.HubId ?? "" },
         ["Status"] = new AttributeValue { S = cr.Status ?? "Pending" },
         ["Notes"] = new AttributeValue { S = cr.Notes ?? "" },
+        ["CollectionDate"] = new AttributeValue { S = cr.CollectionDate.HasValue ? cr.CollectionDate.Value.ToString("O", CultureInfo.InvariantCulture) : "" },
         ["InvoiceS3Key"] = new AttributeValue { S = cr.InvoiceS3Key ?? "" },
         ["DeliveryNoteS3Key"] = new AttributeValue { S = cr.DeliveryNoteS3Key ?? "" },
         ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(cr.Lines ?? new()) },
@@ -144,6 +145,8 @@ public class CollectionRequestRepository : ICollectionRequestRepository
             HubId = item.TryGetValue("HubId", out var h) ? h.S ?? "" : "",
             Status = item.TryGetValue("Status", out var st) ? st.S ?? "Pending" : "Pending",
             Notes = item.TryGetValue("Notes", out var notes) ? notes.S ?? "" : "",
+            CollectionDate = item.TryGetValue("CollectionDate", out var cd) && !string.IsNullOrEmpty(cd.S)
+                ? DateTime.Parse(cd.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : null,
             InvoiceS3Key = item.TryGetValue("InvoiceS3Key", out var inv) ? inv.S ?? "" : "",
             DeliveryNoteS3Key = item.TryGetValue("DeliveryNoteS3Key", out var dnKey) ? dnKey.S ?? "" : "",
             Lines = lines,

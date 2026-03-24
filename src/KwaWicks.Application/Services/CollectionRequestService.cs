@@ -43,6 +43,7 @@ public class CollectionRequestService : ICollectionRequestService
             AssignedDriverName = request.AssignedDriverName ?? "",
             HubId = request.HubId ?? "hub-001",
             Notes = request.Notes ?? "",
+            CollectionDate = request.CollectionDate,
             Status = "Pending",
             Lines = po.Lines.Select(l => new CollectionRequestLine
             {
@@ -284,6 +285,7 @@ public class CollectionRequestService : ICollectionRequestService
         HubId = cr.HubId,
         Status = cr.Status,
         Notes = cr.Notes,
+        CollectionDate = cr.CollectionDate,
         InvoiceS3Key = cr.InvoiceS3Key,
         DeliveryNoteS3Key = cr.DeliveryNoteS3Key,
         CreatedAt = cr.CreatedAt,

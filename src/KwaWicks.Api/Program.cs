@@ -163,7 +163,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("HubStaffOnly", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff"));
     options.AddPolicy("ProcurementAccess", p => p.RequireRole("Owner", "Finance", "Admin", "Procurement"));
     options.AddPolicy("SupplierManagement", p => p.RequireRole("Owner", "Admin", "Procurement"));
-    options.AddPolicy("CollectionManagement", p => p.RequireRole("Owner", "Admin", "HubStaff"));
+    options.AddPolicy("CollectionManagement", p => p.RequireRole("Owner", "Admin", "HubStaff", "Procurement"));
 });
 
 // -------------------- Cognito Client --------------------

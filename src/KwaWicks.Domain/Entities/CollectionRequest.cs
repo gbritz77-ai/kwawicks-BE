@@ -11,6 +11,7 @@ public class CollectionRequest
     public string HubId { get; set; } = "";
     public string Status { get; set; } = "Pending";
     public string Notes { get; set; } = "";
+    public DateTime? CollectionDate { get; set; }
     public string InvoiceS3Key { get; set; } = "";
     public string DeliveryNoteS3Key { get; set; } = "";
     public List<CollectionRequestLine> Lines { get; set; } = new();
