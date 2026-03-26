@@ -56,6 +56,18 @@ public class WhatsAppService : IWhatsAppService
                 {
                     new
                     {
+                        type = "header",
+                        parameters = new object[]
+                        {
+                            new
+                            {
+                                type = "document",
+                                document = new { link = pdfUrl, filename = pdfFilename }
+                            }
+                        }
+                    },
+                    new
+                    {
                         type = "body",
                         parameters = new[]
                         {
@@ -96,6 +108,18 @@ public class WhatsAppService : IWhatsAppService
                 language = new { code = "en_US" },
                 components = new object[]
                 {
+                    new
+                    {
+                        type = "header",
+                        parameters = new object[]
+                        {
+                            new
+                            {
+                                type = "document",
+                                document = new { link = pdfUrl, filename = pdfFilename }
+                            }
+                        }
+                    },
                     new
                     {
                         type = "body",
