@@ -190,6 +190,15 @@ app.UseSwaggerUI();
 
 app.UseCors(UiCors);
 
+app.UseExceptionHandler(err => err.Run(async ctx =>
+{
+    ctx.Response.StatusCode = 500;
+    ctx.Response.ContentType = "application/json";
+    var ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
+    var msg = ex?.Error?.Message ?? "An unexpected error occurred.";
+    await ctx.Response.WriteAsJsonAsync(new { error = msg });
+}));
+
 app.MapMethods("{*path}", new[] { "OPTIONS" }, () => Results.Ok())
    .RequireCors(UiCors);
 
