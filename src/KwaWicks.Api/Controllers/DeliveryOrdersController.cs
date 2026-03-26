@@ -173,6 +173,9 @@ public class DeliveryOrdersController : ControllerBase
             return phoneOverride;
         }
 
-        return string.IsNullOrWhiteSpace(client.ClientPhone) ? null : client.ClientPhone;
+        // ClientPhone is the dedicated WhatsApp field; fall back to ClientContactDetails
+        return !string.IsNullOrWhiteSpace(client.ClientPhone)
+            ? client.ClientPhone
+            : (!string.IsNullOrWhiteSpace(client.ClientContactDetails) ? client.ClientContactDetails : null);
     }
 }
