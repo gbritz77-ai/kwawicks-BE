@@ -51,7 +51,7 @@ public class WhatsAppService : IWhatsAppService
             template = new
             {
                 name = "kwawicks_invoice",
-                language = new { code = "en_GB" },
+                language = new { code = "en_US" },
                 components = new object[]
                 {
                     new
@@ -105,7 +105,7 @@ public class WhatsAppService : IWhatsAppService
             template = new
             {
                 name = "kwawicks_statement",
-                language = new { code = "en_GB" },
+                language = new { code = "en_US" },
                 components = new object[]
                 {
                     new
