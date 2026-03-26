@@ -3,6 +3,7 @@ namespace KwaWicks.Domain.Entities;
 public class Invoice
 {
     public string InvoiceId { get; set; } = Guid.NewGuid().ToString();
+    public string InvoiceNumber { get; set; } = ""; // e.g. INV000001
     public string CustomerId { get; set; } = "";
     public string HubId { get; set; } = "";
     public string DeliveryOrderId { get; set; } = "";

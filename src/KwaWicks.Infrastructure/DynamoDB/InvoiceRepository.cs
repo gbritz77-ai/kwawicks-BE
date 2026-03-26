@@ -20,6 +20,31 @@ public class InvoiceRepository : IInvoiceRepository
 
     private static string Pk(string invoiceId) => $"INVOICE#{invoiceId}";
     private const string SkMeta = "META";
+    private const string CounterPk = "COUNTER#INVOICE";
+    private const string CounterSk = "SEQ";
+
+    public async Task<string> GetNextInvoiceNumberAsync(CancellationToken ct)
+    {
+        var resp = await _ddb.UpdateItemAsync(new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new AttributeValue { S = CounterPk },
+                ["SK"] = new AttributeValue { S = CounterSk }
+            },
+            UpdateExpression = "ADD #val :inc",
+            ExpressionAttributeNames = new Dictionary<string, string> { ["#val"] = "Value" },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":inc"] = new AttributeValue { N = "1" }
+            },
+            ReturnValues = ReturnValue.UPDATED_NEW
+        }, ct);
+
+        var seq = long.Parse(resp.Attributes["Value"].N);
+        return $"INV{seq:D6}";
+    }
 
     public async Task<Invoice> CreateAsync(Invoice invoice, CancellationToken ct)
     {
@@ -114,6 +139,7 @@ public class InvoiceRepository : IInvoiceRepository
             ["EntityType"] = new AttributeValue { S = "Invoice" },
 
             ["InvoiceId"] = new AttributeValue { S = inv.InvoiceId },
+            ["InvoiceNumber"] = new AttributeValue { S = inv.InvoiceNumber ?? "" },
             ["CustomerId"] = new AttributeValue { S = inv.CustomerId ?? "" },
             ["HubId"] = new AttributeValue { S = inv.HubId ?? "" },
             ["DeliveryOrderId"] = new AttributeValue { S = inv.DeliveryOrderId ?? "" },
@@ -141,6 +167,7 @@ public class InvoiceRepository : IInvoiceRepository
         return new Invoice
         {
             InvoiceId = item.TryGetValue("InvoiceId", out var id) ? id.S ?? "" : "",
+            InvoiceNumber = item.TryGetValue("InvoiceNumber", out var invNum) ? invNum.S ?? "" : "",
             CustomerId = item.TryGetValue("CustomerId", out var c) ? c.S ?? "" : "",
             HubId = item.TryGetValue("HubId", out var h) ? h.S ?? "" : "",
             DeliveryOrderId = item.TryGetValue("DeliveryOrderId", out var doi) ? doi.S ?? "" : "",

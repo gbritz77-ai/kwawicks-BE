@@ -43,10 +43,13 @@ public class InvoiceService : IInvoiceService
             if (l.VatRate < 0) throw new ArgumentException("VatRate cannot be negative.");
         }
 
+        var invoiceNumber = await _invoiceRepo.GetNextInvoiceNumberAsync(ct);
+
         var invoice = new Invoice
         {
             CustomerId = request.CustomerId,
             HubId = request.HubId,
+            InvoiceNumber = invoiceNumber,
             Lines = new List<InvoiceLine>()
         };
 
@@ -171,12 +174,15 @@ public class InvoiceService : IInvoiceService
                     $"For species {rl.SpeciesId}: delivered + returns ({totalAccounted}) must equal ordered quantity ({doLine.Quantity}).");
         }
 
+        var invoiceNumber = await _invoiceRepo.GetNextInvoiceNumberAsync(ct);
+
         var invoice = new Invoice
         {
             CustomerId = deliveryOrder.CustomerId,
             HubId = deliveryOrder.HubId,
             DeliveryOrderId = deliveryOrderId,
             CreatedByDriverId = request.CreatedByDriverId,
+            InvoiceNumber = invoiceNumber,
             PaymentStatus = "Pending",
             Lines = new List<InvoiceLine>()
         };
@@ -317,6 +323,7 @@ public class InvoiceService : IInvoiceService
     private static InvoiceResponse MapToResponse(Invoice invoice) => new()
     {
         InvoiceId = invoice.InvoiceId,
+        InvoiceNumber = invoice.InvoiceNumber,
         CustomerId = invoice.CustomerId,
         HubId = invoice.HubId,
         DeliveryOrderId = invoice.DeliveryOrderId,

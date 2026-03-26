@@ -64,6 +64,7 @@ public class ReceiptUploadUrlResponse
 public class InvoiceResponse
 {
     public string InvoiceId { get; set; } = "";
+    public string InvoiceNumber { get; set; } = ""; // e.g. INV000001
     public string CustomerId { get; set; } = "";
     public string HubId { get; set; } = "";
     public string DeliveryOrderId { get; set; } = "";
