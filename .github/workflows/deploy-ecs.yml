@@ -53,6 +53,9 @@ jobs:
           echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
 
       - name: Build task definition JSON
+        env:
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_ACCESS_TOKEN: ${{ secrets.WHATSAPP_ACCESS_TOKEN }}
         run: |
           set -e
           EXEC_ROLE_ARN=$(aws iam get-role --role-name "kwawicks-ecsTaskExecutionRole" --query Role.Arn --output text)
@@ -75,7 +78,9 @@ jobs:
                 "portMappings": [{ "containerPort": 8080, "protocol": "tcp" }],
                 "environment": [
                   { "name": "ASPNETCORE_ENVIRONMENT", "value": "Production" },
-                  { "name": "ASPNETCORE_URLS", "value": "http://+:8080" }
+                  { "name": "ASPNETCORE_URLS", "value": "http://+:8080" },
+                  { "name": "WHATSAPP_PHONE_NUMBER_ID", "value": "${WHATSAPP_PHONE_NUMBER_ID}" },
+                  { "name": "WHATSAPP_ACCESS_TOKEN", "value": "${WHATSAPP_ACCESS_TOKEN}" }
                 ],
                 "logConfiguration": {
                   "logDriver": "awslogs",
