@@ -13,6 +13,7 @@ using KwaWicks.Infrastructure.DynamoDB;
 using KwaWicks.Infrastructure.S3;
 using KwaWicks.Infrastructure.Pdf;
 using KwaWicks.Infrastructure.WhatsApp;
+using KwaWicks.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -120,9 +121,10 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 
-// PDF + WhatsApp
+// PDF + WhatsApp + Invoice notifications
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddHttpClient<IWhatsAppService, WhatsAppService>();
+builder.Services.AddScoped<IInvoiceNotificationService, InvoiceNotificationService>();
 
 // -------------------- Cognito JWT Auth --------------------
 var cognitoRegion = builder.Configuration["Cognito:Region"] ?? "af-south-1";

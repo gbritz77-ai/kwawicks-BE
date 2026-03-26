@@ -12,10 +12,17 @@ namespace KwaWicks.Api.Controllers;
 public class InvoicesController : ControllerBase
 {
     private readonly IInvoiceService _service;
+    private readonly IClientService _clientService;
+    private readonly IInvoiceNotificationService _notification;
 
-    public InvoicesController(IInvoiceService service)
+    public InvoicesController(
+        IInvoiceService service,
+        IClientService clientService,
+        IInvoiceNotificationService notification)
     {
         _service = service;
+        _clientService = clientService;
+        _notification = notification;
     }
 
     // POST /api/invoices  (hub-side direct invoice creation)
@@ -30,7 +37,19 @@ public class InvoicesController : ControllerBase
         try
         {
             var invoiceId = await _service.CreateInvoiceAsync(request, ct);
-            return CreatedAtAction(nameof(GetById), new { invoiceId }, new { invoiceId });
+
+            // Resolve effective phone: use override if provided, else client's saved phone
+            var effectivePhone = await ResolvePhoneAsync(request.CustomerId, request.ClientPhone, ct);
+
+            bool whatsAppSent = false;
+            string? whatsAppError = null;
+            if (!string.IsNullOrWhiteSpace(effectivePhone))
+            {
+                (whatsAppSent, whatsAppError) = await _notification.TrySendInvoiceWhatsAppAsync(invoiceId, effectivePhone, ct);
+            }
+
+            return CreatedAtAction(nameof(GetById), new { invoiceId },
+                new { invoiceId, whatsAppSent, whatsAppError });
         }
         catch (ArgumentException ex)
         {
@@ -40,6 +59,22 @@ public class InvoicesController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    private async Task<string?> ResolvePhoneAsync(string clientId, string? phoneOverride, CancellationToken ct)
+    {
+        var client = await _clientService.GetByIdAsync(clientId, ct);
+        if (client is null) return null;
+
+        // If a new phone was provided, save it to the client record
+        if (!string.IsNullOrWhiteSpace(phoneOverride))
+        {
+            if (string.IsNullOrWhiteSpace(client.ClientPhone))
+                await _clientService.PatchPhoneAsync(clientId, phoneOverride, ct);
+            return phoneOverride;
+        }
+
+        return string.IsNullOrWhiteSpace(client.ClientPhone) ? null : client.ClientPhone;
     }
 
     // GET /api/invoices/{invoiceId}

@@ -73,6 +73,15 @@ public class ClientService : IClientService
     public async Task<bool> DeleteAsync(string clientId, CancellationToken ct = default)
         => await _repo.DeleteAsync(clientId, ct);
 
+    public async Task PatchPhoneAsync(string clientId, string phone, CancellationToken ct = default)
+    {
+        var existing = await _repo.GetAsync(clientId, ct);
+        if (existing is null) return;
+        existing.ClientPhone = phone.Trim();
+        existing.UpdatedAtUtc = DateTime.UtcNow;
+        await _repo.PutAsync(existing, ct);
+    }
+
     private static ClientDto Map(Client c) => new()
     {
         ClientId = c.ClientId,

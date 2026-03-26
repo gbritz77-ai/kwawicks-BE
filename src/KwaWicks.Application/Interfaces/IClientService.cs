@@ -9,4 +9,5 @@ public interface IClientService
     Task<List<ClientDto>> ListAsync(int limit = 50, CancellationToken ct = default);
     Task<ClientDto?> UpdateAsync(string clientId, UpdateClientRequest request, CancellationToken ct = default);
     Task<bool> DeleteAsync(string clientId, CancellationToken ct = default);
+    Task PatchPhoneAsync(string clientId, string phone, CancellationToken ct = default);
 }

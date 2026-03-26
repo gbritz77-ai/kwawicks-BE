@@ -12,6 +12,9 @@ public class CreateInvoiceRequest
     public string PostalCode { get; set; } = "";
 
     public List<CreateInvoiceLine> Lines { get; set; } = new();
+
+    /// <summary>Optional phone to save on the client if they don't already have one.</summary>
+    public string? ClientPhone { get; set; }
 }
 
 public class CreateInvoiceLine
@@ -27,6 +30,9 @@ public class CreateInvoiceFromDeliveryRequest
 {
     public string CreatedByDriverId { get; set; } = "";
     public List<CreateInvoiceFromDeliveryLine> Lines { get; set; } = new();
+
+    /// <summary>Optional phone to save on the client if they don't already have one.</summary>
+    public string? ClientPhone { get; set; }
 }
 
 public class CreateInvoiceFromDeliveryLine

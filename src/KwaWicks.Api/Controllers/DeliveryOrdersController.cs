@@ -13,11 +13,19 @@ public class DeliveryOrdersController : ControllerBase
 {
     private readonly IDeliveryOrderService _service;
     private readonly IInvoiceService _invoiceService;
+    private readonly IClientService _clientService;
+    private readonly IInvoiceNotificationService _notification;
 
-    public DeliveryOrdersController(IDeliveryOrderService service, IInvoiceService invoiceService)
+    public DeliveryOrdersController(
+        IDeliveryOrderService service,
+        IInvoiceService invoiceService,
+        IClientService clientService,
+        IInvoiceNotificationService notification)
     {
         _service = service;
         _invoiceService = invoiceService;
+        _clientService = clientService;
+        _notification = notification;
     }
 
     // POST /api/delivery-orders
@@ -123,11 +131,25 @@ public class DeliveryOrdersController : ControllerBase
         try
         {
             var invoiceId = await _invoiceService.CreateFromDeliveryAsync(deliveryOrderId, request, ct);
+
+            // Resolve client phone from delivery order → client record
+            var order = await _service.GetAsync(deliveryOrderId, ct);
+            string? effectivePhone = null;
+            if (order is not null)
+                effectivePhone = await ResolvePhoneAsync(order.CustomerId, request.ClientPhone, ct);
+
+            bool whatsAppSent = false;
+            string? whatsAppError = null;
+            if (!string.IsNullOrWhiteSpace(effectivePhone))
+            {
+                (whatsAppSent, whatsAppError) = await _notification.TrySendInvoiceWhatsAppAsync(invoiceId, effectivePhone, ct);
+            }
+
             return CreatedAtAction(
                 nameof(InvoicesController.GetById),
                 "Invoices",
                 new { invoiceId },
-                new { invoiceId });
+                new { invoiceId, whatsAppSent, whatsAppError });
         }
         catch (ArgumentException ex)
         {
@@ -137,5 +159,20 @@ public class DeliveryOrdersController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    private async Task<string?> ResolvePhoneAsync(string clientId, string? phoneOverride, CancellationToken ct)
+    {
+        var client = await _clientService.GetByIdAsync(clientId, ct);
+        if (client is null) return null;
+
+        if (!string.IsNullOrWhiteSpace(phoneOverride))
+        {
+            if (string.IsNullOrWhiteSpace(client.ClientPhone))
+                await _clientService.PatchPhoneAsync(clientId, phoneOverride, ct);
+            return phoneOverride;
+        }
+
+        return string.IsNullOrWhiteSpace(client.ClientPhone) ? null : client.ClientPhone;
     }
 }
