@@ -71,8 +71,8 @@ public class WhatsAppService : IWhatsAppService
                         type = "body",
                         parameters = new[]
                         {
-                            new { type = "text", text = recipientName },
-                            new { type = "text", text = invoiceNumber },
+                            new { type = "text", text = string.IsNullOrWhiteSpace(recipientName) ? "Customer" : recipientName },
+                            new { type = "text", text = string.IsNullOrWhiteSpace(invoiceNumber) ? "N/A" : invoiceNumber },
                             new { type = "text", text = FormatTotal(grandTotal) }
                         }
                     }
@@ -125,7 +125,7 @@ public class WhatsAppService : IWhatsAppService
                         type = "body",
                         parameters = new[]
                         {
-                            new { type = "text", text = recipientName }
+                            new { type = "text", text = string.IsNullOrWhiteSpace(recipientName) ? "Customer" : recipientName }
                         }
                     }
                 }
