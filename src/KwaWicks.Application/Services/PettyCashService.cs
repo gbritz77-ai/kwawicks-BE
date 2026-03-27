@@ -7,10 +7,12 @@ namespace KwaWicks.Application.Services;
 public class PettyCashService : IPettyCashService
 {
     private readonly IPettyCashRepository _repo;
+    private readonly IS3Service _s3;
 
-    public PettyCashService(IPettyCashRepository repo)
+    public PettyCashService(IPettyCashRepository repo, IS3Service s3)
     {
         _repo = repo;
+        _s3 = s3;
     }
 
     public async Task<PettyCashEntryDto> CreateEntryAsync(
@@ -31,7 +33,8 @@ public class PettyCashService : IPettyCashService
             Category = string.IsNullOrWhiteSpace(request.Category) ? "Other" : request.Category,
             RecipientName = request.RecipientName?.Trim() ?? "",
             RecordedBy = recordedBy,
-            EntryDate = request.EntryDate
+            EntryDate = request.EntryDate,
+            AssignedDriverId = request.AssignedDriverId?.Trim() ?? ""
         };
 
         await _repo.CreateEntryAsync(entry, ct);
@@ -130,6 +133,26 @@ public class PettyCashService : IPettyCashService
         }).ToList();
     }
 
+    public async Task<List<PettyCashEntryDto>> ListDriverEntriesAsync(string driverId, CancellationToken ct)
+    {
+        var entries = await _repo.ListDriverEntriesAsync(driverId, ct);
+        return entries.Select(MapEntry).ToList();
+    }
+
+    public async Task<string> GetSlipUploadUrlAsync(string entryId, CancellationToken ct)
+    {
+        var s3Key = $"petty-cash-slips/{entryId}/{DateTime.UtcNow:yyyyMMddHHmmss}.jpg";
+        return await _s3.GeneratePresignedUploadUrlAsync(s3Key, "image/jpeg", ct);
+    }
+
+    public async Task<PettyCashEntryDto> ConfirmSlipUploadedAsync(string entryId, string s3Key, CancellationToken ct)
+    {
+        await _repo.UpdateEntrySlipAsync(entryId, s3Key, ct);
+        var entry = await _repo.GetEntryAsync(entryId, ct)
+                    ?? throw new ArgumentException("Entry not found.");
+        return MapEntry(entry);
+    }
+
     private static PettyCashEntryDto MapEntry(PettyCashEntry e) => new()
     {
         EntryId = e.EntryId,
@@ -141,6 +164,8 @@ public class PettyCashService : IPettyCashService
         RecordedBy = e.RecordedBy,
         EntryDate = e.EntryDate,
         CashupId = e.CashupId,
+        AssignedDriverId = e.AssignedDriverId,
+        SlipS3Key = e.SlipS3Key,
         CreatedAtUtc = e.CreatedAtUtc
     };
 }

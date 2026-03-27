@@ -11,6 +11,8 @@ public class PettyCashEntry
     public string RecordedBy { get; set; } = "";       // Cognito username of recorder
     public string EntryDate { get; set; } = "";        // YYYY-MM-DD
     public string CashupId { get; set; } = "";         // Set when included in a cashup
+    public string AssignedDriverId { get; set; } = ""; // Cognito username of assigned driver
+    public string SlipS3Key { get; set; } = "";        // S3 key of petrol/expense slip photo
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 

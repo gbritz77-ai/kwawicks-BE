@@ -127,7 +127,10 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
-builder.Services.AddScoped<IPettyCashService, PettyCashService>();
+builder.Services.AddScoped<IPettyCashService>(sp =>
+    new PettyCashService(
+        sp.GetRequiredService<IPettyCashRepository>(),
+        sp.GetRequiredService<IS3Service>()));
 
 // PDF + WhatsApp + Invoice notifications
 builder.Services.AddScoped<IPdfService, PdfService>();

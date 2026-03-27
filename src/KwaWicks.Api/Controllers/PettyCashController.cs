@@ -57,6 +57,46 @@ public class PettyCashController : ControllerBase
         }
     }
 
+    // GET /api/petty-cash/my-entries  (driver sees their own allocations)
+    [HttpGet("my-entries")]
+    [Authorize(Policy = "DriverOnly")]
+    [ProducesResponseType(typeof(List<PettyCashEntryDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyEntries(CancellationToken ct)
+    {
+        var driverId = User.Identity?.Name ?? User.FindFirst("cognito:username")?.Value ?? "";
+        var entries = await _service.ListDriverEntriesAsync(driverId, ct);
+        return Ok(entries);
+    }
+
+    // GET /api/petty-cash/entries/{id}/slip-upload-url
+    [HttpGet("entries/{id}/slip-upload-url")]
+    [Authorize(Policy = "DriverOnly")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSlipUploadUrl(string id, CancellationToken ct)
+    {
+        var url = await _service.GetSlipUploadUrlAsync(id, ct);
+        var s3Key = $"petty-cash-slips/{id}/{DateTime.UtcNow:yyyyMMddHHmmss}.jpg";
+        return Ok(new { uploadUrl = url, s3Key });
+    }
+
+    // PUT /api/petty-cash/entries/{id}/slip
+    [HttpPut("entries/{id}/slip")]
+    [Authorize(Policy = "DriverOnly")]
+    [ProducesResponseType(typeof(PettyCashEntryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConfirmSlipUploaded(string id, [FromBody] ConfirmSlipUploadRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.ConfirmSlipUploadedAsync(id, request.S3Key, ct);
+            return Ok(dto);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     // GET /api/petty-cash/cashups
     [HttpGet("cashups")]
     [ProducesResponseType(typeof(List<PettyCashupDto>), StatusCodes.Status200OK)]

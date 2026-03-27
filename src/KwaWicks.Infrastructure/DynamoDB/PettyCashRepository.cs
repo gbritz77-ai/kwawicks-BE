@@ -64,6 +64,50 @@ public class PettyCashRepository : IPettyCashRepository
             }, ct);
     }
 
+    public async Task<List<PettyCashEntry>> ListDriverEntriesAsync(string driverId, CancellationToken ct)
+    {
+        return await ScanEntries(
+            "EntityType = :et AND AssignedDriverId = :did",
+            new Dictionary<string, AttributeValue>
+            {
+                [":et"] = new() { S = "PettyCashEntry" },
+                [":did"] = new() { S = driverId }
+            }, ct);
+    }
+
+    public async Task<PettyCashEntry?> GetEntryAsync(string entryId, CancellationToken ct)
+    {
+        var resp = await _ddb.GetItemAsync(new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = EntryPk(entryId) },
+                ["SK"] = new() { S = SkMeta }
+            }
+        }, ct);
+        if (resp.Item == null || resp.Item.Count == 0) return null;
+        return EntryFromItem(resp.Item);
+    }
+
+    public async Task UpdateEntrySlipAsync(string entryId, string slipS3Key, CancellationToken ct)
+    {
+        await _ddb.UpdateItemAsync(new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = EntryPk(entryId) },
+                ["SK"] = new() { S = SkMeta }
+            },
+            UpdateExpression = "SET SlipS3Key = :key",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":key"] = new() { S = slipS3Key }
+            }
+        }, ct);
+    }
+
     public async Task MarkEntriesCashedUpAsync(IEnumerable<string> entryIds, string cashupId, CancellationToken ct)
     {
         foreach (var id in entryIds)
@@ -162,6 +206,8 @@ public class PettyCashRepository : IPettyCashRepository
         ["RecordedBy"] = new() { S = e.RecordedBy ?? "" },
         ["EntryDate"] = new() { S = e.EntryDate ?? "" },
         ["CashupId"] = new() { S = e.CashupId ?? "" },
+        ["AssignedDriverId"] = new() { S = e.AssignedDriverId ?? "" },
+        ["SlipS3Key"] = new() { S = e.SlipS3Key ?? "" },
         ["CreatedAtUtc"] = new() { S = e.CreatedAtUtc.ToString("O", CultureInfo.InvariantCulture) }
     };
 
@@ -176,6 +222,8 @@ public class PettyCashRepository : IPettyCashRepository
         RecordedBy = i.TryGetValue("RecordedBy", out var rb) ? rb.S ?? "" : "",
         EntryDate = i.TryGetValue("EntryDate", out var ed) ? ed.S ?? "" : "",
         CashupId = i.TryGetValue("CashupId", out var ci) ? ci.S ?? "" : "",
+        AssignedDriverId = i.TryGetValue("AssignedDriverId", out var aid) ? aid.S ?? "" : "",
+        SlipS3Key = i.TryGetValue("SlipS3Key", out var sk) ? sk.S ?? "" : "",
         CreatedAtUtc = i.TryGetValue("CreatedAtUtc", out var ca)
             ? DateTime.Parse(ca.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
             : DateTime.UtcNow

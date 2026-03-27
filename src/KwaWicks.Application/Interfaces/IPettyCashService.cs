@@ -9,4 +9,7 @@ public interface IPettyCashService
     Task<PettyCashSummaryDto> GetSummaryAsync(CancellationToken ct);
     Task<PettyCashupDto> CreateCashupAsync(CreateCashupRequest request, string closedBy, CancellationToken ct);
     Task<List<PettyCashupDto>> ListCashupsAsync(CancellationToken ct);
+    Task<List<PettyCashEntryDto>> ListDriverEntriesAsync(string driverId, CancellationToken ct);
+    Task<string> GetSlipUploadUrlAsync(string entryId, CancellationToken ct);
+    Task<PettyCashEntryDto> ConfirmSlipUploadedAsync(string entryId, string s3Key, CancellationToken ct);
 }

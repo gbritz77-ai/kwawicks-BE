@@ -10,6 +10,7 @@ public class CreatePettyCashEntryRequest
     public string Category { get; set; } = "Other";
     public string RecipientName { get; set; } = "";
     public string EntryDate { get; set; } = "";        // YYYY-MM-DD
+    public string AssignedDriverId { get; set; } = ""; // optional — Cognito username of driver
 }
 
 public class PettyCashEntryDto
@@ -23,7 +24,15 @@ public class PettyCashEntryDto
     public string RecordedBy { get; set; } = "";
     public string EntryDate { get; set; } = "";
     public string CashupId { get; set; } = "";
+    public string AssignedDriverId { get; set; } = "";
+    public string SlipS3Key { get; set; } = "";
+    public string? SlipUploadUrl { get; set; }         // populated on-demand
     public DateTime CreatedAtUtc { get; set; }
+}
+
+public class ConfirmSlipUploadRequest
+{
+    public string S3Key { get; set; } = "";
 }
 
 // ── Cashup ─────────────────────────────────────────────────────────────────
