@@ -109,6 +109,9 @@ builder.Services.AddScoped<ICollectionRequestRepository>(sp =>
 builder.Services.AddScoped<IStaffMemberRepository>(sp =>
     new StaffMemberRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IPettyCashRepository>(sp =>
+    new PettyCashRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 // Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
@@ -124,6 +127,7 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
+builder.Services.AddScoped<IPettyCashService, PettyCashService>();
 
 // PDF + WhatsApp + Invoice notifications
 builder.Services.AddScoped<IPdfService, PdfService>();
