@@ -140,6 +140,8 @@ public class InvoiceRepository : IInvoiceRepository
 
             ["InvoiceId"] = new AttributeValue { S = inv.InvoiceId },
             ["InvoiceNumber"] = new AttributeValue { S = inv.InvoiceNumber ?? "" },
+            ["SaleType"] = new AttributeValue { S = inv.SaleType ?? "Delivery" },
+            ["StaffMemberId"] = new AttributeValue { S = inv.StaffMemberId ?? "" },
             ["CustomerId"] = new AttributeValue { S = inv.CustomerId ?? "" },
             ["HubId"] = new AttributeValue { S = inv.HubId ?? "" },
             ["DeliveryOrderId"] = new AttributeValue { S = inv.DeliveryOrderId ?? "" },
@@ -168,6 +170,8 @@ public class InvoiceRepository : IInvoiceRepository
         {
             InvoiceId = item.TryGetValue("InvoiceId", out var id) ? id.S ?? "" : "",
             InvoiceNumber = item.TryGetValue("InvoiceNumber", out var invNum) ? invNum.S ?? "" : "",
+            SaleType = item.TryGetValue("SaleType", out var st2) ? st2.S ?? "Delivery" : "Delivery",
+            StaffMemberId = item.TryGetValue("StaffMemberId", out var smi) ? smi.S ?? "" : "",
             CustomerId = item.TryGetValue("CustomerId", out var c) ? c.S ?? "" : "",
             HubId = item.TryGetValue("HubId", out var h) ? h.S ?? "" : "",
             DeliveryOrderId = item.TryGetValue("DeliveryOrderId", out var doi) ? doi.S ?? "" : "",

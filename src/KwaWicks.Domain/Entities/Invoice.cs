@@ -9,6 +9,9 @@ public class Invoice
     public string DeliveryOrderId { get; set; } = "";
     public string CreatedByDriverId { get; set; } = "";
 
+    public string SaleType { get; set; } = "Delivery"; // Delivery | HubDirect
+    public string StaffMemberId { get; set; } = ""; // set when SaleType=HubDirect and buyer is staff
+
     public string Status { get; set; } = "Confirmed"; // Draft, Confirmed, Cancelled, Paid
 
     public string PaymentType { get; set; } = ""; // Cash, EFT, Credit

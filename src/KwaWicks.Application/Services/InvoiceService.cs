@@ -50,6 +50,9 @@ public class InvoiceService : IInvoiceService
             CustomerId = request.CustomerId,
             HubId = request.HubId,
             InvoiceNumber = invoiceNumber,
+            PaymentType = request.PaymentType ?? "",
+            SaleType = string.IsNullOrWhiteSpace(request.SaleType) ? "Delivery" : request.SaleType,
+            StaffMemberId = request.StaffMemberId ?? "",
             Lines = new List<InvoiceLine>()
         };
 
@@ -324,6 +327,8 @@ public class InvoiceService : IInvoiceService
     {
         InvoiceId = invoice.InvoiceId,
         InvoiceNumber = invoice.InvoiceNumber,
+        SaleType = invoice.SaleType,
+        StaffMemberId = invoice.StaffMemberId,
         CustomerId = invoice.CustomerId,
         HubId = invoice.HubId,
         DeliveryOrderId = invoice.DeliveryOrderId,

@@ -11,6 +11,10 @@ public class CreateInvoiceRequest
     public string Province { get; set; } = "";
     public string PostalCode { get; set; } = "";
 
+    public string PaymentType { get; set; } = "";
+    public string SaleType { get; set; } = "Delivery"; // Delivery | HubDirect
+    public string StaffMemberId { get; set; } = "";
+
     public List<CreateInvoiceLine> Lines { get; set; } = new();
 
     /// <summary>Optional phone to save on the client if they don't already have one.</summary>
@@ -64,7 +68,9 @@ public class ReceiptUploadUrlResponse
 public class InvoiceResponse
 {
     public string InvoiceId { get; set; } = "";
-    public string InvoiceNumber { get; set; } = ""; // e.g. INV000001
+    public string InvoiceNumber { get; set; } = "";
+    public string SaleType { get; set; } = "Delivery";
+    public string StaffMemberId { get; set; } = "";
     public string CustomerId { get; set; } = "";
     public string HubId { get; set; } = "";
     public string DeliveryOrderId { get; set; } = "";

@@ -31,6 +31,7 @@ public class ClientService : IClientService
             ClientContactDetails = request.ClientContactDetails?.Trim() ?? "",
             ClientPhone = request.ClientPhone?.Trim() ?? "",
             ClientType = request.ClientType,
+            IsWalkIn = request.IsWalkIn,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
@@ -64,6 +65,7 @@ public class ClientService : IClientService
         existing.ClientContactDetails = request.ClientContactDetails?.Trim() ?? "";
         existing.ClientPhone = request.ClientPhone?.Trim() ?? "";
         existing.ClientType = request.ClientType;
+        existing.IsWalkIn = request.IsWalkIn;
         existing.UpdatedAtUtc = DateTime.UtcNow;
 
         await _repo.PutAsync(existing, ct);
@@ -93,6 +95,7 @@ public class ClientService : IClientService
         ClientContactDetails = c.ClientContactDetails,
         ClientPhone = c.ClientPhone,
         ClientType = c.ClientType,
+        IsWalkIn = c.IsWalkIn,
         CreatedAtUtc = c.CreatedAtUtc,
         UpdatedAtUtc = c.UpdatedAtUtc
     };

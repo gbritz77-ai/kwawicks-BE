@@ -22,6 +22,7 @@ public class Client
     public string ClientPhone { get; set; } = string.Empty;
 
     public ClientType ClientType { get; set; } = ClientType.CODCASH;
+    public bool IsWalkIn { get; set; } = false;
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;

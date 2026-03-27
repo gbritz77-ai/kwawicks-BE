@@ -12,6 +12,7 @@ public class CreateClientRequest
     public string ClientContactDetails { get; set; } = string.Empty;
     public string ClientPhone { get; set; } = string.Empty;
     public ClientType ClientType { get; set; } = ClientType.CODCASH;
+    public bool IsWalkIn { get; set; } = false;
 }
 
 public class UpdateClientRequest
@@ -24,6 +25,7 @@ public class UpdateClientRequest
     public string ClientContactDetails { get; set; } = string.Empty;
     public string ClientPhone { get; set; } = string.Empty;
     public ClientType ClientType { get; set; } = ClientType.CODCASH;
+    public bool IsWalkIn { get; set; } = false;
 }
 
 public class ClientDto
@@ -37,6 +39,7 @@ public class ClientDto
     public string ClientContactDetails { get; set; } = string.Empty;
     public string ClientPhone { get; set; } = string.Empty;
     public ClientType ClientType { get; set; }
+    public bool IsWalkIn { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 }
