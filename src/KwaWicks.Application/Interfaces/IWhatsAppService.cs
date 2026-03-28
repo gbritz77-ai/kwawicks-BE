@@ -17,4 +17,10 @@ public interface IWhatsAppService
         string pdfUrl,
         string pdfFilename,
         CancellationToken ct = default);
+
+    Task SendHubRequestAsync(
+        string toPhone,
+        string requesterName,
+        string message,
+        CancellationToken ct = default);
 }

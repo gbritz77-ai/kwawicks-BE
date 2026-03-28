@@ -135,6 +135,46 @@ public class WhatsAppService : IWhatsAppService
         await SendRequestAsync(phoneNumberId, accessToken, payload, ct);
     }
 
+    public async Task SendHubRequestAsync(
+        string toPhone,
+        string requesterName,
+        string message,
+        CancellationToken ct = default)
+    {
+        var phoneNumberId = Environment.GetEnvironmentVariable("WHATSAPP_PHONE_NUMBER_ID")
+            ?? throw new InvalidOperationException("WHATSAPP_PHONE_NUMBER_ID is not set.");
+        var accessToken = Environment.GetEnvironmentVariable("WHATSAPP_ACCESS_TOKEN")
+            ?? throw new InvalidOperationException("WHATSAPP_ACCESS_TOKEN is not set.");
+
+        var to = FormatPhone(toPhone);
+
+        var payload = new
+        {
+            messaging_product = "whatsapp",
+            to,
+            type = "template",
+            template = new
+            {
+                name = "kwawicks_hub_request",
+                language = new { code = "en_US" },
+                components = new object[]
+                {
+                    new
+                    {
+                        type = "body",
+                        parameters = new[]
+                        {
+                            new { type = "text", parameter_name = "requester_name", text = string.IsNullOrWhiteSpace(requesterName) ? "Owner" : requesterName },
+                            new { type = "text", parameter_name = "message",        text = message.Length > 1024 ? message[..1024] : message }
+                        }
+                    }
+                }
+            }
+        };
+
+        await SendRequestAsync(phoneNumberId, accessToken, payload, ct);
+    }
+
     private async Task SendRequestAsync(string phoneNumberId, string accessToken, object payload, CancellationToken ct)
     {
         var json = JsonSerializer.Serialize(payload);
