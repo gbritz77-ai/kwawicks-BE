@@ -115,6 +115,9 @@ builder.Services.AddScoped<IPettyCashRepository>(sp =>
 builder.Services.AddScoped<IHubRequestRepository>(sp =>
     new HubRequestRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<ISettingsRepository>(sp =>
+    new SettingsRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 // Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
@@ -130,7 +133,12 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
-builder.Services.AddScoped<IHubRequestService, HubRequestService>();
+builder.Services.AddScoped<IHubRequestService>(sp =>
+    new HubRequestService(
+        sp.GetRequiredService<IHubRequestRepository>(),
+        sp.GetRequiredService<IWhatsAppService>(),
+        sp.GetRequiredService<ISettingsRepository>()));
+builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IPettyCashService>(sp =>
     new PettyCashService(
         sp.GetRequiredService<IPettyCashRepository>(),
@@ -172,6 +180,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("OwnerOnly",       p => p.RequireRole("Owner"));
     options.AddPolicy("FinancialAccess", p => p.RequireRole("Owner", "Finance"));
     options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver"));
     options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Admin"));

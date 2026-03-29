@@ -8,11 +8,13 @@ public class HubRequestService : IHubRequestService
 {
     private readonly IHubRequestRepository _repo;
     private readonly IWhatsAppService _whatsApp;
+    private readonly ISettingsRepository _settings;
 
-    public HubRequestService(IHubRequestRepository repo, IWhatsAppService whatsApp)
+    public HubRequestService(IHubRequestRepository repo, IWhatsAppService whatsApp, ISettingsRepository settings)
     {
         _repo = repo;
         _whatsApp = whatsApp;
+        _settings = settings;
     }
 
     public async Task<HubRequestDto> CreateAsync(CreateHubRequestRequest request, string requestedBy, CancellationToken ct)
@@ -26,8 +28,11 @@ public class HubRequestService : IHubRequestService
             Message = request.Message.Trim(),
         };
 
-        // Send WhatsApp notification to the configured hub number
-        var hubPhone = Environment.GetEnvironmentVariable("HUB_WHATSAPP_NUMBER") ?? "";
+        // Hub number: prefer DB setting, fall back to env var
+        var dbSettings = await _settings.GetAsync(ct);
+        var hubPhone = dbSettings?.HubWhatsAppNumber?.Trim()
+                       ?? Environment.GetEnvironmentVariable("HUB_WHATSAPP_NUMBER")
+                       ?? "";
         if (!string.IsNullOrWhiteSpace(hubPhone))
         {
             try
