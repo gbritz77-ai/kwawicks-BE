@@ -145,4 +145,18 @@ public class CollectionRequestsController : ControllerBase
         catch (InvalidOperationException ex) { return NotFound(ex.Message); }
         catch (Exception ex) { return StatusCode(500, ex.Message); }
     }
+
+    [HttpPost("{id}/allocations")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> AddAllocation(string id, [FromBody] AddDeliveryAllocationRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.AddDeliveryAllocationAsync(id, request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (Exception ex) { return StatusCode(500, ex.Message); }
+    }
 }

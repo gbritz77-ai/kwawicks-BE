@@ -15,4 +15,5 @@ public interface ICollectionRequestService
     Task<CollectionInvoiceUploadUrlResponse> GetInvoiceUploadUrlAsync(string id, CancellationToken ct = default);
     Task<CollectionInvoiceUploadUrlResponse> GetDeliveryNoteUploadUrlAsync(string id, CancellationToken ct = default);
     Task<string> GetDeliveryNoteViewUrlAsync(string id, CancellationToken ct = default);
+    Task<CollectionRequestResponse> AddDeliveryAllocationAsync(string id, AddDeliveryAllocationRequest request, CancellationToken ct = default);
 }

@@ -9,17 +9,23 @@ public class CollectionRequestService : ICollectionRequestService
     private readonly ICollectionRequestRepository _repo;
     private readonly IProcurementOrderRepository _poRepo;
     private readonly ISpeciesRepository _speciesRepo;
+    private readonly IDeliveryOrderRepository _deliveryRepo;
+    private readonly IClientRepository _clientRepo;
     private readonly IS3Service _s3;
 
     public CollectionRequestService(
         ICollectionRequestRepository repo,
         IProcurementOrderRepository poRepo,
         ISpeciesRepository speciesRepo,
+        IDeliveryOrderRepository deliveryRepo,
+        IClientRepository clientRepo,
         IS3Service s3)
     {
         _repo = repo;
         _poRepo = poRepo;
         _speciesRepo = speciesRepo;
+        _deliveryRepo = deliveryRepo;
+        _clientRepo = clientRepo;
         _s3 = s3;
     }
 
@@ -274,6 +280,109 @@ public class CollectionRequestService : ICollectionRequestService
         return new CollectionInvoiceUploadUrlResponse { UploadUrl = url, S3Key = key };
     }
 
+    public async Task<CollectionRequestResponse> AddDeliveryAllocationAsync(string id, AddDeliveryAllocationRequest request, CancellationToken ct = default)
+    {
+        var cr = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {id}");
+
+        if (cr.Status != "Pending" && cr.Status != "Loading")
+            throw new InvalidOperationException($"Allocations can only be added when Pending or Loading. Current: {cr.Status}");
+
+        if (string.IsNullOrWhiteSpace(request.ClientId))
+            throw new ArgumentException("ClientId is required.");
+
+        if (request.Lines == null || request.Lines.Count == 0)
+            throw new ArgumentException("At least one allocation line is required.");
+
+        var client = await _clientRepo.GetAsync(request.ClientId, ct)
+            ?? throw new InvalidOperationException($"Client not found: {request.ClientId}");
+
+        // Validate quantities: cannot allocate more than ordered across all allocations per species
+        foreach (var reqLine in request.Lines)
+        {
+            var crLine = cr.Lines.FirstOrDefault(l => l.SpeciesId == reqLine.SpeciesId)
+                ?? throw new InvalidOperationException($"Species {reqLine.SpeciesId} is not part of this collection.");
+
+            if (reqLine.Qty <= 0)
+                throw new ArgumentException($"Quantity for species {reqLine.SpeciesId} must be greater than zero.");
+
+            // Sum already-allocated qty for this species across existing allocations
+            var alreadyAllocated = cr.DeliveryAllocations
+                .SelectMany(a => a.Lines)
+                .Where(l => l.SpeciesId == reqLine.SpeciesId)
+                .Sum(l => l.Qty);
+
+            if (alreadyAllocated + reqLine.Qty > crLine.OrderedQty)
+                throw new InvalidOperationException(
+                    $"Allocation of {reqLine.Qty} for species {reqLine.SpeciesId} exceeds available qty. " +
+                    $"Ordered: {crLine.OrderedQty}, already allocated: {alreadyAllocated}.");
+        }
+
+        // Build the DeliveryOrder lines, resolving species names
+        var doLines = new List<DeliveryOrderLine>();
+        var allocationLines = new List<CollectionAllocationLine>();
+
+        foreach (var reqLine in request.Lines)
+        {
+            var species = await _speciesRepo.GetAsync(reqLine.SpeciesId, ct);
+            var speciesName = species?.Name ?? reqLine.SpeciesId;
+            var unitPrice = reqLine.UnitPrice ?? 0m;
+
+            doLines.Add(new DeliveryOrderLine
+            {
+                SpeciesId = reqLine.SpeciesId,
+                Quantity = reqLine.Qty,
+                UnitPrice = unitPrice
+            });
+
+            allocationLines.Add(new CollectionAllocationLine
+            {
+                SpeciesId = reqLine.SpeciesId,
+                SpeciesName = speciesName,
+                Qty = reqLine.Qty,
+                UnitPrice = unitPrice
+            });
+
+            // Book out of hub inventory as en-route: only QtyBookedOutForDelivery increases
+            // (stock is on the truck, not physically at hub — QtyOnHandHub is NOT decremented here)
+            if (species != null)
+            {
+                species.QtyBookedOutForDelivery += reqLine.Qty;
+                await _speciesRepo.UpdateAsync(species, ct);
+            }
+        }
+
+        // Create the DeliveryOrder — status OutForDelivery because driver is already assigned & en route
+        var deliveryOrder = new KwaWicks.Domain.Entities.DeliveryOrder
+        {
+            AssignedDriverId = cr.AssignedDriverId,
+            AssignedDriverName = cr.AssignedDriverName,
+            CustomerId = client.ClientId,
+            HubId = cr.HubId,
+            Status = "OutForDelivery",
+            DeliveryAddressLine1 = client.ClientAddress,
+            City = client.ClientCity,
+            Province = client.ClientProvince,
+            PostalCode = client.ClientPostalCode,
+            Lines = doLines
+        };
+
+        await _deliveryRepo.CreateAsync(deliveryOrder, ct);
+
+        // Record allocation on the collection request
+        cr.DeliveryAllocations.Add(new CollectionDeliveryAllocation
+        {
+            DeliveryOrderId = deliveryOrder.DeliveryOrderId,
+            ClientId = client.ClientId,
+            ClientName = client.ClientName,
+            Lines = allocationLines
+        });
+
+        await _repo.UpdateAsync(cr, ct);
+
+        return MapToResponse(cr);
+    }
+
     private static CollectionRequestResponse MapToResponse(CollectionRequest cr) => new()
     {
         CollectionRequestId = cr.CollectionRequestId,
@@ -299,6 +408,19 @@ public class CollectionRequestService : ICollectionRequestService
             LoadingNotes = l.LoadingNotes,
             ReceivedQty = l.ReceivedQty,
             DiscrepancyNotes = l.DiscrepancyNotes
+        }).ToList(),
+        DeliveryAllocations = cr.DeliveryAllocations.Select(a => new CollectionDeliveryAllocationResponse
+        {
+            DeliveryOrderId = a.DeliveryOrderId,
+            ClientId = a.ClientId,
+            ClientName = a.ClientName,
+            Lines = a.Lines.Select(l => new CollectionAllocationLineResponse
+            {
+                SpeciesId = l.SpeciesId,
+                SpeciesName = l.SpeciesName,
+                Qty = l.Qty,
+                UnitPrice = l.UnitPrice
+            }).ToList()
         }).ToList()
     };
 }

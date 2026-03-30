@@ -54,6 +54,7 @@ public class CollectionRequestResponse
     public string InvoiceS3Key { get; set; } = "";
     public string DeliveryNoteS3Key { get; set; } = "";
     public List<CollectionRequestLineResponse> Lines { get; set; } = new();
+    public List<CollectionDeliveryAllocationResponse> DeliveryAllocations { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -73,4 +74,33 @@ public class CollectionInvoiceUploadUrlResponse
 {
     public string UploadUrl { get; set; } = "";
     public string S3Key { get; set; } = "";
+}
+
+public class AddDeliveryAllocationRequest
+{
+    public string ClientId { get; set; } = "";
+    public List<AllocationLineRequest> Lines { get; set; } = new();
+}
+
+public class AllocationLineRequest
+{
+    public string SpeciesId { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal? UnitPrice { get; set; }
+}
+
+public class CollectionDeliveryAllocationResponse
+{
+    public string DeliveryOrderId { get; set; } = "";
+    public string ClientId { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public List<CollectionAllocationLineResponse> Lines { get; set; } = new();
+}
+
+public class CollectionAllocationLineResponse
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal UnitPrice { get; set; }
 }

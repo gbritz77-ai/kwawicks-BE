@@ -15,8 +15,25 @@ public class CollectionRequest
     public string InvoiceS3Key { get; set; } = "";
     public string DeliveryNoteS3Key { get; set; } = "";
     public List<CollectionRequestLine> Lines { get; set; } = new();
+    public List<CollectionDeliveryAllocation> DeliveryAllocations { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class CollectionDeliveryAllocation
+{
+    public string DeliveryOrderId { get; set; } = "";
+    public string ClientId { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public List<CollectionAllocationLine> Lines { get; set; } = new();
+}
+
+public class CollectionAllocationLine
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal UnitPrice { get; set; }
 }
 
 public class CollectionRequestLine

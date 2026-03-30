@@ -126,6 +126,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
         ["InvoiceS3Key"] = new AttributeValue { S = cr.InvoiceS3Key ?? "" },
         ["DeliveryNoteS3Key"] = new AttributeValue { S = cr.DeliveryNoteS3Key ?? "" },
         ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(cr.Lines ?? new()) },
+        ["DeliveryAllocationsJson"] = new AttributeValue { S = JsonSerializer.Serialize(cr.DeliveryAllocations ?? new()) },
         ["CreatedAtUtc"] = new AttributeValue { S = cr.CreatedAt.ToString("O", CultureInfo.InvariantCulture) },
         ["UpdatedAtUtc"] = new AttributeValue { S = cr.UpdatedAt.ToString("O", CultureInfo.InvariantCulture) },
     };
@@ -134,6 +135,8 @@ public class CollectionRequestRepository : ICollectionRequestRepository
     {
         var linesJson = item.TryGetValue("LinesJson", out var lj) ? lj.S : "[]";
         var lines = JsonSerializer.Deserialize<List<CollectionRequestLine>>(linesJson ?? "[]") ?? new();
+        var allocJson = item.TryGetValue("DeliveryAllocationsJson", out var aj) ? aj.S : "[]";
+        var allocations = JsonSerializer.Deserialize<List<CollectionDeliveryAllocation>>(allocJson ?? "[]") ?? new();
         return new CollectionRequest
         {
             CollectionRequestId = item.TryGetValue("CollectionRequestId", out var id) ? id.S ?? "" : "",
@@ -150,6 +153,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
             InvoiceS3Key = item.TryGetValue("InvoiceS3Key", out var inv) ? inv.S ?? "" : "",
             DeliveryNoteS3Key = item.TryGetValue("DeliveryNoteS3Key", out var dnKey) ? dnKey.S ?? "" : "",
             Lines = lines,
+            DeliveryAllocations = allocations,
             CreatedAt = item.TryGetValue("CreatedAtUtc", out var ca)
                 ? DateTime.Parse(ca.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : DateTime.UtcNow,
             UpdatedAt = item.TryGetValue("UpdatedAtUtc", out var ua)
