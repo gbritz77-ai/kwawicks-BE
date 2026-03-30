@@ -44,7 +44,7 @@ public class ProcurementOrdersController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Policy = "ProcurementAccess")]
+    [Authorize(Policy = "OwnerOnly")]
     public async Task<IActionResult> Update(string id, [FromBody] CreateProcurementOrderRequest request, CancellationToken ct)
     {
         try
@@ -58,7 +58,7 @@ public class ProcurementOrdersController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Policy = "ProcurementAccess")]
+    [Authorize(Policy = "OwnerOnly")]
     public async Task<IActionResult> Delete(string id, CancellationToken ct)
     {
         try
