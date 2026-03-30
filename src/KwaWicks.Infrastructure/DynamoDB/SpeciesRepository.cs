@@ -71,6 +71,19 @@ public class SpeciesRepository : ISpeciesRepository
         return res.Item is null || res.Item.Count == 0 ? null : FromItem(res.Item);
     }
 
+    public async Task DeleteAsync(string speciesId, CancellationToken ct)
+    {
+        await _ddb.DeleteItemAsync(new DeleteItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new AttributeValue { S = Pk(speciesId) },
+                ["SK"] = new AttributeValue { S = SkMeta }
+            }
+        }, ct);
+    }
+
     public async Task<Species?> UpdateAsync(Species species, CancellationToken ct)
     {
         if (species is null) throw new ArgumentNullException(nameof(species));

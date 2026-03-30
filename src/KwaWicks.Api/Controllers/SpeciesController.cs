@@ -61,6 +61,21 @@ public class SpeciesController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpDelete("{speciesId}")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Delete(string speciesId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(speciesId))
+            return BadRequest(new { error = "speciesId is required." });
+
+        var deleted = await _service.DeleteAsync(speciesId, ct);
+        return deleted ? NoContent() : NotFound();
+    }
+
     [HttpPut("{speciesId}")]
     [Authorize(Policy = "AdminOnly")]
     [ProducesResponseType(typeof(SpeciesResponse), StatusCodes.Status200OK)]

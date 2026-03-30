@@ -52,6 +52,15 @@ public class SpeciesService
         return list.Select(ToResponse).ToList();
     }
 
+    public async Task<bool> DeleteAsync(string speciesId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(speciesId)) return false;
+        var existing = await _repo.GetAsync(speciesId.Trim(), ct);
+        if (existing is null) return false;
+        await _repo.DeleteAsync(speciesId.Trim(), ct);
+        return true;
+    }
+
     public async Task<SpeciesResponse?> GetAsync(string speciesId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(speciesId)) return null;

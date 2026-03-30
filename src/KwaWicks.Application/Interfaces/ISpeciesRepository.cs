@@ -8,4 +8,5 @@ public interface ISpeciesRepository
     Task<List<Species>> ListAsync(CancellationToken ct);
     Task<Species?> GetAsync(string speciesId, CancellationToken ct);
     Task<Species?> UpdateAsync(Species species, CancellationToken ct);
+    Task DeleteAsync(string speciesId, CancellationToken ct);
 }
