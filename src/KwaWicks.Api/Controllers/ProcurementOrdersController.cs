@@ -43,6 +43,33 @@ public class ProcurementOrdersController : ControllerBase
         catch (Exception ex) { return StatusCode(500, ex.Message); }
     }
 
+    [HttpPut("{id}")]
+    [Authorize(Policy = "ProcurementAccess")]
+    public async Task<IActionResult> Update(string id, [FromBody] CreateProcurementOrderRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.UpdateDraftAsync(id, request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) { return BadRequest(ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (Exception ex) { return StatusCode(500, ex.Message); }
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "ProcurementAccess")]
+    public async Task<IActionResult> Delete(string id, CancellationToken ct)
+    {
+        try
+        {
+            await _service.DeleteDraftAsync(id, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (Exception ex) { return StatusCode(500, ex.Message); }
+    }
+
     [HttpPut("{id}/submit")]
     [Authorize(Policy = "ProcurementAccess")]
     public async Task<IActionResult> Submit(string id, CancellationToken ct)

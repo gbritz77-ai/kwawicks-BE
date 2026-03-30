@@ -75,6 +75,55 @@ public class ProcurementOrderService : IProcurementOrderService
         return orders.Select(MapToResponse).ToList();
     }
 
+    public async Task<ProcurementOrderResponse> UpdateDraftAsync(string id, CreateProcurementOrderRequest request, CancellationToken ct = default)
+    {
+        var order = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Procurement order not found: {id}");
+        if (order.Status != "Draft")
+            throw new InvalidOperationException("Only Draft orders can be edited.");
+
+        if (string.IsNullOrWhiteSpace(request.SupplierId)) throw new ArgumentException("SupplierId is required.");
+        if (request.Lines == null || request.Lines.Count == 0) throw new ArgumentException("At least one line is required.");
+
+        var supplier = await _supplierRepo.GetAsync(request.SupplierId, ct)
+            ?? throw new InvalidOperationException($"Supplier not found: {request.SupplierId}");
+
+        order.SupplierId = request.SupplierId;
+        order.SupplierName = supplier.Name;
+        order.SupplierOrderReference = request.SupplierOrderReference ?? "";
+        order.Notes = request.Notes ?? "";
+        order.Lines = new List<ProcurementOrderLine>();
+
+        foreach (var line in request.Lines)
+        {
+            if (string.IsNullOrWhiteSpace(line.SpeciesId)) throw new ArgumentException("SpeciesId is required on all lines.");
+            if (line.OrderedQty <= 0) throw new ArgumentException("OrderedQty must be greater than 0.");
+
+            var species = await _speciesRepo.GetAsync(line.SpeciesId, ct)
+                ?? throw new InvalidOperationException($"Species not found: {line.SpeciesId}");
+
+            order.Lines.Add(new ProcurementOrderLine
+            {
+                SpeciesId = line.SpeciesId,
+                SpeciesName = species.Name,
+                OrderedQty = line.OrderedQty,
+                UnitCost = line.UnitCost ?? species.UnitCost
+            });
+        }
+
+        await _repo.UpdateAsync(order, ct);
+        return MapToResponse(order);
+    }
+
+    public async Task DeleteDraftAsync(string id, CancellationToken ct = default)
+    {
+        var order = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Procurement order not found: {id}");
+        if (order.Status != "Draft")
+            throw new InvalidOperationException("Only Draft orders can be deleted.");
+        await _repo.DeleteAsync(id, ct);
+    }
+
     public async Task SubmitAsync(string id, CancellationToken ct = default)
     {
         var order = await _repo.GetAsync(id, ct)

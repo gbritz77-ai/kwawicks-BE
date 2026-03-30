@@ -8,4 +8,5 @@ public interface IProcurementOrderRepository
     Task<ProcurementOrder?> GetAsync(string id, CancellationToken ct = default);
     Task<List<ProcurementOrder>> ListAsync(string? status = null, string? supplierId = null, CancellationToken ct = default);
     Task<ProcurementOrder> UpdateAsync(ProcurementOrder order, CancellationToken ct = default);
+    Task DeleteAsync(string id, CancellationToken ct = default);
 }

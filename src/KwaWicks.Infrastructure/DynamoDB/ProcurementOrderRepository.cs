@@ -89,6 +89,19 @@ public class ProcurementOrderRepository : IProcurementOrderRepository
         return result.OrderByDescending(o => o.CreatedAt).ToList();
     }
 
+    public async Task DeleteAsync(string id, CancellationToken ct = default)
+    {
+        await _ddb.DeleteItemAsync(new DeleteItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new AttributeValue { S = Pk(id) },
+                ["SK"] = new AttributeValue { S = SkMeta }
+            }
+        }, ct);
+    }
+
     public async Task<ProcurementOrder> UpdateAsync(ProcurementOrder order, CancellationToken ct = default)
     {
         order.UpdatedAt = DateTime.UtcNow;
