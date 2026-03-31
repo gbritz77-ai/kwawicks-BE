@@ -20,4 +20,7 @@ public class ClientCreditEntry
     public string Notes { get; set; } = "";
     public string CreatedByUserId { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>S3 key of proof-of-payment photo/document. Empty when none uploaded.</summary>
+    public string ProofS3Key { get; set; } = "";
 }

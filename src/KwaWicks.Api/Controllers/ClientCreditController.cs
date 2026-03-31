@@ -32,6 +32,20 @@ public class ClientCreditController : ControllerBase
         return Ok(new { balance });
     }
 
+    // GET /api/clients/{clientId}/credit/proof-upload-url?contentType=image/jpeg
+    [HttpGet("proof-upload-url")]
+    public async Task<IActionResult> GetProofUploadUrl(
+        string clientId,
+        [FromQuery] string contentType,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+            return BadRequest(new { error = "contentType is required." });
+
+        var result = await _service.GetProofUploadUrlAsync(clientId, contentType, ct);
+        return Ok(result);
+    }
+
     // POST /api/clients/{clientId}/credit — add a deposit
     [HttpPost]
     public async Task<IActionResult> AddDeposit(

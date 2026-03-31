@@ -102,6 +102,7 @@ public class ClientCreditRepository : IClientCreditRepository
         ["Notes"]           = new() { S = e.Notes },
         ["CreatedByUserId"] = new() { S = e.CreatedByUserId },
         ["CreatedAt"]       = new() { S = e.CreatedAt.ToString("O") },
+        ["ProofS3Key"]      = new() { S = e.ProofS3Key },
     };
 
     private static ClientCreditEntry FromItem(Dictionary<string, AttributeValue> item)
@@ -124,6 +125,7 @@ public class ClientCreditRepository : IClientCreditRepository
             Notes           = Str(item, "Notes"),
             CreatedByUserId = Str(item, "CreatedByUserId"),
             CreatedAt       = Dt(item,  "CreatedAt"),
+            ProofS3Key      = Str(item, "ProofS3Key"),
         };
     }
 }

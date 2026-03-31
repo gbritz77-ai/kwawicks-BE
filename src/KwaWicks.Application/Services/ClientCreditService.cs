@@ -8,11 +8,13 @@ public class ClientCreditService : IClientCreditService
 {
     private readonly IClientCreditRepository _repo;
     private readonly IClientRepository _clientRepo;
+    private readonly IS3Service _s3;
 
-    public ClientCreditService(IClientCreditRepository repo, IClientRepository clientRepo)
+    public ClientCreditService(IClientCreditRepository repo, IClientRepository clientRepo, IS3Service s3)
     {
         _repo = repo;
         _clientRepo = clientRepo;
+        _s3 = s3;
     }
 
     public async Task<ClientCreditEntryResponse> AddDepositAsync(
@@ -33,6 +35,7 @@ public class ClientCreditService : IClientCreditService
             Notes           = request.Notes,
             CreatedByUserId = request.CreatedByUserId,
             Reference       = "",
+            ProofS3Key      = request.ProofS3Key?.Trim() ?? "",
         };
 
         await _repo.AddEntryAsync(entry, ct);
@@ -76,6 +79,22 @@ public class ClientCreditService : IClientCreditService
     public Task<decimal> GetBalanceAsync(string clientId, CancellationToken ct = default)
         => _repo.GetBalanceAsync(clientId, ct);
 
+    public async Task<CreditProofUploadUrlResponse> GetProofUploadUrlAsync(
+        string clientId, string contentType, CancellationToken ct = default)
+    {
+        var ext = contentType switch
+        {
+            "image/jpeg"       => "jpg",
+            "image/png"        => "png",
+            "image/heic"       => "heic",
+            "application/pdf"  => "pdf",
+            _                  => "bin"
+        };
+        var s3Key = $"credit-proofs/{clientId}/{DateTime.UtcNow:yyyyMMddHHmmssffff}.{ext}";
+        var url   = await _s3.GeneratePresignedUploadUrlAsync(s3Key, contentType, ct);
+        return new CreditProofUploadUrlResponse { UploadUrl = url, S3Key = s3Key };
+    }
+
     private static ClientCreditEntryResponse Map(ClientCreditEntry e) => new()
     {
         EntryId         = e.EntryId,
@@ -87,5 +106,6 @@ public class ClientCreditService : IClientCreditService
         Notes           = e.Notes,
         CreatedByUserId = e.CreatedByUserId,
         CreatedAt       = e.CreatedAt,
+        ProofS3Key      = e.ProofS3Key,
     };
 }

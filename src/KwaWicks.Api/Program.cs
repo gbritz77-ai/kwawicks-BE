@@ -136,7 +136,11 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
-builder.Services.AddScoped<IClientCreditService, ClientCreditService>();
+builder.Services.AddScoped<IClientCreditService>(sp =>
+    new ClientCreditService(
+        sp.GetRequiredService<IClientCreditRepository>(),
+        sp.GetRequiredService<IClientRepository>(),
+        sp.GetRequiredService<IS3Service>()));
 builder.Services.AddScoped<IHubRequestService>(sp =>
     new HubRequestService(
         sp.GetRequiredService<IHubRequestRepository>(),
