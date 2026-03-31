@@ -44,17 +44,20 @@ public class HubSalesController : ControllerBase
     private readonly IClientService _clientService;
     private readonly IStaffMemberService _staffService;
     private readonly IInvoiceNotificationService _notification;
+    private readonly IClientCreditService _creditService;
 
     public HubSalesController(
         IInvoiceService invoiceService,
         IClientService clientService,
         IStaffMemberService staffService,
-        IInvoiceNotificationService notification)
+        IInvoiceNotificationService notification,
+        IClientCreditService creditService)
     {
         _invoiceService = invoiceService;
         _clientService = clientService;
         _staffService = staffService;
         _notification = notification;
+        _creditService = creditService;
     }
 
     // POST /api/hub-sales
@@ -126,7 +129,21 @@ public class HubSalesController : ControllerBase
 
             var invoiceId = await _invoiceService.CreateInvoiceAsync(invoiceReq, ct);
 
-            // 3. Auto-send WhatsApp for non-staff sales
+            // 3. If payment is from client credit account, auto-debit the balance
+            bool creditCharged = false;
+            decimal newCreditBalance = 0m;
+            if (request.PaymentType == "AccountCredit" && !string.IsNullOrWhiteSpace(customerId))
+            {
+                var invoice = await _invoiceService.GetAsync(invoiceId, ct);
+                if (invoice != null)
+                {
+                    await _creditService.ChargeInvoiceAsync(customerId, invoiceId, invoice.GrandTotal, ct);
+                    newCreditBalance = await _creditService.GetBalanceAsync(customerId, ct);
+                    creditCharged = true;
+                }
+            }
+
+            // 4. Auto-send WhatsApp for non-staff sales
             bool whatsAppSent = false;
             string? whatsAppError = null;
             if (!string.IsNullOrWhiteSpace(effectivePhone) && string.IsNullOrWhiteSpace(request.StaffMemberId))
@@ -135,7 +152,7 @@ public class HubSalesController : ControllerBase
             }
 
             return CreatedAtAction(nameof(GetById), new { invoiceId },
-                new { invoiceId, whatsAppSent, whatsAppError });
+                new { invoiceId, whatsAppSent, whatsAppError, creditCharged, newCreditBalance });
         }
         catch (ArgumentException ex)
         {

@@ -112,6 +112,9 @@ builder.Services.AddScoped<IStaffMemberRepository>(sp =>
 builder.Services.AddScoped<IPettyCashRepository>(sp =>
     new PettyCashRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IClientCreditRepository>(sp =>
+    new ClientCreditRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 builder.Services.AddScoped<IHubRequestRepository>(sp =>
     new HubRequestRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
@@ -133,6 +136,7 @@ builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
+builder.Services.AddScoped<IClientCreditService, ClientCreditService>();
 builder.Services.AddScoped<IHubRequestService>(sp =>
     new HubRequestService(
         sp.GetRequiredService<IHubRequestRepository>(),
