@@ -146,7 +146,9 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IPettyCashService>(sp =>
     new PettyCashService(
         sp.GetRequiredService<IPettyCashRepository>(),
-        sp.GetRequiredService<IS3Service>()));
+        sp.GetRequiredService<IS3Service>(),
+        sp.GetRequiredService<IInvoiceRepository>(),
+        sp.GetRequiredService<IClientCreditRepository>()));
 
 // PDF + WhatsApp + Invoice notifications
 builder.Services.AddScoped<IPdfService, PdfService>();

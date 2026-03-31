@@ -56,6 +56,36 @@ public class ClientCreditRepository : IClientCreditRepository
         return entries.Sum(e => e.Amount);
     }
 
+    public async Task<decimal> SumCashDepositsAsync(DateTime? since, CancellationToken ct = default)
+    {
+        // Positive-amount entries with PaymentMethod=Cash (deposits only, not invoice charges)
+        var filterParts = new List<string> { "EntityType = :et", "PaymentMethod = :pm", "Amount > :zero" };
+        var values = new Dictionary<string, AttributeValue>
+        {
+            [":et"]   = new() { S = "ClientCreditEntry" },
+            [":pm"]   = new() { S = "Cash" },
+            [":zero"] = new() { N = "0" }
+        };
+
+        if (since.HasValue)
+        {
+            filterParts.Add("CreatedAt >= :since");
+            values[":since"] = new() { S = since.Value.ToString("O", CultureInfo.InvariantCulture) };
+        }
+
+        var resp = await _ddb.ScanAsync(new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = string.Join(" AND ", filterParts),
+            ExpressionAttributeValues = values,
+            ProjectionExpression = "Amount"
+        }, ct);
+
+        return resp.Items
+            .Where(i => i.TryGetValue("Amount", out var a) && a.N is not null)
+            .Sum(i => decimal.Parse(i["Amount"].N!, NumberStyles.Any, CultureInfo.InvariantCulture));
+    }
+
     // ── Serialisation ──────────────────────────────────────────────────────
 
     private static Dictionary<string, AttributeValue> ToItem(ClientCreditEntry e) => new()

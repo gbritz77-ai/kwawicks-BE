@@ -70,4 +70,9 @@ public class PettyCashSummaryDto
     public int OpenEntryCount { get; set; }
     public string? LastCashupDate { get; set; }
     public List<PettyCashEntryDto> OpenEntries { get; set; } = new();
+
+    // All-cash breakdown (since last cashup)
+    public decimal CashFromHubSales { get; set; }
+    public decimal CashFromCreditDeposits { get; set; }
+    public decimal TotalCashInCustody { get; set; }   // CurrentBalance + CashFromHubSales + CashFromCreditDeposits
 }

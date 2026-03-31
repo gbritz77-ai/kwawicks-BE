@@ -131,6 +131,44 @@ public class InvoiceRepository : IInvoiceRepository
         return result;
     }
 
+    public async Task<decimal> SumCashSalesAsync(DateTime? since, CancellationToken ct)
+    {
+        var filterParts = new List<string> { "EntityType = :et", "PaymentType = :pt" };
+        var values = new Dictionary<string, AttributeValue>
+        {
+            [":et"] = new() { S = "Invoice" },
+            [":pt"] = new() { S = "Cash" }
+        };
+
+        if (since.HasValue)
+        {
+            filterParts.Add("CreatedAtUtc >= :since");
+            values[":since"] = new() { S = since.Value.ToString("O", CultureInfo.InvariantCulture) };
+        }
+
+        var req = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = string.Join(" AND ", filterParts),
+            ExpressionAttributeValues = values,
+            ProjectionExpression = "GrandTotal"
+        };
+
+        decimal total = 0m;
+        ScanResponse? response;
+        do
+        {
+            response = await _ddb.ScanAsync(req, ct);
+            foreach (var item in response.Items)
+                if (item.TryGetValue("GrandTotal", out var gt) && decimal.TryParse(gt.N, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+                    total += val;
+            req.ExclusiveStartKey = response.LastEvaluatedKey;
+        }
+        while (response.LastEvaluatedKey is { Count: > 0 });
+
+        return total;
+    }
+
     private static Dictionary<string, AttributeValue> ToItem(Invoice inv) =>
         new()
         {

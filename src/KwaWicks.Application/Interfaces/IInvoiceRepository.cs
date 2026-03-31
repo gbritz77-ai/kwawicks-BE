@@ -9,4 +9,5 @@ public interface IInvoiceRepository
     Task<Invoice> UpdateAsync(Invoice invoice, CancellationToken ct);
     Task<List<Invoice>> ListAsync(string? hubId, string? customerId, CancellationToken ct);
     Task<string> GetNextInvoiceNumberAsync(CancellationToken ct);
+    Task<decimal> SumCashSalesAsync(DateTime? since, CancellationToken ct);
 }

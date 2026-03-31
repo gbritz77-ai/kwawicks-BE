@@ -8,11 +8,19 @@ public class PettyCashService : IPettyCashService
 {
     private readonly IPettyCashRepository _repo;
     private readonly IS3Service _s3;
+    private readonly IInvoiceRepository _invoiceRepo;
+    private readonly IClientCreditRepository _creditRepo;
 
-    public PettyCashService(IPettyCashRepository repo, IS3Service s3)
+    public PettyCashService(
+        IPettyCashRepository repo,
+        IS3Service s3,
+        IInvoiceRepository invoiceRepo,
+        IClientCreditRepository creditRepo)
     {
         _repo = repo;
         _s3 = s3;
+        _invoiceRepo = invoiceRepo;
+        _creditRepo = creditRepo;
     }
 
     public async Task<PettyCashEntryDto> CreateEntryAsync(
@@ -55,15 +63,24 @@ public class PettyCashService : IPettyCashService
         var totalIn = openEntries.Where(e => e.Type == "In").Sum(e => e.Amount);
         var totalOut = openEntries.Where(e => e.Type == "Out").Sum(e => e.Amount);
         var openingBalance = lastCashup?.ActualBalance ?? 0m;
+        var currentBalance = openingBalance + totalIn - totalOut;
+
+        // Cash received from hub sales and client credit deposits since last cashup
+        DateTime? since = lastCashup?.CreatedAtUtc;
+        var cashFromHubSales = await _invoiceRepo.SumCashSalesAsync(since, ct);
+        var cashFromCreditDeposits = await _creditRepo.SumCashDepositsAsync(since, ct);
 
         return new PettyCashSummaryDto
         {
-            CurrentBalance = openingBalance + totalIn - totalOut,
+            CurrentBalance = currentBalance,
             TotalInSinceLastCashup = totalIn,
             TotalOutSinceLastCashup = totalOut,
             OpenEntryCount = openEntries.Count,
             LastCashupDate = lastCashup?.CashupDate,
-            OpenEntries = openEntries.Select(MapEntry).ToList()
+            OpenEntries = openEntries.Select(MapEntry).ToList(),
+            CashFromHubSales = cashFromHubSales,
+            CashFromCreditDeposits = cashFromCreditDeposits,
+            TotalCashInCustody = currentBalance + cashFromHubSales + cashFromCreditDeposits
         };
     }
 
