@@ -169,6 +169,36 @@ public class InvoicesController : ControllerBase
         }
     }
 
+    // PATCH /api/invoices/{invoiceId}/lines  (Owner: update prices and resend WhatsApp)
+    [HttpPatch("{invoiceId}/lines")]
+    [Authorize(Policy = "OwnerOnly")]
+    public async Task<IActionResult> UpdateLines(string invoiceId, [FromBody] UpdateInvoiceLinesRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var invoice = await _service.UpdateLinesAsync(invoiceId, request, ct);
+
+            // Resolve client phone and immediately resend the updated invoice via WhatsApp
+            var effectivePhone = await ResolvePhoneAsync(invoice.CustomerId, null, ct);
+            bool whatsAppSent = false;
+            string? whatsAppError = null;
+            if (!string.IsNullOrWhiteSpace(effectivePhone))
+            {
+                (whatsAppSent, whatsAppError) = await _notification.TrySendInvoiceWhatsAppAsync(invoiceId, effectivePhone, ct);
+            }
+
+            return Ok(new UpdateInvoiceLinesResponse
+            {
+                Invoice = invoice,
+                WhatsAppSent = whatsAppSent,
+                WhatsAppError = whatsAppError
+            });
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return NotFound(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
+
     // GET /api/invoices/{invoiceId}/receipt-upload-url
     [HttpGet("{invoiceId}/receipt-upload-url")]
     [Authorize(Policy = "DriverOnly")]

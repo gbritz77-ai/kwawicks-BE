@@ -323,6 +323,50 @@ public class InvoiceService : IInvoiceService
         return await _s3Service.GeneratePresignedViewUrlAsync(invoice.ReceiptS3Key, ct);
     }
 
+    // ── Owner: edit prices on an existing invoice ────────────────────────────
+    public async Task<InvoiceResponse> UpdateLinesAsync(string invoiceId, UpdateInvoiceLinesRequest request, CancellationToken ct)
+    {
+        if (request.Lines == null || request.Lines.Count == 0)
+            throw new ArgumentException("At least one line update is required.");
+
+        var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
+            ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
+
+        foreach (var update in request.Lines)
+        {
+            var line = invoice.Lines.FirstOrDefault(l => l.SpeciesId == update.SpeciesId)
+                ?? throw new InvalidOperationException($"Species {update.SpeciesId} is not on this invoice.");
+
+            if (update.UnitPriceIncl < 0)
+                throw new ArgumentException($"Unit price cannot be negative (species {update.SpeciesId}).");
+
+            // Input is incl. VAT — back-calculate to ex-VAT for storage
+            var exVatPrice = line.VatRate > 0
+                ? update.UnitPriceIncl / (1 + line.VatRate)
+                : update.UnitPriceIncl;
+
+            line.UnitPrice = exVatPrice;
+            line.LineTotal = line.Quantity * exVatPrice * (1 + line.VatRate);
+        }
+
+        // Recalculate totals across all lines (incl. lines not in the update)
+        decimal subTotal = 0m, vatTotal = 0m;
+        foreach (var line in invoice.Lines)
+        {
+            var net = line.Quantity * line.UnitPrice;
+            subTotal += net;
+            vatTotal += net * line.VatRate;
+        }
+
+        invoice.SubTotal = subTotal;
+        invoice.VatTotal = vatTotal;
+        invoice.GrandTotal = subTotal + vatTotal;
+        invoice.UpdatedAt = DateTime.UtcNow;
+
+        await _invoiceRepo.UpdateAsync(invoice, ct);
+        return MapToResponse(invoice);
+    }
+
     private static InvoiceResponse MapToResponse(Invoice invoice) => new()
     {
         InvoiceId = invoice.InvoiceId,

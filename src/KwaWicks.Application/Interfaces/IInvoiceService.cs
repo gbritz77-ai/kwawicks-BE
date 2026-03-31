@@ -12,4 +12,7 @@ public interface IInvoiceService
     Task ConfirmPaymentAsync(string invoiceId, CancellationToken ct);
     Task<ReceiptUploadUrlResponse> GetReceiptUploadUrlAsync(string invoiceId, CancellationToken ct);
     Task<string> GetReceiptViewUrlAsync(string invoiceId, CancellationToken ct);
+
+    /// <summary>Owner-only: update unit prices on an existing invoice. Recalculates all totals.</summary>
+    Task<InvoiceResponse> UpdateLinesAsync(string invoiceId, UpdateInvoiceLinesRequest request, CancellationToken ct);
 }

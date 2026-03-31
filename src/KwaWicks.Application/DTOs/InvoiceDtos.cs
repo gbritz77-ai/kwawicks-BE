@@ -64,6 +64,27 @@ public class ReceiptUploadUrlResponse
     public DateTime ExpiresAt { get; set; }
 }
 
+// ── Owner: update invoice line prices & resend WhatsApp ───────────────────
+public class UpdateInvoiceLinesRequest
+{
+    public List<UpdateInvoiceLineRequest> Lines { get; set; } = new();
+}
+
+public class UpdateInvoiceLineRequest
+{
+    public string SpeciesId { get; set; } = "";
+
+    /// <summary>New unit price entered inclusive of VAT. Back-calculated to ex-VAT internally.</summary>
+    public decimal UnitPriceIncl { get; set; }
+}
+
+public class UpdateInvoiceLinesResponse
+{
+    public InvoiceResponse Invoice { get; set; } = null!;
+    public bool WhatsAppSent { get; set; }
+    public string? WhatsAppError { get; set; }
+}
+
 // ── Response DTO ───────────────────────────────────────────────────────────
 public class InvoiceResponse
 {
