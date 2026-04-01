@@ -121,6 +121,22 @@ public class CollectionRequestService : ICollectionRequestService
         cr.Status = "InTransit";
         await _repo.UpdateAsync(cr, ct);
 
+        // Stock is now on the driver's vehicle — activate any delivery orders that were
+        // waiting for collection to begin (AwaitingCollection → OutForDelivery).
+        foreach (var allocation in cr.DeliveryAllocations)
+        {
+            try
+            {
+                var deliveryOrder = await _deliveryRepo.GetAsync(allocation.DeliveryOrderId, ct);
+                if (deliveryOrder != null && deliveryOrder.Status == "AwaitingCollection")
+                {
+                    deliveryOrder.Status = "OutForDelivery";
+                    await _deliveryRepo.UpdateAsync(deliveryOrder, ct);
+                }
+            }
+            catch { /* non-fatal — delivery order visibility degrades gracefully */ }
+        }
+
         // Advance PO to InTransit
         var po = await _poRepo.GetAsync(cr.ProcurementOrderId, ct);
         if (po != null && po.Status == "CollectionScheduled")
@@ -285,8 +301,9 @@ public class CollectionRequestService : ICollectionRequestService
         var cr = await _repo.GetAsync(id, ct)
             ?? throw new InvalidOperationException($"Collection request not found: {id}");
 
-        if (cr.Status != "Pending" && cr.Status != "Loading")
-            throw new InvalidOperationException($"Allocations can only be added when Pending or Loading. Current: {cr.Status}");
+        var allocatableStatuses = new[] { "Pending", "Loading", "InTransit", "ArrivedAtHub", "HubConfirmed" };
+        if (!allocatableStatuses.Contains(cr.Status))
+            throw new InvalidOperationException($"Allocations can only be added before the collection is finalised. Current: {cr.Status}");
 
         if (string.IsNullOrWhiteSpace(request.ClientId))
             throw new ArgumentException("ClientId is required.");
@@ -352,14 +369,17 @@ public class CollectionRequestService : ICollectionRequestService
             }
         }
 
-        // Create the DeliveryOrder — status OutForDelivery because driver is already assigned & en route
+        // Delivery orders are hidden from drivers until stock is actually collected from the supplier.
+        // Once the driver dispatches (InTransit), DispatchAsync promotes them to OutForDelivery.
+        // If the allocation is added after dispatch the stock is already on the vehicle — visible immediately.
+        var stockAlreadyCollected = cr.Status is "InTransit" or "ArrivedAtHub" or "HubConfirmed";
         var deliveryOrder = new KwaWicks.Domain.Entities.DeliveryOrder
         {
             AssignedDriverId = cr.AssignedDriverId,
             AssignedDriverName = cr.AssignedDriverName,
             CustomerId = client.ClientId,
             HubId = cr.HubId,
-            Status = "OutForDelivery",
+            Status = stockAlreadyCollected ? "OutForDelivery" : "AwaitingCollection",
             DeliveryAddressLine1 = client.ClientAddress,
             City = client.ClientCity,
             Province = client.ClientProvince,
