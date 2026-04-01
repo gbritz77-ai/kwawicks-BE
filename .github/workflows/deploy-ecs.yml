@@ -34,6 +34,18 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Pull MCR base images (retry up to 5x for transient 403s)
+        run: |
+          for IMG in \
+            mcr.microsoft.com/dotnet/sdk:8.0 \
+            mcr.microsoft.com/dotnet/aspnet:8.0; do
+            for i in 1 2 3 4 5; do
+              docker pull --platform linux/amd64 "$IMG" && break
+              echo "Attempt $i for $IMG failed — retrying in 20s..."
+              sleep 20
+            done
+          done
+
       - name: Build, tag, push image
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
@@ -42,7 +54,7 @@ jobs:
           ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
           IMAGE="${ECR_URI}:${GITHUB_SHA}"
 
-          docker build -t "${CONTAINER_NAME}" .
+          docker build --platform linux/amd64 -t "${CONTAINER_NAME}" .
           docker tag "${CONTAINER_NAME}:latest" "${IMAGE}"
           docker tag "${CONTAINER_NAME}:latest" "${ECR_URI}:latest"
 

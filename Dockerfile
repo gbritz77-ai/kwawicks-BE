@@ -1,5 +1,5 @@
 ﻿# ===== BUILD STAGE =====
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 COPY . .
@@ -7,7 +7,7 @@ RUN dotnet restore "src/KwaWicks.Api/KwaWicks.Api.csproj"
 RUN dotnet publish "src/KwaWicks.Api/KwaWicks.Api.csproj" -c Release -o /app/publish
 
 # ===== RUNTIME STAGE =====
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
