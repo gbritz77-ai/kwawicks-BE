@@ -143,12 +143,12 @@ public class UserManagementService : IUserManagementService
     {
         try
         {
-            await _cognito.CreateGroupAsync(new Amazon.CognitoIdentityProvider.Model.CreateGroupRequest
+            await _cognito.CreateGroupAsync(new CreateGroupRequest
             {
                 UserPoolId = _userPoolId,
                 GroupName = groupName
             }, ct);
         }
-        catch (Amazon.CognitoIdentityProvider.Model.GroupExistsException) { /* already exists, fine */ }
+        catch (GroupExistsException) { /* already exists, fine */ }
     }
 }
