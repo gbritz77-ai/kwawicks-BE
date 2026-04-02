@@ -142,14 +142,6 @@ public class ProcurementOrderService : IProcurementOrderService
         await _repo.UpdateAsync(order, ct);
     }
 
-    public async Task AdvanceStatusAsync(string id, string newStatus, CancellationToken ct = default)
-    {
-        var order = await _repo.GetAsync(id, ct)
-            ?? throw new InvalidOperationException($"Procurement order not found: {id}");
-        order.Status = newStatus;
-        await _repo.UpdateAsync(order, ct);
-    }
-
     public async Task<ProcurementInvoiceUploadUrlResponse> GetInvoiceUploadUrlAsync(string id, CancellationToken ct = default)
     {
         var order = await _repo.GetAsync(id, ct)
