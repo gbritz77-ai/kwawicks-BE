@@ -9,7 +9,7 @@ public class UserManagementService : IUserManagementService
 {
     private readonly IAmazonCognitoIdentityProvider _cognito;
     private readonly string _userPoolId;
-    private static readonly string[] KnownGroups = ["Owner", "Finance", "Admin", "HubStaff", "Driver"];
+    private static readonly string[] KnownGroups = ["Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver"];
 
     public UserManagementService(IAmazonCognitoIdentityProvider cognito, string userPoolId)
     {
@@ -79,6 +79,7 @@ public class UserManagementService : IUserManagementService
 
         if (!string.IsNullOrEmpty(request.Group))
         {
+            await EnsureGroupExistsAsync(request.Group, ct);
             await _cognito.AdminAddUserToGroupAsync(new AdminAddUserToGroupRequest
             {
                 UserPoolId = _userPoolId,
@@ -119,6 +120,7 @@ public class UserManagementService : IUserManagementService
 
         if (!string.IsNullOrEmpty(newGroup))
         {
+            await EnsureGroupExistsAsync(newGroup, ct);
             await _cognito.AdminAddUserToGroupAsync(new AdminAddUserToGroupRequest
             {
                 UserPoolId = _userPoolId,
@@ -135,5 +137,18 @@ public class UserManagementService : IUserManagementService
             UserPoolId = _userPoolId,
             Username = username
         }, ct);
+    }
+
+    private async Task EnsureGroupExistsAsync(string groupName, CancellationToken ct)
+    {
+        try
+        {
+            await _cognito.CreateGroupAsync(new CreateGroupRequest
+            {
+                UserPoolId = _userPoolId,
+                GroupName = groupName
+            }, ct);
+        }
+        catch (GroupExistsException) { /* already exists, fine */ }
     }
 }

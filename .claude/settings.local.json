@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/source/KwaWicks/kwawicks-BE/**)",
+      "Bash(dotnet build:*)",
+      "Read(//c/source/KwaWicks/kwawicks-UI/**)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

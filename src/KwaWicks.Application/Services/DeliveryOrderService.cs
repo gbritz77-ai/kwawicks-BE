@@ -125,7 +125,7 @@ public class DeliveryOrderService : IDeliveryOrderService
 
     public async Task UpdateStatusAsync(string deliveryOrderId, string status, CancellationToken ct)
     {
-        var validStatuses = new[] { "Open", "OutForDelivery", "Delivered" };
+        var validStatuses = new[] { "Open", "OutForDelivery", "Delivered", "MarkedAtHub" };
         if (!validStatuses.Contains(status))
             throw new ArgumentException($"Invalid status '{status}'. Valid values: {string.Join(", ", validStatuses)}");
 
