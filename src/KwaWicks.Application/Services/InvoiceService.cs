@@ -114,6 +114,10 @@ public class InvoiceService : IInvoiceService
             };
             await _deliveryRepo.CreateAsync(deliveryOrder, ct);
 
+            // Back-link the delivery order ID onto the invoice now that we have it
+            invoice.DeliveryOrderId = deliveryOrder.DeliveryOrderId;
+            await _invoiceRepo.UpdateAsync(invoice, ct);
+
             var hubTask = new HubTask
             {
                 HubId = request.HubId,
