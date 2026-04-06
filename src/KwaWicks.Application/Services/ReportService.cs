@@ -208,6 +208,7 @@ public class ReportService : IReportService
             .Select(i => new InvoiceResponse
             {
                 InvoiceId = i.InvoiceId,
+                InvoiceNumber = i.InvoiceNumber,
                 CustomerId = i.CustomerId,
                 HubId = i.HubId,
                 DeliveryOrderId = i.DeliveryOrderId,
