@@ -129,7 +129,14 @@ public class HubSalesController : ControllerBase
 
             var invoiceId = await _invoiceService.CreateInvoiceAsync(invoiceReq, ct);
 
-            // 3. If payment is from client credit account, auto-debit the balance
+            // 3a. Immediately confirm Cash / EFT / Card payments — no Finance sign-off needed
+            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine" };
+            if (immediatePayTypes.Contains(request.PaymentType))
+            {
+                await _invoiceService.ConfirmPaymentAsync(invoiceId, ct);
+            }
+
+            // 3b. If payment is from client credit account, auto-debit the balance
             bool creditCharged = false;
             decimal newCreditBalance = 0m;
             if (request.PaymentType == "AccountCredit" && !string.IsNullOrWhiteSpace(customerId))
