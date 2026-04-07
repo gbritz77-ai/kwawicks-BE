@@ -142,28 +142,30 @@ public class DeliveryOrderService : IDeliveryOrderService
         if (string.IsNullOrWhiteSpace(driverId))
             return new List<DriverStockItem>();
 
-        // Stock is only available to sell while a delivery is actively in progress.
-        // Once delivered, the selling window closes — leftovers go through the return-to-hub flow.
-        var orders = await _deliveryRepo.ListAsync(driverId, null, "OutForDelivery", ct);
+        var orders = await _deliveryRepo.ListAsync(driverId, null, "Delivered", ct);
 
-        var activeLines = orders
+        // Only include orders where the driver has NOT yet submitted a return
+        // Once ReturnSubmitted = true, those items are queued for hub check-in
+        var linesWithReturns = orders
+            .Where(o => !o.ReturnSubmitted)
             .SelectMany(o => o.Lines)
-            .Where(l => l.Quantity > 0)
+            .Where(l => l.ReturnedNotWantedQty > 0)
             .ToList();
 
-        if (activeLines.Count == 0)
+        if (linesWithReturns.Count == 0)
             return new List<DriverStockItem>();
 
+        // Fetch species names for lookup
         var allSpecies = await _speciesRepo.ListAsync(ct);
         var speciesById = allSpecies.ToDictionary(s => s.SpeciesId, s => s.Name);
 
-        return activeLines
+        return linesWithReturns
             .GroupBy(l => l.SpeciesId)
             .Select(g => new DriverStockItem
             {
                 SpeciesId = g.Key,
                 SpeciesName = speciesById.TryGetValue(g.Key, out var name) ? name : g.Key,
-                AvailableQty = g.Sum(l => l.Quantity),
+                AvailableQty = g.Sum(l => l.ReturnedNotWantedQty),
                 UnitPrice = g.Max(l => l.UnitPrice)
             })
             .Where(i => i.AvailableQty > 0)
