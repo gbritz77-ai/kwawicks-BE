@@ -137,6 +137,96 @@ public class DeliveryOrderService : IDeliveryOrderService
         await _deliveryRepo.UpdateAsync(order, ct);
     }
 
+    public async Task<List<DriverStockItem>> GetDriverAvailableStockAsync(string driverId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(driverId))
+            return new List<DriverStockItem>();
+
+        var orders = await _deliveryRepo.ListAsync(driverId, null, "Delivered", ct);
+
+        // Only include orders where the driver has NOT yet submitted a return
+        // Once ReturnSubmitted = true, those items are queued for hub check-in
+        var linesWithReturns = orders
+            .Where(o => !o.ReturnSubmitted)
+            .SelectMany(o => o.Lines)
+            .Where(l => l.ReturnedNotWantedQty > 0)
+            .ToList();
+
+        if (linesWithReturns.Count == 0)
+            return new List<DriverStockItem>();
+
+        // Fetch species names for lookup
+        var allSpecies = await _speciesRepo.ListAsync(ct);
+        var speciesById = allSpecies.ToDictionary(s => s.SpeciesId, s => s.Name);
+
+        return linesWithReturns
+            .GroupBy(l => l.SpeciesId)
+            .Select(g => new DriverStockItem
+            {
+                SpeciesId = g.Key,
+                SpeciesName = speciesById.TryGetValue(g.Key, out var name) ? name : g.Key,
+                AvailableQty = g.Sum(l => l.ReturnedNotWantedQty),
+                UnitPrice = g.Max(l => l.UnitPrice)
+            })
+            .Where(i => i.AvailableQty > 0)
+            .OrderBy(i => i.SpeciesName)
+            .ToList();
+    }
+
+    public async Task SubmitReturnAsync(string deliveryOrderId, SubmitReturnRequest request, CancellationToken ct)
+    {
+        var order = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (order.Status != "Delivered")
+            throw new InvalidOperationException("Can only submit returns for delivered orders.");
+
+        if (order.ReturnSubmitted)
+            throw new InvalidOperationException("Return has already been submitted for this order.");
+
+        // Record how many of each species the driver is returning
+        foreach (var line in order.Lines)
+        {
+            var submitted = request.Lines.FirstOrDefault(l => l.SpeciesId == line.SpeciesId);
+            line.ReturnedToHubQty = submitted?.Qty ?? line.ReturnedNotWantedQty; // default: return all not-wanted
+        }
+
+        order.ReturnSubmitted = true;
+        order.UpdatedAt = DateTime.UtcNow;
+        await _deliveryRepo.UpdateAsync(order, ct);
+
+        // Create a hub task so staff know to expect the return
+        var returnSummary = string.Join(", ", order.Lines
+            .Where(l => l.ReturnedToHubQty > 0)
+            .Select(l => $"{l.ReturnedToHubQty}x {l.SpeciesId}"));
+
+        var hubTask = new HubTask
+        {
+            HubId = order.HubId,
+            Type = "StockReturn",
+            Status = "Open",
+            DeliveryOrderId = order.DeliveryOrderId,
+            Title = $"Stock Return — {order.AssignedDriverName} returning: {returnSummary}"
+        };
+        await _hubTaskRepo.CreateAsync(hubTask, ct);
+    }
+
+    public async Task CheckInReturnAsync(string deliveryOrderId, CancellationToken ct)
+    {
+        var order = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (!order.ReturnSubmitted)
+            throw new InvalidOperationException("Driver has not submitted a return for this order yet.");
+
+        if (order.ReturnCheckedIn)
+            throw new InvalidOperationException("Return has already been checked in.");
+
+        order.ReturnCheckedIn = true;
+        order.UpdatedAt = DateTime.UtcNow;
+        await _deliveryRepo.UpdateAsync(order, ct);
+    }
+
     private static DeliveryOrderResponse MapToResponse(DeliveryOrder order) => new()
     {
         DeliveryOrderId = order.DeliveryOrderId,
@@ -150,6 +240,8 @@ public class DeliveryOrderService : IDeliveryOrderService
         City = order.City,
         Province = order.Province,
         PostalCode = order.PostalCode,
+        ReturnSubmitted = order.ReturnSubmitted,
+        ReturnCheckedIn = order.ReturnCheckedIn,
         CreatedAt = order.CreatedAt,
         UpdatedAt = order.UpdatedAt,
         Lines = order.Lines.Select(l => new DeliveryOrderLineResponse
@@ -160,7 +252,8 @@ public class DeliveryOrderService : IDeliveryOrderService
             DeliveredQty = l.DeliveredQty,
             ReturnedDeadQty = l.ReturnedDeadQty,
             ReturnedMutilatedQty = l.ReturnedMutilatedQty,
-            ReturnedNotWantedQty = l.ReturnedNotWantedQty
+            ReturnedNotWantedQty = l.ReturnedNotWantedQty,
+            ReturnedToHubQty = l.ReturnedToHubQty
         }).ToList()
     };
 }

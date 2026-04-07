@@ -20,6 +20,12 @@ public class DeliveryOrder
 
     public List<DeliveryOrderLine> Lines { get; set; } = new();
 
+    /// <summary>Driver has submitted the leftover (not-wanted) stock for hub check-in.</summary>
+    public bool ReturnSubmitted { get; set; } = false;
+
+    /// <summary>Hub staff has physically verified and checked in the returned stock.</summary>
+    public bool ReturnCheckedIn { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -35,4 +41,7 @@ public class DeliveryOrderLine
     public int ReturnedDeadQty { get; set; }
     public int ReturnedMutilatedQty { get; set; }
     public int ReturnedNotWantedQty { get; set; }
+
+    /// <summary>How many the driver physically returned to hub (submitted for check-in).</summary>
+    public int ReturnedToHubQty { get; set; }
 }

@@ -136,6 +136,9 @@ public class DeliveryOrderRepository : IDeliveryOrderRepository
             ["Province"] = new AttributeValue { S = d.Province ?? "" },
             ["PostalCode"] = new AttributeValue { S = d.PostalCode ?? "" },
 
+            ["ReturnSubmitted"] = new AttributeValue { BOOL = d.ReturnSubmitted },
+            ["ReturnCheckedIn"] = new AttributeValue { BOOL = d.ReturnCheckedIn },
+
             ["CreatedAtUtc"] = new AttributeValue { S = d.CreatedAt.ToString("O", CultureInfo.InvariantCulture) },
             ["UpdatedAtUtc"] = new AttributeValue { S = d.UpdatedAt.ToString("O", CultureInfo.InvariantCulture) },
 
@@ -169,6 +172,9 @@ public class DeliveryOrderRepository : IDeliveryOrderRepository
             UpdatedAt = item.TryGetValue("UpdatedAtUtc", out var ua)
                 ? DateTime.Parse(ua.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                 : DateTime.UtcNow,
+
+            ReturnSubmitted = item.TryGetValue("ReturnSubmitted", out var rs) && (rs.BOOL == true),
+            ReturnCheckedIn = item.TryGetValue("ReturnCheckedIn", out var rc) && (rc.BOOL == true),
 
             Lines = lines
         };

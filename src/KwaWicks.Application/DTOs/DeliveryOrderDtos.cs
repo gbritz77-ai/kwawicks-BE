@@ -41,6 +41,8 @@ public class DeliveryOrderResponse
     public string Province { get; set; } = "";
     public string PostalCode { get; set; } = "";
     public List<DeliveryOrderLineResponse> Lines { get; set; } = new();
+    public bool ReturnSubmitted { get; set; }
+    public bool ReturnCheckedIn { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -54,4 +56,24 @@ public class DeliveryOrderLineResponse
     public int ReturnedDeadQty { get; set; }
     public int ReturnedMutilatedQty { get; set; }
     public int ReturnedNotWantedQty { get; set; }
+    public int ReturnedToHubQty { get; set; }
+}
+
+public class SubmitReturnRequest
+{
+    public List<SubmitReturnLine> Lines { get; set; } = new();
+}
+
+public class SubmitReturnLine
+{
+    public string SpeciesId { get; set; } = "";
+    public int Qty { get; set; }
+}
+
+public class DriverStockItem
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int AvailableQty { get; set; }
+    public decimal UnitPrice { get; set; }
 }

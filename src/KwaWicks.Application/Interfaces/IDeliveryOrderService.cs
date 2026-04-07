@@ -8,4 +8,7 @@ public interface IDeliveryOrderService
     Task<DeliveryOrderResponse?> GetAsync(string deliveryOrderId, CancellationToken ct);
     Task<List<DeliveryOrderResponse>> ListAsync(string? driverId, string? hubId, string? status, CancellationToken ct);
     Task UpdateStatusAsync(string deliveryOrderId, string status, CancellationToken ct);
+    Task<List<DriverStockItem>> GetDriverAvailableStockAsync(string driverId, CancellationToken ct);
+    Task SubmitReturnAsync(string deliveryOrderId, SubmitReturnRequest request, CancellationToken ct);
+    Task CheckInReturnAsync(string deliveryOrderId, CancellationToken ct);
 }

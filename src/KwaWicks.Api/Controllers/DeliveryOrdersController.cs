@@ -2,6 +2,7 @@ using KwaWicks.Application.DTOs;
 using KwaWicks.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace KwaWicks.Api.Controllers;
 
@@ -59,6 +60,22 @@ public class DeliveryOrdersController : ControllerBase
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    // GET /api/delivery-orders/driver-stock
+    [HttpGet("driver-stock")]
+    [Authorize(Policy = "DriverOnly")]
+    [ProducesResponseType(typeof(List<DriverStockItem>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<List<DriverStockItem>>> GetDriverStock(CancellationToken ct)
+    {
+        var driverId = User.FindFirstValue("username")
+                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? "";
+
+        var stock = await _service.GetDriverAvailableStockAsync(driverId, ct);
+        return Ok(stock);
     }
 
     // GET /api/delivery-orders?driverId=&hubId=&status=
@@ -150,6 +167,55 @@ public class DeliveryOrdersController : ControllerBase
                 "Invoices",
                 new { invoiceId },
                 new { invoiceId, whatsAppSent, whatsAppError });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    // POST /api/delivery-orders/{deliveryOrderId}/submit-return
+    [HttpPost("{deliveryOrderId}/submit-return")]
+    [Authorize(Policy = "DriverOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SubmitReturn(
+        string deliveryOrderId,
+        [FromBody] SubmitReturnRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _service.SubmitReturnAsync(deliveryOrderId, request, ct);
+            return NoContent();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    // POST /api/delivery-orders/{deliveryOrderId}/check-in
+    [HttpPost("{deliveryOrderId}/check-in")]
+    [Authorize(Policy = "HubStaffOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CheckInReturn(string deliveryOrderId, CancellationToken ct)
+    {
+        try
+        {
+            await _service.CheckInReturnAsync(deliveryOrderId, ct);
+            return NoContent();
         }
         catch (ArgumentException ex)
         {
