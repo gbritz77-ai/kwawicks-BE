@@ -147,6 +147,7 @@ builder.Services.AddScoped<IHubRequestService>(sp =>
         sp.GetRequiredService<IWhatsAppService>(),
         sp.GetRequiredService<ISettingsRepository>()));
 builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddScoped<IPriceApprovalService, PriceApprovalService>();
 builder.Services.AddScoped<IPettyCashService>(sp =>
     new PettyCashService(
         sp.GetRequiredService<IPettyCashRepository>(),

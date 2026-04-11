@@ -41,17 +41,20 @@ public class DriverSalesController : ControllerBase
     private readonly IClientService _clientService;
     private readonly IInvoiceNotificationService _notification;
     private readonly IClientCreditService _creditService;
+    private readonly IPriceApprovalService _priceApproval;
 
     public DriverSalesController(
         IInvoiceService invoiceService,
         IClientService clientService,
         IInvoiceNotificationService notification,
-        IClientCreditService creditService)
+        IClientCreditService creditService,
+        IPriceApprovalService priceApproval)
     {
         _invoiceService = invoiceService;
         _clientService = clientService;
         _notification = notification;
         _creditService = creditService;
+        _priceApproval = priceApproval;
     }
 
     // POST /api/driver-sales
@@ -132,6 +135,11 @@ public class DriverSalesController : ControllerBase
                 }
             }
 
+            // 3c. Check for below-cost lines — flag and alert admins (non-blocking)
+            bool belowCostFlagged = false;
+            try { belowCostFlagged = await _priceApproval.CheckAndFlagAsync(invoiceId, ct); }
+            catch { /* never block the sale */ }
+
             // 4. Send WhatsApp invoice
             bool whatsAppSent = false;
             string? whatsAppError = null;
@@ -141,7 +149,7 @@ public class DriverSalesController : ControllerBase
             }
 
             return CreatedAtAction(nameof(GetById), new { invoiceId },
-                new { invoiceId, whatsAppSent, whatsAppError, creditCharged, newCreditBalance });
+                new { invoiceId, whatsAppSent, whatsAppError, creditCharged, newCreditBalance, belowCostFlagged });
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
