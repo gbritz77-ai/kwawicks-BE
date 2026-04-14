@@ -24,8 +24,21 @@ public class Invoice
 
     public List<InvoiceLine> Lines { get; set; } = new();
 
+    /// <summary>None | Pending | Approved | Amended</summary>
+    public string PriceApprovalStatus { get; set; } = "None";
+    public List<BelowCostLine> BelowCostLines { get; set; } = new();
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class BelowCostLine
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int Quantity { get; set; }
+    public decimal CostPrice { get; set; }
+    public decimal SalePrice { get; set; }
 }
 
 public class InvoiceLine

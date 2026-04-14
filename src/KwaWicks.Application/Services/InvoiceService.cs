@@ -11,19 +11,22 @@ public class InvoiceService : IInvoiceService
     private readonly IHubTaskRepository _hubTaskRepo;
     private readonly ISpeciesRepository _speciesRepo;
     private readonly IS3Service _s3Service;
+    private readonly IPriceApprovalService _priceApproval;
 
     public InvoiceService(
         IInvoiceRepository invoiceRepo,
         IDeliveryOrderRepository deliveryRepo,
         IHubTaskRepository hubTaskRepo,
         ISpeciesRepository speciesRepo,
-        IS3Service s3Service)
+        IS3Service s3Service,
+        IPriceApprovalService priceApproval)
     {
         _invoiceRepo = invoiceRepo ?? throw new ArgumentNullException(nameof(invoiceRepo));
         _deliveryRepo = deliveryRepo ?? throw new ArgumentNullException(nameof(deliveryRepo));
         _hubTaskRepo = hubTaskRepo ?? throw new ArgumentNullException(nameof(hubTaskRepo));
         _speciesRepo = speciesRepo ?? throw new ArgumentNullException(nameof(speciesRepo));
         _s3Service = s3Service ?? throw new ArgumentNullException(nameof(s3Service));
+        _priceApproval = priceApproval ?? throw new ArgumentNullException(nameof(priceApproval));
     }
 
     // ── Hub-side: create invoice directly (existing flow) ──────────────────
@@ -247,6 +250,9 @@ public class InvoiceService : IInvoiceService
         deliveryOrder.Status = "Delivered";
         deliveryOrder.UpdatedAt = DateTime.UtcNow;
         await _deliveryRepo.UpdateAsync(deliveryOrder, ct);
+
+        // Flag any lines sold below cost — fires WhatsApp alert and sets PriceApprovalStatus = "Pending"
+        await _priceApproval.CheckAndFlagAsync(invoice.InvoiceId, ct);
 
         return invoice.InvoiceId;
     }

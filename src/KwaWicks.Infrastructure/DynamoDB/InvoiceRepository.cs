@@ -196,7 +196,9 @@ public class InvoiceRepository : IInvoiceRepository
             ["CreatedAtUtc"] = new AttributeValue { S = inv.CreatedAt.ToString("O", CultureInfo.InvariantCulture) },
             ["UpdatedAtUtc"] = new AttributeValue { S = inv.UpdatedAt.ToString("O", CultureInfo.InvariantCulture) },
 
-            ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.Lines ?? new List<InvoiceLine>()) }
+            ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.Lines ?? new List<InvoiceLine>()) },
+            ["PriceApprovalStatus"] = new AttributeValue { S = inv.PriceApprovalStatus ?? "None" },
+            ["BelowCostLinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.BelowCostLines ?? new List<KwaWicks.Domain.Entities.BelowCostLine>()) }
         };
 
     private static Invoice FromItem(Dictionary<string, AttributeValue> item)
@@ -231,7 +233,37 @@ public class InvoiceRepository : IInvoiceRepository
                 ? DateTime.Parse(ua.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                 : DateTime.UtcNow,
 
+            PriceApprovalStatus = item.TryGetValue("PriceApprovalStatus", out var pas) ? pas.S ?? "None" : "None",
+            BelowCostLines = item.TryGetValue("BelowCostLinesJson", out var bcj)
+                ? JsonSerializer.Deserialize<List<KwaWicks.Domain.Entities.BelowCostLine>>(bcj.S ?? "[]") ?? new()
+                : new(),
             Lines = lines
         };
+    }
+
+    public async Task<List<Invoice>> ListByPriceApprovalStatusAsync(string status, CancellationToken ct)
+    {
+        var req = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = "EntityType = :et AND PriceApprovalStatus = :pas",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":et"]  = new AttributeValue { S = "Invoice" },
+                [":pas"] = new AttributeValue { S = status }
+            }
+        };
+
+        var result = new List<Invoice>();
+        ScanResponse? response;
+        do
+        {
+            response = await _ddb.ScanAsync(req, ct);
+            result.AddRange(response.Items.Select(FromItem));
+            req.ExclusiveStartKey = response.LastEvaluatedKey;
+        }
+        while (response.LastEvaluatedKey is { Count: > 0 });
+
+        return result;
     }
 }

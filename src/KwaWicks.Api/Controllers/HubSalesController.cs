@@ -45,19 +45,22 @@ public class HubSalesController : ControllerBase
     private readonly IStaffMemberService _staffService;
     private readonly IInvoiceNotificationService _notification;
     private readonly IClientCreditService _creditService;
+    private readonly IPriceApprovalService _priceApproval;
 
     public HubSalesController(
         IInvoiceService invoiceService,
         IClientService clientService,
         IStaffMemberService staffService,
         IInvoiceNotificationService notification,
-        IClientCreditService creditService)
+        IClientCreditService creditService,
+        IPriceApprovalService priceApproval)
     {
         _invoiceService = invoiceService;
         _clientService = clientService;
         _staffService = staffService;
         _notification = notification;
         _creditService = creditService;
+        _priceApproval = priceApproval;
     }
 
     // POST /api/hub-sales
@@ -150,7 +153,12 @@ public class HubSalesController : ControllerBase
                 }
             }
 
-            // 4. Auto-send WhatsApp for non-staff sales
+            // 4. Check for below-cost lines — flag and alert admins (non-blocking)
+            bool belowCostFlagged = false;
+            try { belowCostFlagged = await _priceApproval.CheckAndFlagAsync(invoiceId, ct); }
+            catch { /* never block the sale */ }
+
+            // 5. Auto-send WhatsApp for non-staff sales
             bool whatsAppSent = false;
             string? whatsAppError = null;
             if (!string.IsNullOrWhiteSpace(effectivePhone) && string.IsNullOrWhiteSpace(request.StaffMemberId))
@@ -159,7 +167,7 @@ public class HubSalesController : ControllerBase
             }
 
             return CreatedAtAction(nameof(GetById), new { invoiceId },
-                new { invoiceId, whatsAppSent, whatsAppError, creditCharged, newCreditBalance });
+                new { invoiceId, whatsAppSent, whatsAppError, creditCharged, newCreditBalance, belowCostFlagged });
         }
         catch (ArgumentException ex)
         {
