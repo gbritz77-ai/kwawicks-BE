@@ -198,7 +198,8 @@ public class InvoiceRepository : IInvoiceRepository
 
             ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.Lines ?? new List<InvoiceLine>()) },
             ["PriceApprovalStatus"] = new AttributeValue { S = inv.PriceApprovalStatus ?? "None" },
-            ["BelowCostLinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.BelowCostLines ?? new List<KwaWicks.Domain.Entities.BelowCostLine>()) }
+            ["BelowCostLinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.BelowCostLines ?? new List<KwaWicks.Domain.Entities.BelowCostLine>()) },
+            ["SplitPaymentsJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.SplitPayments ?? new List<KwaWicks.Domain.Entities.SplitPayment>()) }
         };
 
     private static Invoice FromItem(Dictionary<string, AttributeValue> item)
@@ -236,6 +237,9 @@ public class InvoiceRepository : IInvoiceRepository
             PriceApprovalStatus = item.TryGetValue("PriceApprovalStatus", out var pas) ? pas.S ?? "None" : "None",
             BelowCostLines = item.TryGetValue("BelowCostLinesJson", out var bcj)
                 ? JsonSerializer.Deserialize<List<KwaWicks.Domain.Entities.BelowCostLine>>(bcj.S ?? "[]") ?? new()
+                : new(),
+            SplitPayments = item.TryGetValue("SplitPaymentsJson", out var spj)
+                ? JsonSerializer.Deserialize<List<KwaWicks.Domain.Entities.SplitPayment>>(spj.S ?? "[]") ?? new()
                 : new(),
             Lines = lines
         };

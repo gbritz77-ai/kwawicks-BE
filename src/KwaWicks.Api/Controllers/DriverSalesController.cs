@@ -24,9 +24,18 @@ public class CreateDriverSaleRequest
     public CreateClientRequest? NewClient { get; set; }
 
     public string HubId { get; set; } = "";
-    public string PaymentType { get; set; } = "Cash"; // Cash | EFT | Card | AccountCredit
+    public string PaymentType { get; set; } = "Cash"; // Cash | EFT | Card | AccountCredit | Split
     public string? ClientPhone { get; set; }
     public List<DriverSaleLineRequest> Lines { get; set; } = new();
+
+    /// <summary>Required when PaymentType = "Split".</summary>
+    public List<DriverSplitPaymentItem>? SplitPayments { get; set; }
+}
+
+public class DriverSplitPaymentItem
+{
+    public string Method { get; set; } = ""; // Cash | Card | EFT
+    public decimal Amount { get; set; }
 }
 
 // ── Controller ───────────────────────────────────────────────────────────────
@@ -120,13 +129,18 @@ public class DriverSalesController : ControllerBase
                     Quantity = l.Quantity,
                     UnitPrice = l.UnitPrice,
                     VatRate = l.VatRate
+                }).ToList(),
+                SplitPayments = request.SplitPayments?.Select(sp => new SplitPaymentLineRequest
+                {
+                    Method = sp.Method,
+                    Amount = sp.Amount
                 }).ToList()
             };
 
             var invoiceId = await _invoiceService.CreateInvoiceAsync(invoiceReq, ct);
 
-            // 3a. Immediately confirm Cash / EFT / Card payments — no Finance sign-off needed
-            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine" };
+            // 3a. Immediately confirm Cash / EFT / Card / Split payments — no Finance sign-off needed
+            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine", "Split" };
             if (immediatePayTypes.Contains(request.PaymentType))
             {
                 await _invoiceService.ConfirmPaymentAsync(invoiceId, ct);

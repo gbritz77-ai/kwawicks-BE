@@ -23,6 +23,7 @@ public class Invoice
     public decimal GrandTotal { get; set; }
 
     public List<InvoiceLine> Lines { get; set; } = new();
+    public List<SplitPayment> SplitPayments { get; set; } = new();
 
     /// <summary>None | Pending | Approved | Amended</summary>
     public string PriceApprovalStatus { get; set; } = "None";
@@ -30,6 +31,12 @@ public class Invoice
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class SplitPayment
+{
+    public string Method { get; set; } = ""; // Cash | Card | EFT
+    public decimal Amount { get; set; }
 }
 
 public class BelowCostLine

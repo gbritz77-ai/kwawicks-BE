@@ -27,9 +27,18 @@ public class CreateHubSaleRequest
     public string? StaffMemberId { get; set; }
 
     public string HubId { get; set; } = "";
-    public string PaymentType { get; set; } = "Cash"; // Cash | EFT | Card | OnAccount
+    public string PaymentType { get; set; } = "Cash"; // Cash | EFT | Card | OnAccount | Split
     public string? ClientPhone { get; set; }
     public List<HubSaleLineRequest> Lines { get; set; } = new();
+
+    /// <summary>Required when PaymentType = "Split".</summary>
+    public List<SplitPaymentItem>? SplitPayments { get; set; }
+}
+
+public class SplitPaymentItem
+{
+    public string Method { get; set; } = ""; // Cash | Card | EFT
+    public decimal Amount { get; set; }
 }
 
 // ── Controller ──────────────────────────────────────────────────────────────
@@ -134,13 +143,18 @@ public class HubSalesController : ControllerBase
                     Quantity = l.Quantity,
                     UnitPrice = l.UnitPrice,
                     VatRate = l.VatRate
+                }).ToList(),
+                SplitPayments = request.SplitPayments?.Select(sp => new SplitPaymentLineRequest
+                {
+                    Method = sp.Method,
+                    Amount = sp.Amount
                 }).ToList()
             };
 
             var invoiceId = await _invoiceService.CreateInvoiceAsync(invoiceReq, ct);
 
-            // 3a. Immediately confirm Cash / EFT / Card payments — no Finance sign-off needed
-            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine" };
+            // 3a. Immediately confirm Cash / EFT / Card / Split payments — no Finance sign-off needed
+            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine", "Split" };
             if (immediatePayTypes.Contains(request.PaymentType))
             {
                 await _invoiceService.ConfirmPaymentAsync(invoiceId, ct);

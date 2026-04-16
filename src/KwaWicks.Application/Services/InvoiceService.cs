@@ -98,6 +98,35 @@ public class InvoiceService : IInvoiceService
             invoice.SubTotal = subTotal;
             invoice.VatTotal = vatTotal;
             invoice.GrandTotal = subTotal + vatTotal;
+
+            // Validate and store split payments when PaymentType = "Split"
+            if (request.PaymentType == "Split")
+            {
+                var splitLines = request.SplitPayments ?? new List<SplitPaymentLineRequest>();
+                if (splitLines.Count == 0)
+                    throw new ArgumentException("At least one split payment line is required when PaymentType is Split.");
+
+                var validMethods = new[] { "Cash", "Card", "EFT" };
+                foreach (var sp in splitLines)
+                {
+                    if (!validMethods.Contains(sp.Method))
+                        throw new ArgumentException($"Invalid split payment method '{sp.Method}'. Valid values: Cash, Card, EFT.");
+                    if (sp.Amount <= 0)
+                        throw new ArgumentException("Each split payment amount must be greater than zero.");
+                }
+
+                var splitTotal = splitLines.Sum(sp => sp.Amount);
+                if (Math.Abs(splitTotal - invoice.GrandTotal) > 0.05m)
+                    throw new ArgumentException(
+                        $"Split payment total ({splitTotal:F2}) does not match invoice total ({invoice.GrandTotal:F2}).");
+
+                invoice.SplitPayments = splitLines.Select(sp => new Domain.Entities.SplitPayment
+                {
+                    Method = sp.Method,
+                    Amount = sp.Amount
+                }).ToList();
+            }
+
             await _invoiceRepo.CreateAsync(invoice, ct);
 
             var deliveryOrder = new DeliveryOrder
@@ -273,7 +302,7 @@ public class InvoiceService : IInvoiceService
     // ── Payment ─────────────────────────────────────────────────────────────
     public async Task RecordPaymentAsync(string invoiceId, RecordPaymentRequest request, CancellationToken ct)
     {
-        var validTypes = new[] { "Cash", "EFT", "Credit", "CardMachine" };
+        var validTypes = new[] { "Cash", "EFT", "Credit", "CardMachine", "Split" };
         if (!validTypes.Contains(request.PaymentType))
             throw new ArgumentException($"Invalid PaymentType '{request.PaymentType}'. Valid values: {string.Join(", ", validTypes)}");
 
@@ -281,8 +310,35 @@ public class InvoiceService : IInvoiceService
             ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
 
         invoice.PaymentType = request.PaymentType;
-        // Payment stays Pending until admin confirms
         invoice.UpdatedAt = DateTime.UtcNow;
+
+        if (request.PaymentType == "Split")
+        {
+            var splitLines = request.SplitPayments ?? new List<SplitPaymentLineRequest>();
+            if (splitLines.Count == 0)
+                throw new ArgumentException("At least one split payment line is required when PaymentType is Split.");
+
+            var validMethods = new[] { "Cash", "Card", "EFT", "CardMachine" };
+            foreach (var sp in splitLines)
+            {
+                if (!validMethods.Contains(sp.Method))
+                    throw new ArgumentException($"Invalid split payment method '{sp.Method}'. Valid values: Cash, Card, EFT, CardMachine.");
+                if (sp.Amount <= 0)
+                    throw new ArgumentException("Each split payment amount must be greater than zero.");
+            }
+
+            var splitTotal = splitLines.Sum(sp => sp.Amount);
+            if (Math.Abs(splitTotal - invoice.GrandTotal) > 0.05m)
+                throw new ArgumentException(
+                    $"Split payment total ({splitTotal:F2}) does not match invoice total ({invoice.GrandTotal:F2}).");
+
+            invoice.SplitPayments = splitLines.Select(sp => new Domain.Entities.SplitPayment
+            {
+                Method = sp.Method,
+                Amount = sp.Amount
+            }).ToList();
+        }
+
         await _invoiceRepo.UpdateAsync(invoice, ct);
     }
 
@@ -403,6 +459,11 @@ public class InvoiceService : IInvoiceService
             UnitPrice = l.UnitPrice,
             VatRate = l.VatRate,
             LineTotal = l.LineTotal
+        }).ToList(),
+        SplitPayments = invoice.SplitPayments.Select(sp => new SplitPaymentLineResponse
+        {
+            Method = sp.Method,
+            Amount = sp.Amount
         }).ToList()
     };
 }

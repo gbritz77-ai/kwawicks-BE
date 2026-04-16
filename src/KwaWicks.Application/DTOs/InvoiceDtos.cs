@@ -17,8 +17,17 @@ public class CreateInvoiceRequest
 
     public List<CreateInvoiceLine> Lines { get; set; } = new();
 
+    /// <summary>Only required when PaymentType = "Split".</summary>
+    public List<SplitPaymentLineRequest>? SplitPayments { get; set; }
+
     /// <summary>Optional phone to save on the client if they don't already have one.</summary>
     public string? ClientPhone { get; set; }
+}
+
+public class SplitPaymentLineRequest
+{
+    public string Method { get; set; } = ""; // Cash | Card | EFT
+    public decimal Amount { get; set; }
 }
 
 public class CreateInvoiceLine
@@ -53,7 +62,10 @@ public class CreateInvoiceFromDeliveryLine
 // ── Payment ────────────────────────────────────────────────────────────────
 public class RecordPaymentRequest
 {
-    public string PaymentType { get; set; } = ""; // Cash, EFT, Credit
+    public string PaymentType { get; set; } = ""; // Cash, EFT, Credit, CardMachine, Split
+
+    /// <summary>Only required when PaymentType = "Split".</summary>
+    public List<SplitPaymentLineRequest>? SplitPayments { get; set; }
 }
 
 // ── Receipt upload URL (EFT) ───────────────────────────────────────────────
@@ -104,8 +116,15 @@ public class InvoiceResponse
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
     public List<InvoiceLineResponse> Lines { get; set; } = new();
+    public List<SplitPaymentLineResponse> SplitPayments { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+}
+
+public class SplitPaymentLineResponse
+{
+    public string Method { get; set; } = "";
+    public decimal Amount { get; set; }
 }
 
 public class InvoiceLineResponse
