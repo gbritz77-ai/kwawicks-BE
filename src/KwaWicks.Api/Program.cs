@@ -121,6 +121,9 @@ builder.Services.AddScoped<IHubRequestRepository>(sp =>
 builder.Services.AddScoped<ISettingsRepository>(sp =>
     new SettingsRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<ISlaughterRepository>(sp =>
+    new SlaughterRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 // Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
@@ -148,6 +151,7 @@ builder.Services.AddScoped<IHubRequestService>(sp =>
         sp.GetRequiredService<ISettingsRepository>()));
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IPriceApprovalService, PriceApprovalService>();
+builder.Services.AddScoped<ISlaughterService, SlaughterService>();
 builder.Services.AddScoped<IPettyCashService>(sp =>
     new PettyCashService(
         sp.GetRequiredService<IPettyCashRepository>(),
