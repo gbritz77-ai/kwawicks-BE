@@ -146,6 +146,14 @@ public class CollectionRequestsController : ControllerBase
         catch (Exception ex) { return StatusCode(500, ex.Message); }
     }
 
+    [HttpGet("shortfall-report")]
+    [Authorize(Policy = "CollectionManagement")]
+    public async Task<IActionResult> ShortfallReport([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
+    {
+        var result = await _service.GetShortfallReportAsync(from, to, ct);
+        return Ok(result);
+    }
+
     [HttpPost("{id}/allocations")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> AddAllocation(string id, [FromBody] AddDeliveryAllocationRequest request, CancellationToken ct)

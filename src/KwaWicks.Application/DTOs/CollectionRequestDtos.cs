@@ -53,10 +53,33 @@ public class CollectionRequestResponse
     public DateTime? CollectionDate { get; set; }
     public string InvoiceS3Key { get; set; } = "";
     public string DeliveryNoteS3Key { get; set; } = "";
+    public bool ShortfallFlagged { get; set; }
     public List<CollectionRequestLineResponse> Lines { get; set; } = new();
     public List<CollectionDeliveryAllocationResponse> DeliveryAllocations { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+}
+
+// ── Shortfall report ───────────────────────────────────────────────────────
+public class CollectionShortfallReportItem
+{
+    public string CollectionRequestId { get; set; } = "";
+    public string SupplierName { get; set; } = "";
+    public string AssignedDriverName { get; set; } = "";
+    public DateTime? CollectionDate { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string Status { get; set; } = "";
+    public List<CollectionShortfallLine> ShortfallLines { get; set; } = new();
+}
+
+public class CollectionShortfallLine
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int OrderedQty { get; set; }
+    public int LoadedQty { get; set; }
+    public int ShortfallQty { get; set; }
+    public string LoadingNotes { get; set; } = "";
 }
 
 public class CollectionRequestLineResponse

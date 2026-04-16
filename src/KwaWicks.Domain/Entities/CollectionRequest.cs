@@ -16,6 +16,7 @@ public class CollectionRequest
     public string DeliveryNoteS3Key { get; set; } = "";
     public List<CollectionRequestLine> Lines { get; set; } = new();
     public List<CollectionDeliveryAllocation> DeliveryAllocations { get; set; } = new();
+    public bool ShortfallFlagged { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

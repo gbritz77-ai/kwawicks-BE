@@ -106,6 +106,7 @@ public class CollectionRequestService : ICollectionRequestService
         }
 
         cr.Status = "Loading";
+        cr.ShortfallFlagged = cr.Lines.Any(l => l.LoadedQty < l.OrderedQty);
         await _repo.UpdateAsync(cr, ct);
         return MapToResponse(cr);
     }
@@ -403,6 +404,39 @@ public class CollectionRequestService : ICollectionRequestService
         return MapToResponse(cr);
     }
 
+    public async Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
+    {
+        var all = await _repo.ListAsync(null, null, null, ct);
+
+        var shortfallItems = all
+            .Where(cr => cr.ShortfallFlagged)
+            .Where(cr => from == null || cr.CreatedAt >= from.Value)
+            .Where(cr => to == null || cr.CreatedAt <= to.Value.AddDays(1))
+            .OrderByDescending(cr => cr.CreatedAt)
+            .ToList();
+
+        return shortfallItems.Select(cr => new CollectionShortfallReportItem
+        {
+            CollectionRequestId = cr.CollectionRequestId,
+            SupplierName = cr.SupplierName,
+            AssignedDriverName = cr.AssignedDriverName,
+            CollectionDate = cr.CollectionDate,
+            CreatedAt = cr.CreatedAt,
+            Status = cr.Status,
+            ShortfallLines = cr.Lines
+                .Where(l => l.LoadedQty < l.OrderedQty)
+                .Select(l => new CollectionShortfallLine
+                {
+                    SpeciesId = l.SpeciesId,
+                    SpeciesName = l.SpeciesName,
+                    OrderedQty = l.OrderedQty,
+                    LoadedQty = l.LoadedQty,
+                    ShortfallQty = l.OrderedQty - l.LoadedQty,
+                    LoadingNotes = l.LoadingNotes
+                }).ToList()
+        }).ToList();
+    }
+
     private static CollectionRequestResponse MapToResponse(CollectionRequest cr) => new()
     {
         CollectionRequestId = cr.CollectionRequestId,
@@ -417,6 +451,7 @@ public class CollectionRequestService : ICollectionRequestService
         CollectionDate = cr.CollectionDate,
         InvoiceS3Key = cr.InvoiceS3Key,
         DeliveryNoteS3Key = cr.DeliveryNoteS3Key,
+        ShortfallFlagged = cr.ShortfallFlagged,
         CreatedAt = cr.CreatedAt,
         UpdatedAt = cr.UpdatedAt,
         Lines = cr.Lines.Select(l => new CollectionRequestLineResponse

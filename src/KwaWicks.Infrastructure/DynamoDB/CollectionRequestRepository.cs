@@ -127,6 +127,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
         ["DeliveryNoteS3Key"] = new AttributeValue { S = cr.DeliveryNoteS3Key ?? "" },
         ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(cr.Lines ?? new()) },
         ["DeliveryAllocationsJson"] = new AttributeValue { S = JsonSerializer.Serialize(cr.DeliveryAllocations ?? new()) },
+        ["ShortfallFlagged"] = new AttributeValue { BOOL = cr.ShortfallFlagged },
         ["CreatedAtUtc"] = new AttributeValue { S = cr.CreatedAt.ToString("O", CultureInfo.InvariantCulture) },
         ["UpdatedAtUtc"] = new AttributeValue { S = cr.UpdatedAt.ToString("O", CultureInfo.InvariantCulture) },
     };
@@ -154,6 +155,7 @@ public class CollectionRequestRepository : ICollectionRequestRepository
             DeliveryNoteS3Key = item.TryGetValue("DeliveryNoteS3Key", out var dnKey) ? dnKey.S ?? "" : "",
             Lines = lines,
             DeliveryAllocations = allocations,
+            ShortfallFlagged = item.TryGetValue("ShortfallFlagged", out var sf) && sf.BOOL == true,
             CreatedAt = item.TryGetValue("CreatedAtUtc", out var ca)
                 ? DateTime.Parse(ca.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : DateTime.UtcNow,
             UpdatedAt = item.TryGetValue("UpdatedAtUtc", out var ua)
