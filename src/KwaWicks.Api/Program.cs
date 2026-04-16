@@ -127,6 +127,9 @@ builder.Services.AddScoped<ISlaughterRepository>(sp =>
 builder.Services.AddScoped<ICostAverageRepository>(sp =>
     new CostAverageRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IOtpRepository>(sp =>
+    new OtpRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 // Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
@@ -156,6 +159,7 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IPriceApprovalService, PriceApprovalService>();
 builder.Services.AddScoped<ISlaughterService, SlaughterService>();
 builder.Services.AddScoped<ICostAverageService, CostAverageService>();
+builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IPettyCashService>(sp =>
     new PettyCashService(
         sp.GetRequiredService<IPettyCashRepository>(),

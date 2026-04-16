@@ -42,19 +42,22 @@ public class DriverSalesController : ControllerBase
     private readonly IInvoiceNotificationService _notification;
     private readonly IClientCreditService _creditService;
     private readonly IPriceApprovalService _priceApproval;
+    private readonly IOtpService _otp;
 
     public DriverSalesController(
         IInvoiceService invoiceService,
         IClientService clientService,
         IInvoiceNotificationService notification,
         IClientCreditService creditService,
-        IPriceApprovalService priceApproval)
+        IPriceApprovalService priceApproval,
+        IOtpService otp)
     {
         _invoiceService = invoiceService;
         _clientService = clientService;
         _notification = notification;
         _creditService = creditService;
         _priceApproval = priceApproval;
+        _otp = otp;
     }
 
     // POST /api/driver-sales
@@ -70,6 +73,7 @@ public class DriverSalesController : ControllerBase
 
             // 1. Resolve or create client
             string customerId;
+            string clientName = "";
             string? effectivePhone = request.ClientPhone?.Trim();
 
             if (!string.IsNullOrWhiteSpace(request.CustomerId))
@@ -78,9 +82,15 @@ public class DriverSalesController : ControllerBase
                 if (string.IsNullOrWhiteSpace(effectivePhone))
                 {
                     var client = await _clientService.GetByIdAsync(customerId, ct);
+                    clientName = client?.ClientName ?? "";
                     effectivePhone = !string.IsNullOrWhiteSpace(client?.ClientPhone)
                         ? client.ClientPhone
                         : client?.ClientContactDetails;
+                }
+                else
+                {
+                    var client = await _clientService.GetByIdAsync(customerId, ct);
+                    clientName = client?.ClientName ?? "";
                 }
             }
             else if (request.NewClient is not null)
@@ -88,6 +98,7 @@ public class DriverSalesController : ControllerBase
                 request.NewClient.IsWalkIn = true;
                 var newClient = await _clientService.CreateAsync(request.NewClient, ct);
                 customerId = newClient.ClientId;
+                clientName = newClient.ClientName ?? "";
                 effectivePhone = null; // walk-ins have no phone on record
             }
             else
@@ -140,16 +151,28 @@ public class DriverSalesController : ControllerBase
             try { belowCostFlagged = await _priceApproval.CheckAndFlagAsync(invoiceId, ct); }
             catch { /* never block the sale */ }
 
-            // 4. Send WhatsApp invoice
-            bool whatsAppSent = false;
-            string? whatsAppError = null;
+            // 4. Send OTP via WhatsApp for client confirmation
+            bool otpSent = false;
             if (!string.IsNullOrWhiteSpace(effectivePhone))
             {
-                (whatsAppSent, whatsAppError) = await _notification.TrySendInvoiceWhatsAppAsync(invoiceId, effectivePhone, ct);
+                try
+                {
+                    var invoice = await _invoiceService.GetAsync(invoiceId, ct);
+                    if (invoice != null)
+                    {
+                        await _otp.SendAsync(
+                            invoiceId, "DriverSale",
+                            customerId, clientName,
+                            effectivePhone,
+                            invoice.InvoiceNumber, invoice.GrandTotal, ct);
+                        otpSent = true;
+                    }
+                }
+                catch { /* OTP send failure must never block the sale */ }
             }
 
             return CreatedAtAction(nameof(GetById), new { invoiceId },
-                new { invoiceId, whatsAppSent, whatsAppError, creditCharged, newCreditBalance, belowCostFlagged });
+                new { invoiceId, otpSent, awaitingOtp = otpSent, creditCharged, newCreditBalance, belowCostFlagged });
         }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }

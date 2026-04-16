@@ -46,6 +46,7 @@ public class HubSalesController : ControllerBase
     private readonly IInvoiceNotificationService _notification;
     private readonly IClientCreditService _creditService;
     private readonly IPriceApprovalService _priceApproval;
+    private readonly IOtpService _otp;
 
     public HubSalesController(
         IInvoiceService invoiceService,
@@ -53,7 +54,8 @@ public class HubSalesController : ControllerBase
         IStaffMemberService staffService,
         IInvoiceNotificationService notification,
         IClientCreditService creditService,
-        IPriceApprovalService priceApproval)
+        IPriceApprovalService priceApproval,
+        IOtpService otp)
     {
         _invoiceService = invoiceService;
         _clientService = clientService;
@@ -61,6 +63,7 @@ public class HubSalesController : ControllerBase
         _notification = notification;
         _creditService = creditService;
         _priceApproval = priceApproval;
+        _otp = otp;
     }
 
     // POST /api/hub-sales
@@ -76,15 +79,17 @@ public class HubSalesController : ControllerBase
 
             // 1. Resolve or create client
             string customerId;
+            string clientName = "";
             string? effectivePhone = request.ClientPhone?.Trim();
 
             if (!string.IsNullOrWhiteSpace(request.CustomerId))
             {
                 customerId = request.CustomerId;
+                var client = await _clientService.GetByIdAsync(customerId, ct);
+                clientName = client?.ClientName ?? "";
                 // Resolve phone from client if not provided
                 if (string.IsNullOrWhiteSpace(effectivePhone))
                 {
-                    var client = await _clientService.GetByIdAsync(customerId, ct);
                     effectivePhone = !string.IsNullOrWhiteSpace(client?.ClientPhone)
                         ? client.ClientPhone
                         : client?.ClientContactDetails;
@@ -95,6 +100,7 @@ public class HubSalesController : ControllerBase
                 request.NewClient.IsWalkIn = true;
                 var newClient = await _clientService.CreateAsync(request.NewClient, ct);
                 customerId = newClient.ClientId;
+                clientName = newClient.ClientName ?? "";
                 if (string.IsNullOrWhiteSpace(effectivePhone))
                     effectivePhone = newClient.ClientPhone?.Trim().Length > 0
                         ? newClient.ClientPhone
@@ -105,7 +111,8 @@ public class HubSalesController : ControllerBase
                 var staff = await _staffService.GetByIdAsync(request.StaffMemberId, ct);
                 if (staff is null) return BadRequest(new { error = "Staff member not found." });
                 // Staff buy on account — no WhatsApp invoice, only monthly statement
-                customerId = request.StaffMemberId; // staff ID used as customerId for their invoices
+                customerId = request.StaffMemberId;
+                clientName = staff.Name ?? "";
                 effectivePhone = null;
             }
             else
@@ -158,16 +165,28 @@ public class HubSalesController : ControllerBase
             try { belowCostFlagged = await _priceApproval.CheckAndFlagAsync(invoiceId, ct); }
             catch { /* never block the sale */ }
 
-            // 5. Auto-send WhatsApp for non-staff sales
-            bool whatsAppSent = false;
-            string? whatsAppError = null;
+            // 5. Send OTP via WhatsApp for client confirmation (non-staff sales with a phone)
+            bool otpSent = false;
             if (!string.IsNullOrWhiteSpace(effectivePhone) && string.IsNullOrWhiteSpace(request.StaffMemberId))
             {
-                (whatsAppSent, whatsAppError) = await _notification.TrySendInvoiceWhatsAppAsync(invoiceId, effectivePhone, ct);
+                try
+                {
+                    var invoice = await _invoiceService.GetAsync(invoiceId, ct);
+                    if (invoice != null)
+                    {
+                        await _otp.SendAsync(
+                            invoiceId, "HubSale",
+                            customerId, clientName,
+                            effectivePhone,
+                            invoice.InvoiceNumber, invoice.GrandTotal, ct);
+                        otpSent = true;
+                    }
+                }
+                catch { /* OTP send failure must never block the sale */ }
             }
 
             return CreatedAtAction(nameof(GetById), new { invoiceId },
-                new { invoiceId, whatsAppSent, whatsAppError, creditCharged, newCreditBalance, belowCostFlagged });
+                new { invoiceId, otpSent, awaitingOtp = otpSent, creditCharged, newCreditBalance, belowCostFlagged });
         }
         catch (ArgumentException ex)
         {
