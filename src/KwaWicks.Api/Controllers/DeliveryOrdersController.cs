@@ -178,6 +178,34 @@ public class DeliveryOrdersController : ControllerBase
         }
     }
 
+    // PUT /api/delivery-orders/{deliveryOrderId}/lines  (Admin: edit qty/price on Open orders)
+    [HttpPut("{deliveryOrderId}/lines")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> EditLines(
+        string deliveryOrderId,
+        [FromBody] EditDeliveryOrderLinesRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _service.EditLinesAsync(deliveryOrderId, request, ct);
+            return NoContent();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     // POST /api/delivery-orders/{deliveryOrderId}/submit-return
     [HttpPost("{deliveryOrderId}/submit-return")]
     [Authorize(Policy = "DriverOnly")]

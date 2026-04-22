@@ -70,6 +70,19 @@ public class SubmitReturnLine
     public int Qty { get; set; }
 }
 
+// Admin: edit qty / price on an Open delivery order
+public class EditDeliveryOrderLinesRequest
+{
+    public List<EditDeliveryOrderLine> Lines { get; set; } = new();
+}
+
+public class EditDeliveryOrderLine
+{
+    public string SpeciesId { get; set; } = "";
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+
 public class DriverStockItem
 {
     public string SpeciesId { get; set; } = "";

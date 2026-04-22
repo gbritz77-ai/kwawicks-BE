@@ -227,6 +227,81 @@ public class DeliveryOrderService : IDeliveryOrderService
         await _deliveryRepo.UpdateAsync(order, ct);
     }
 
+    public async Task EditLinesAsync(string deliveryOrderId, EditDeliveryOrderLinesRequest request, CancellationToken ct)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+        if (request.Lines == null || request.Lines.Count == 0)
+            throw new ArgumentException("At least one line is required.");
+
+        var order = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (order.Status != "Open")
+            throw new InvalidOperationException("Lines can only be edited on Open delivery orders.");
+
+        foreach (var edit in request.Lines)
+        {
+            if (edit.Quantity <= 0)
+                throw new ArgumentException($"Quantity must be greater than 0 for species {edit.SpeciesId}.");
+        }
+
+        // Apply each edited line — adjust stock for qty changes
+        var adjustedSpecies = new List<(string speciesId, int delta)>();
+        try
+        {
+            foreach (var edit in request.Lines)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var line = order.Lines.FirstOrDefault(l => l.SpeciesId == edit.SpeciesId);
+                if (line == null)
+                    throw new InvalidOperationException($"Species {edit.SpeciesId} not found on this order.");
+
+                int delta = edit.Quantity - line.Quantity; // positive = need more, negative = releasing
+
+                if (delta != 0)
+                {
+                    var species = await _speciesRepo.GetAsync(edit.SpeciesId, ct)
+                        ?? throw new InvalidOperationException($"Species not found: {edit.SpeciesId}");
+
+                    if (delta > 0 && species.QtyOnHandHub < delta)
+                        throw new InvalidOperationException(
+                            $"Insufficient stock for {species.Name}. On hand: {species.QtyOnHandHub}, additional needed: {delta}");
+
+                    species.QtyOnHandHub -= delta;
+                    species.QtyBookedOutForDelivery += delta;
+                    await _speciesRepo.UpdateAsync(species, ct);
+                    adjustedSpecies.Add((edit.SpeciesId, delta));
+                }
+
+                line.Quantity = edit.Quantity;
+                line.UnitPrice = edit.UnitPrice;
+            }
+
+            order.UpdatedAt = DateTime.UtcNow;
+            await _deliveryRepo.UpdateAsync(order, ct);
+        }
+        catch
+        {
+            // Roll back any species adjustments already made
+            foreach (var (speciesId, delta) in adjustedSpecies)
+            {
+                try
+                {
+                    var s = await _speciesRepo.GetAsync(speciesId, ct);
+                    if (s != null)
+                    {
+                        s.QtyOnHandHub += delta;
+                        s.QtyBookedOutForDelivery = Math.Max(0, s.QtyBookedOutForDelivery - delta);
+                        await _speciesRepo.UpdateAsync(s, ct);
+                    }
+                }
+                catch { /* swallow rollback errors */ }
+            }
+            throw;
+        }
+    }
+
     private static DeliveryOrderResponse MapToResponse(DeliveryOrder order) => new()
     {
         DeliveryOrderId = order.DeliveryOrderId,
