@@ -61,4 +61,16 @@ public class S3Service : IS3Service
         await _s3.PutObjectAsync(request, ct);
         return key;
     }
+
+    public async Task<string> DownloadTextAsync(string key, CancellationToken ct)
+    {
+        var response = await _s3.GetObjectAsync(new GetObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = key
+        }, ct);
+
+        using var reader = new StreamReader(response.ResponseStream);
+        return await reader.ReadToEndAsync(ct);
+    }
 }

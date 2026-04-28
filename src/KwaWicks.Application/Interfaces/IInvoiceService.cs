@@ -21,4 +21,7 @@ public interface IInvoiceService
 
     /// <summary>Finance: mark an invoice as reconciled and confirm payment.</summary>
     Task ReconAsync(string invoiceId, ReconRequest request, CancellationToken ct);
+
+    /// <summary>Finance: clear reconciliation fields on an invoice (used when a bank transaction is de-allocated).</summary>
+    Task UnreconAsync(string invoiceId, CancellationToken ct);
 }
