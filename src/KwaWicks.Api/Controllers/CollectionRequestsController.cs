@@ -167,4 +167,26 @@ public class CollectionRequestsController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex) { return StatusCode(500, ex.Message); }
     }
+
+    // PUT /api/collection-requests/{id}/allocations/{deliveryOrderId}
+    [HttpPut("{id}/allocations/{deliveryOrderId}")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(CollectionRequestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> EditAllocation(
+        string id,
+        string deliveryOrderId,
+        [FromBody] EditAllocationRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.EditDeliveryAllocationAsync(id, deliveryOrderId, request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
 }

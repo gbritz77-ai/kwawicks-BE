@@ -112,6 +112,18 @@ public class AllocationLineRequest
     public decimal? UnitPrice { get; set; }
 }
 
+public class EditAllocationRequest
+{
+    public List<EditAllocationLine> Lines { get; set; } = new();
+}
+
+public class EditAllocationLine
+{
+    public string SpeciesId { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal UnitPrice { get; set; }
+}
+
 public class CollectionDeliveryAllocationResponse
 {
     public string DeliveryOrderId { get; set; } = "";

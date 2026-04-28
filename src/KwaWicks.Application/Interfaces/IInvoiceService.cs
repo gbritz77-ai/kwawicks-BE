@@ -15,4 +15,10 @@ public interface IInvoiceService
 
     /// <summary>Owner-only: update unit prices on an existing invoice. Recalculates all totals.</summary>
     Task<InvoiceResponse> UpdateLinesAsync(string invoiceId, UpdateInvoiceLinesRequest request, CancellationToken ct);
+
+    /// <summary>Finance: list invoices for reconciliation. CustomerName is left empty — caller enriches it.</summary>
+    Task<List<ReconInvoiceItem>> GetReconListAsync(string? paymentType, string? reconStatus, DateTime? from, DateTime? to, CancellationToken ct);
+
+    /// <summary>Finance: mark an invoice as reconciled and confirm payment.</summary>
+    Task ReconAsync(string invoiceId, ReconRequest request, CancellationToken ct);
 }

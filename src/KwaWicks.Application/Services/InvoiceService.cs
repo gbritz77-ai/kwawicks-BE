@@ -433,6 +433,63 @@ public class InvoiceService : IInvoiceService
         return MapToResponse(invoice);
     }
 
+    // ── Reconciliation ──────────────────────────────────────────────────────
+    public async Task<List<ReconInvoiceItem>> GetReconListAsync(
+        string? paymentType, string? reconStatus, DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var invoices = await _invoiceRepo.ListForReconAsync(paymentType, from, to, ct);
+
+        // Apply reconciliation status filter in memory (DynamoDB scan does date + paymentType)
+        invoices = reconStatus switch
+        {
+            "pending"    => invoices.Where(i => !i.ReconciledAt.HasValue).ToList(),
+            "reconciled" => invoices.Where(i => i.ReconciledAt.HasValue).ToList(),
+            _            => invoices
+        };
+
+        var now = DateTime.UtcNow;
+        return invoices
+            .OrderByDescending(i => i.CreatedAt)
+            .Select(i => new ReconInvoiceItem
+            {
+                InvoiceId       = i.InvoiceId,
+                InvoiceNumber   = i.InvoiceNumber,
+                CustomerId      = i.CustomerId,
+                CustomerName    = "", // enriched by controller
+                SaleType        = i.SaleType,
+                PaymentType     = i.PaymentType,
+                PaymentStatus   = i.PaymentStatus,
+                GrandTotal      = i.GrandTotal,
+                ReceiptS3Key    = i.ReceiptS3Key,
+                CreatedAt       = i.CreatedAt,
+                ReconReference  = i.ReconReference,
+                ReconNotes      = i.ReconNotes,
+                ReconciledAt    = i.ReconciledAt,
+                DaysOutstanding = (int)(now - i.CreatedAt).TotalDays
+            })
+            .ToList();
+    }
+
+    public async Task ReconAsync(string invoiceId, ReconRequest request, CancellationToken ct)
+    {
+        var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
+            ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
+
+        invoice.ReconReference = request.ReferenceNumber ?? "";
+        invoice.ReconNotes     = request.Notes ?? "";
+        invoice.ReconciledAt   = request.ReceivedAt ?? DateTime.UtcNow;
+
+        // Confirm payment when reconciling (if not already confirmed)
+        if (invoice.PaymentStatus != "Paid")
+        {
+            invoice.PaymentStatus = "Paid";
+            invoice.Status        = "Paid";
+        }
+
+        invoice.UpdatedAt = DateTime.UtcNow;
+        await _invoiceRepo.UpdateAsync(invoice, ct);
+    }
+
     private static InvoiceResponse MapToResponse(Invoice invoice) => new()
     {
         InvoiceId = invoice.InvoiceId,
@@ -452,6 +509,9 @@ public class InvoiceService : IInvoiceService
         GrandTotal = invoice.GrandTotal,
         CreatedAt = invoice.CreatedAt,
         UpdatedAt = invoice.UpdatedAt,
+        ReconReference = invoice.ReconReference,
+        ReconNotes = invoice.ReconNotes,
+        ReconciledAt = invoice.ReconciledAt,
         Lines = invoice.Lines.Select(l => new InvoiceLineResponse
         {
             SpeciesId = l.SpeciesId,

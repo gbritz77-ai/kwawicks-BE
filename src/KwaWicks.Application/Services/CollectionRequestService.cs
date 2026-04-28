@@ -404,6 +404,114 @@ public class CollectionRequestService : ICollectionRequestService
         return MapToResponse(cr);
     }
 
+    public async Task<CollectionRequestResponse> EditDeliveryAllocationAsync(
+        string id, string deliveryOrderId, EditAllocationRequest request, CancellationToken ct = default)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+        if (request.Lines == null || request.Lines.Count == 0)
+            throw new ArgumentException("At least one line is required.");
+
+        var cr = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {id}");
+
+        var allocation = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == deliveryOrderId)
+            ?? throw new InvalidOperationException($"Allocation for delivery order {deliveryOrderId} not found on this collection request.");
+
+        var deliveryOrder = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        var terminatedStatuses = new[] { "Delivered", "MarkedAtHub" };
+        if (terminatedStatuses.Contains(deliveryOrder.Status))
+            throw new InvalidOperationException("Cannot edit an allocation that has already been delivered.");
+
+        foreach (var edit in request.Lines)
+        {
+            if (edit.Qty <= 0)
+                throw new ArgumentException($"Quantity must be greater than 0 for species {edit.SpeciesId}.");
+        }
+
+        // Validate: total allocation across all clients (excluding this one) + new qty <= ordered qty
+        foreach (var edit in request.Lines)
+        {
+            var crLine = cr.Lines.FirstOrDefault(l => l.SpeciesId == edit.SpeciesId);
+            if (crLine == null) continue;
+
+            var otherAllocated = cr.DeliveryAllocations
+                .Where(a => a.DeliveryOrderId != deliveryOrderId)
+                .SelectMany(a => a.Lines)
+                .Where(l => l.SpeciesId == edit.SpeciesId)
+                .Sum(l => l.Qty);
+
+            if (otherAllocated + edit.Qty > crLine.OrderedQty)
+                throw new InvalidOperationException(
+                    $"New qty {edit.Qty} for species {edit.SpeciesId} combined with other allocations ({otherAllocated}) " +
+                    $"exceeds the ordered qty ({crLine.OrderedQty}).");
+        }
+
+        // Adjust QtyBookedOutForDelivery for each changed line
+        var adjustedSpecies = new List<(string speciesId, int delta)>();
+        try
+        {
+            foreach (var edit in request.Lines)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var allocationLine = allocation.Lines.FirstOrDefault(l => l.SpeciesId == edit.SpeciesId);
+                if (allocationLine == null) continue;
+
+                int delta = edit.Qty - allocationLine.Qty;
+                if (delta != 0)
+                {
+                    var species = await _speciesRepo.GetAsync(edit.SpeciesId, ct);
+                    if (species != null)
+                    {
+                        species.QtyBookedOutForDelivery = Math.Max(0, species.QtyBookedOutForDelivery + delta);
+                        await _speciesRepo.UpdateAsync(species, ct);
+                        adjustedSpecies.Add((edit.SpeciesId, delta));
+                    }
+                }
+
+                // Update the delivery order line
+                var doLine = deliveryOrder.Lines.FirstOrDefault(l => l.SpeciesId == edit.SpeciesId);
+                if (doLine != null)
+                {
+                    doLine.Quantity = edit.Qty;
+                    doLine.UnitPrice = edit.UnitPrice;
+                }
+
+                // Update the allocation record on the CR
+                allocationLine.Qty = edit.Qty;
+                allocationLine.UnitPrice = edit.UnitPrice;
+            }
+
+            deliveryOrder.UpdatedAt = DateTime.UtcNow;
+            await _deliveryRepo.UpdateAsync(deliveryOrder, ct);
+
+            cr.UpdatedAt = DateTime.UtcNow;
+            await _repo.UpdateAsync(cr, ct);
+        }
+        catch
+        {
+            // Rollback QtyBookedOutForDelivery adjustments
+            foreach (var (speciesId, delta) in adjustedSpecies)
+            {
+                try
+                {
+                    var s = await _speciesRepo.GetAsync(speciesId, ct);
+                    if (s != null)
+                    {
+                        s.QtyBookedOutForDelivery = Math.Max(0, s.QtyBookedOutForDelivery - delta);
+                        await _speciesRepo.UpdateAsync(s, ct);
+                    }
+                }
+                catch { /* swallow rollback errors */ }
+            }
+            throw;
+        }
+
+        return MapToResponse(cr);
+    }
+
     public async Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
         var all = await _repo.ListAsync(null, null, null, ct);

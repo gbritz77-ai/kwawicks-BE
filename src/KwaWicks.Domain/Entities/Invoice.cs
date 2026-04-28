@@ -31,6 +31,11 @@ public class Invoice
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // ── Reconciliation ─────────────────────────────────────────────────────
+    public string ReconReference { get; set; } = "";
+    public string ReconNotes { get; set; } = "";
+    public DateTime? ReconciledAt { get; set; }
 }
 
 public class SplitPayment

@@ -97,6 +97,32 @@ public class UpdateInvoiceLinesResponse
     public string? WhatsAppError { get; set; }
 }
 
+// ── Reconciliation ─────────────────────────────────────────────────────────
+public class ReconRequest
+{
+    public string? ReferenceNumber { get; set; }
+    public string? Notes { get; set; }
+    public DateTime? ReceivedAt { get; set; }
+}
+
+public class ReconInvoiceItem
+{
+    public string InvoiceId { get; set; } = "";
+    public string InvoiceNumber { get; set; } = "";
+    public string CustomerId { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public string SaleType { get; set; } = "";
+    public string PaymentType { get; set; } = "";
+    public string PaymentStatus { get; set; } = "";
+    public decimal GrandTotal { get; set; }
+    public string ReceiptS3Key { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public string ReconReference { get; set; } = "";
+    public string ReconNotes { get; set; } = "";
+    public DateTime? ReconciledAt { get; set; }
+    public int DaysOutstanding { get; set; }
+}
+
 // ── Response DTO ───────────────────────────────────────────────────────────
 public class InvoiceResponse
 {
@@ -119,6 +145,9 @@ public class InvoiceResponse
     public List<SplitPaymentLineResponse> SplitPayments { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public string ReconReference { get; set; } = "";
+    public string ReconNotes { get; set; } = "";
+    public DateTime? ReconciledAt { get; set; }
 }
 
 public class SplitPaymentLineResponse

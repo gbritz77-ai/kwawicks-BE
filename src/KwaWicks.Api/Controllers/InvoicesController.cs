@@ -199,6 +199,44 @@ public class InvoicesController : ControllerBase
         catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
     }
 
+    // GET /api/invoices/recon?paymentType=&reconStatus=&from=&to=
+    [HttpGet("recon")]
+    [Authorize(Policy = "FinancialAccess")]
+    [ProducesResponseType(typeof(List<ReconInvoiceItem>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReconList(
+        [FromQuery] string? paymentType,
+        [FromQuery] string? reconStatus,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var items = await _service.GetReconListAsync(paymentType, reconStatus, from, to, ct);
+
+        // Enrich with customer names in-memory using the already-injected client service
+        var clients = await _clientService.ListAsync(1000, ct);
+        var clientMap = clients.ToDictionary(c => c.ClientId, c => c.ClientName);
+        foreach (var item in items)
+            item.CustomerName = clientMap.TryGetValue(item.CustomerId, out var name) ? name : item.CustomerId;
+
+        return Ok(items);
+    }
+
+    // PUT /api/invoices/{invoiceId}/recon
+    [HttpPut("{invoiceId}/recon")]
+    [Authorize(Policy = "FinancialAccess")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Recon(string invoiceId, [FromBody] ReconRequest request, CancellationToken ct)
+    {
+        try
+        {
+            await _service.ReconAsync(invoiceId, request, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) { return NotFound(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
+
     // GET /api/invoices/{invoiceId}/receipt-upload-url
     [HttpGet("{invoiceId}/receipt-upload-url")]
     [Authorize(Policy = "DriverOnly")]

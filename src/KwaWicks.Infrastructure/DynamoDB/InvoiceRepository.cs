@@ -199,7 +199,11 @@ public class InvoiceRepository : IInvoiceRepository
             ["LinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.Lines ?? new List<InvoiceLine>()) },
             ["PriceApprovalStatus"] = new AttributeValue { S = inv.PriceApprovalStatus ?? "None" },
             ["BelowCostLinesJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.BelowCostLines ?? new List<KwaWicks.Domain.Entities.BelowCostLine>()) },
-            ["SplitPaymentsJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.SplitPayments ?? new List<KwaWicks.Domain.Entities.SplitPayment>()) }
+            ["SplitPaymentsJson"] = new AttributeValue { S = JsonSerializer.Serialize(inv.SplitPayments ?? new List<KwaWicks.Domain.Entities.SplitPayment>()) },
+
+            ["ReconReference"] = new AttributeValue { S = inv.ReconReference ?? "" },
+            ["ReconNotes"] = new AttributeValue { S = inv.ReconNotes ?? "" },
+            ["ReconciledAtUtc"] = new AttributeValue { S = inv.ReconciledAt?.ToString("O", CultureInfo.InvariantCulture) ?? "" }
         };
 
     private static Invoice FromItem(Dictionary<string, AttributeValue> item)
@@ -241,7 +245,13 @@ public class InvoiceRepository : IInvoiceRepository
             SplitPayments = item.TryGetValue("SplitPaymentsJson", out var spj)
                 ? JsonSerializer.Deserialize<List<KwaWicks.Domain.Entities.SplitPayment>>(spj.S ?? "[]") ?? new()
                 : new(),
-            Lines = lines
+            Lines = lines,
+
+            ReconReference = item.TryGetValue("ReconReference", out var rr) ? rr.S ?? "" : "",
+            ReconNotes = item.TryGetValue("ReconNotes", out var rn) ? rn.S ?? "" : "",
+            ReconciledAt = item.TryGetValue("ReconciledAtUtc", out var rat) && !string.IsNullOrEmpty(rat.S)
+                ? DateTime.Parse(rat.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+                : (DateTime?)null
         };
     }
 
@@ -256,6 +266,52 @@ public class InvoiceRepository : IInvoiceRepository
                 [":et"]  = new AttributeValue { S = "Invoice" },
                 [":pas"] = new AttributeValue { S = status }
             }
+        };
+
+        var result = new List<Invoice>();
+        ScanResponse? response;
+        do
+        {
+            response = await _ddb.ScanAsync(req, ct);
+            result.AddRange(response.Items.Select(FromItem));
+            req.ExclusiveStartKey = response.LastEvaluatedKey;
+        }
+        while (response.LastEvaluatedKey is { Count: > 0 });
+
+        return result;
+    }
+
+    public async Task<List<Invoice>> ListForReconAsync(string? paymentType, DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var filterParts = new List<string> { "EntityType = :et" };
+        var values = new Dictionary<string, AttributeValue>
+        {
+            [":et"] = new AttributeValue { S = "Invoice" }
+        };
+
+        if (!string.IsNullOrWhiteSpace(paymentType))
+        {
+            filterParts.Add("PaymentType = :pt");
+            values[":pt"] = new AttributeValue { S = paymentType };
+        }
+
+        if (from.HasValue)
+        {
+            filterParts.Add("CreatedAtUtc >= :from");
+            values[":from"] = new AttributeValue { S = from.Value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) };
+        }
+
+        if (to.HasValue)
+        {
+            filterParts.Add("CreatedAtUtc <= :to");
+            values[":to"] = new AttributeValue { S = to.Value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) };
+        }
+
+        var req = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = string.Join(" AND ", filterParts),
+            ExpressionAttributeValues = values
         };
 
         var result = new List<Invoice>();
