@@ -65,15 +65,19 @@ public class BankStatementService : IBankStatementService
         return list.Select(MapToSummary).ToList();
     }
 
-    public async Task<BankStatementResponse?> GetAsync(string statementId, CancellationToken ct)
+    public async Task<BankStatementResponse?> GetAsync(
+        string statementId,
+        CancellationToken ct,
+        string? search = null,
+        decimal? amount = null)
     {
         var statement = await _repo.GetAsync(statementId, ct);
-        return statement is null ? null : MapToResponse(statement);
+        return statement is null ? null : MapToResponse(statement, search, amount);
     }
 
-    // ── Allocation ─────────────────────────────────────────────────────────
+    // ── Invoice allocation ─────────────────────────────────────────────────
 
-    public async Task<BankStatementResponse> AllocateAsync(
+    public async Task<AllocateResponse> AllocateAsync(
         string statementId,
         string transactionId,
         AllocateBankTransactionRequest request,
@@ -86,19 +90,17 @@ public class BankStatementService : IBankStatementService
             ?? throw new InvalidOperationException($"Transaction {transactionId} not found in statement {statementId}.");
 
         if (tx.IsAllocated)
-            throw new InvalidOperationException("Transaction is already allocated to an invoice.");
+            throw new InvalidOperationException("Transaction is already allocated.");
 
-        // Load the invoice to get its number
         var invoice = await _invoiceService.GetAsync(request.InvoiceId, ct)
             ?? throw new InvalidOperationException($"Invoice {request.InvoiceId} not found.");
 
-        // Mark the bank transaction as allocated
         tx.IsAllocated            = true;
+        tx.AllocationType         = "Invoice";
         tx.AllocatedInvoiceId     = request.InvoiceId;
         tx.AllocatedInvoiceNumber = invoice.InvoiceNumber;
         tx.AllocatedAt            = DateTime.UtcNow;
 
-        // Mark the invoice as reconciled via the invoice service
         await _invoiceService.ReconAsync(request.InvoiceId, new ReconRequest
         {
             ReferenceNumber = !string.IsNullOrWhiteSpace(tx.Reference) ? tx.Reference : tx.Description,
@@ -107,8 +109,55 @@ public class BankStatementService : IBankStatementService
         }, ct);
 
         await _repo.UpdateAsync(statement, ct);
-        return MapToResponse(statement);
+
+        AllocationWarning? warning = BuildAmountWarning(tx.Amount, invoice.GrandTotal);
+
+        return new AllocateResponse
+        {
+            Statement = MapToResponse(statement),
+            Warning   = warning
+        };
     }
+
+    // ── Non-client allocation ──────────────────────────────────────────────
+
+    public async Task<AllocateResponse> AllocateNonClientAsync(
+        string statementId,
+        string transactionId,
+        AllocateNonClientRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Description))
+            throw new InvalidOperationException("A description is required for non-client allocations.");
+
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found in statement {statementId}.");
+
+        if (tx.IsAllocated)
+            throw new InvalidOperationException("Transaction is already allocated.");
+
+        tx.IsAllocated           = true;
+        tx.AllocationType        = "NonClient";
+        tx.NonClientDescription  = request.Description.Trim();
+        tx.AllocatedAt           = DateTime.UtcNow;
+
+        await _repo.UpdateAsync(statement, ct);
+
+        AllocationWarning? warning = request.Amount > 0
+            ? BuildAmountWarning(tx.Amount, request.Amount)
+            : null;
+
+        return new AllocateResponse
+        {
+            Statement = MapToResponse(statement),
+            Warning   = warning
+        };
+    }
+
+    // ── Deallocation ───────────────────────────────────────────────────────
 
     public async Task<BankStatementResponse> DeallocateAsync(
         string statementId,
@@ -126,18 +175,75 @@ public class BankStatementService : IBankStatementService
 
         var allocatedInvoiceId = tx.AllocatedInvoiceId;
 
-        // Clear the bank transaction allocation
-        tx.IsAllocated            = false;
-        tx.AllocatedInvoiceId     = "";
+        tx.IsAllocated           = false;
+        tx.AllocationType        = "";
+        tx.AllocatedInvoiceId    = "";
         tx.AllocatedInvoiceNumber = "";
-        tx.AllocatedAt            = null;
+        tx.NonClientDescription  = "";
+        tx.AllocatedAt           = null;
 
-        // Un-reconcile the invoice
         if (!string.IsNullOrWhiteSpace(allocatedInvoiceId))
             await _invoiceService.UnreconAsync(allocatedInvoiceId, ct);
 
         await _repo.UpdateAsync(statement, ct);
         return MapToResponse(statement);
+    }
+
+    // ── Allocation report ──────────────────────────────────────────────────
+
+    public async Task<List<BankReconAllocationReportItem>> GetAllocationReportAsync(
+        DateTime? from,
+        DateTime? to,
+        CancellationToken ct)
+    {
+        var statements = await _repo.ListAsync(ct);
+        var result = new List<BankReconAllocationReportItem>();
+
+        foreach (var s in statements)
+        {
+            foreach (var tx in s.Transactions.Where(t => t.IsAllocated))
+            {
+                if (from.HasValue && tx.Date < from.Value) continue;
+                if (to.HasValue   && tx.Date > to.Value)   continue;
+
+                result.Add(new BankReconAllocationReportItem
+                {
+                    StatementId           = s.StatementId,
+                    FileName              = s.FileName,
+                    TransactionId         = tx.TransactionId,
+                    Date                  = tx.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    Description           = tx.Description,
+                    Reference             = tx.Reference,
+                    Amount                = tx.Amount,
+                    AllocationType        = tx.AllocationType,
+                    AllocatedInvoiceId    = tx.AllocatedInvoiceId,
+                    AllocatedInvoiceNumber = tx.AllocatedInvoiceNumber,
+                    NonClientDescription  = tx.NonClientDescription,
+                    AllocatedAt           = tx.AllocatedAt.HasValue
+                        ? tx.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
+                        : null
+                });
+            }
+        }
+
+        return result.OrderByDescending(r => r.Date).ToList();
+    }
+
+    // ── Amount mismatch warning ────────────────────────────────────────────
+
+    private static AllocationWarning? BuildAmountWarning(decimal bankAmount, decimal allocationAmount)
+    {
+        var diff = bankAmount - allocationAmount;
+        if (diff == 0m) return null;
+
+        return new AllocationWarning
+        {
+            Code             = "AMOUNT_MISMATCH",
+            Message          = $"Bank payment of {bankAmount:N2} does not match allocation amount of {allocationAmount:N2}. Difference: {diff:N2}.",
+            BankAmount       = bankAmount,
+            AllocationAmount = allocationAmount,
+            Difference       = diff
+        };
     }
 
     // ── CSV Parser ─────────────────────────────────────────────────────────
@@ -207,7 +313,7 @@ public class BankStatementService : IBankStatementService
             var cols = SplitCsvLine(line);
             if (cols.Length <= dateCol) continue;
 
-            // Parse date — skip rows without a valid date (metadata rows)
+            // Skip rows without a valid date (metadata rows)
             if (!TryParseDate(cols[dateCol], out var date)) continue;
 
             decimal amount = 0m;
@@ -223,14 +329,13 @@ public class BankStatementService : IBankStatementService
             }
             else
             {
-                // Separate Debit / Credit columns
                 decimal debitAmt  = 0m, creditAmt = 0m;
                 if (debitCol  >= 0 && debitCol  < cols.Length) TryParseDecimal(cols[debitCol],  out debitAmt);
                 if (creditCol >= 0 && creditCol < cols.Length) TryParseDecimal(cols[creditCol], out creditAmt);
 
                 if (creditAmt > 0m)      { amount = creditAmt; type = "Credit"; }
                 else if (debitAmt > 0m)  { amount = debitAmt;  type = "Debit"; }
-                else continue; // no amount on this row — skip
+                else continue;
             }
 
             if (amount == 0m) continue;
@@ -267,7 +372,6 @@ public class BankStatementService : IBankStatementService
             var ch = line[ci];
             if (ch == '"')
             {
-                // Handle escaped quotes ("")
                 if (inQuotes && ci + 1 < line.Length && line[ci + 1] == '"')
                 {
                     current.Append('"');
@@ -320,23 +424,20 @@ public class BankStatementService : IBankStatementService
         raw = raw.Trim().Trim('"').Trim('\'');
         if (string.IsNullOrWhiteSpace(raw)) { amount = 0; return false; }
 
-        // Remove common formatting characters
-        raw = raw.Replace(" ", "").Replace("\u00a0", ""); // regular and non-breaking spaces
+        raw = raw.Replace(" ", "").Replace(" ", "");
 
-        // Resolve ambiguous separators
         int lastDot   = raw.LastIndexOf('.');
         int lastComma = raw.LastIndexOf(',');
 
         if (lastDot >= 0 && lastComma >= 0)
         {
             if (lastDot > lastComma)
-                raw = raw.Replace(",", "");          // "50,000.00" → "50000.00"
+                raw = raw.Replace(",", "");
             else
-                raw = raw.Replace(".", "").Replace(",", "."); // "50.000,00" → "50000.00"
+                raw = raw.Replace(".", "").Replace(",", ".");
         }
         else if (lastComma >= 0)
         {
-            // Comma only — decimal if 1-2 digits follow, otherwise thousands
             var afterComma = raw.Substring(lastComma + 1);
             if (afterComma.Length <= 2)
                 raw = raw.Replace(",", ".");
@@ -349,18 +450,45 @@ public class BankStatementService : IBankStatementService
 
     // ── Mapping ────────────────────────────────────────────────────────────
 
-    private static BankStatementResponse MapToResponse(BankStatement s) => new()
+    private static BankStatementResponse MapToResponse(
+        BankStatement s,
+        string? search = null,
+        decimal? amount = null)
     {
-        StatementId      = s.StatementId,
-        FileName         = s.FileName,
-        S3Key            = s.S3Key,
-        TransactionCount = s.TransactionCount,
-        CreditCount      = s.CreditCount,
-        TotalCredits     = s.TotalCredits,
-        UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
-        AllocatedCount   = s.Transactions.Count(t => t.IsAllocated),
-        Transactions     = s.Transactions.Select(MapTx).ToList()
-    };
+        var unallocated = s.Transactions
+            .Where(t => !t.IsAllocated)
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            unallocated = unallocated
+                .Where(t =>
+                    t.Description.ToLowerInvariant().Contains(term) ||
+                    t.Reference.ToLowerInvariant().Contains(term))
+                .ToList();
+        }
+
+        if (amount.HasValue)
+            unallocated = unallocated.Where(t => t.Amount == amount.Value).ToList();
+
+        return new BankStatementResponse
+        {
+            StatementId      = s.StatementId,
+            FileName         = s.FileName,
+            S3Key            = s.S3Key,
+            TransactionCount = s.TransactionCount,
+            CreditCount      = s.CreditCount,
+            TotalCredits     = s.TotalCredits,
+            AllocatedCount   = s.Transactions.Count(t => t.IsAllocated),
+            UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated),
+            UnallocatedAmount = s.Transactions
+                .Where(t => !t.IsAllocated && t.Type == "Credit")
+                .Sum(t => t.Amount),
+            UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
+            Transactions     = unallocated.Select(MapTx).ToList()
+        };
+    }
 
     private static BankStatementSummaryResponse MapToSummary(BankStatement s) => new()
     {
@@ -370,7 +498,11 @@ public class BankStatementService : IBankStatementService
         CreditCount      = s.CreditCount,
         TotalCredits     = s.TotalCredits,
         UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
-        AllocatedCount   = s.AllocatedCount
+        AllocatedCount   = s.Transactions.Count(t => t.IsAllocated),
+        UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated),
+        UnallocatedAmount = s.Transactions
+            .Where(t => !t.IsAllocated && t.Type == "Credit")
+            .Sum(t => t.Amount)
     };
 
     private static BankTransactionResponse MapTx(BankTransaction t) => new()
@@ -382,8 +514,10 @@ public class BankStatementService : IBankStatementService
         Amount                 = t.Amount,
         Type                   = t.Type,
         IsAllocated            = t.IsAllocated,
+        AllocationType         = t.AllocationType,
         AllocatedInvoiceId     = t.AllocatedInvoiceId,
         AllocatedInvoiceNumber = t.AllocatedInvoiceNumber,
+        NonClientDescription   = t.NonClientDescription,
         AllocatedAt            = t.AllocatedAt.HasValue
             ? t.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
             : null

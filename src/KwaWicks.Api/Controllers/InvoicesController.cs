@@ -199,7 +199,7 @@ public class InvoicesController : ControllerBase
         catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
     }
 
-    // GET /api/invoices/recon?paymentType=&reconStatus=&from=&to=
+    // GET /api/invoices/recon?paymentType=&reconStatus=&from=&to=&amount=&search=
     [HttpGet("recon")]
     [Authorize(Policy = "FinancialAccess")]
     [ProducesResponseType(typeof(List<ReconInvoiceItem>), StatusCodes.Status200OK)]
@@ -208,15 +208,27 @@ public class InvoicesController : ControllerBase
         [FromQuery] string? reconStatus,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
+        [FromQuery] decimal? amount,
+        [FromQuery] string? search,
         CancellationToken ct)
     {
-        var items = await _service.GetReconListAsync(paymentType, reconStatus, from, to, ct);
+        var items = await _service.GetReconListAsync(paymentType, reconStatus, from, to, ct, amount);
 
-        // Enrich with customer names in-memory using the already-injected client service
+        // Enrich with customer names before applying search so name-based search works
         var clients = await _clientService.ListAsync(1000, ct);
         var clientMap = clients.ToDictionary(c => c.ClientId, c => c.ClientName);
         foreach (var item in items)
             item.CustomerName = clientMap.TryGetValue(item.CustomerId, out var name) ? name : item.CustomerId;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            items = items
+                .Where(i =>
+                    i.CustomerName.ToLowerInvariant().Contains(term) ||
+                    i.InvoiceNumber.ToLowerInvariant().Contains(term))
+                .ToList();
+        }
 
         return Ok(items);
     }

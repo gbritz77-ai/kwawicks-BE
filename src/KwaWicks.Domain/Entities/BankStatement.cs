@@ -22,7 +22,9 @@ public class BankTransaction
     public decimal Amount { get; set; }        // always positive
     public string Type { get; set; } = "Credit"; // Credit | Debit
     public bool IsAllocated { get; set; }
+    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient"
     public string AllocatedInvoiceId { get; set; } = "";
     public string AllocatedInvoiceNumber { get; set; } = "";
+    public string NonClientDescription { get; set; } = "";
     public DateTime? AllocatedAt { get; set; }
 }

@@ -435,17 +435,21 @@ public class InvoiceService : IInvoiceService
 
     // ── Reconciliation ──────────────────────────────────────────────────────
     public async Task<List<ReconInvoiceItem>> GetReconListAsync(
-        string? paymentType, string? reconStatus, DateTime? from, DateTime? to, CancellationToken ct)
+        string? paymentType, string? reconStatus, DateTime? from, DateTime? to, CancellationToken ct,
+        decimal? amount = null)
     {
         var invoices = await _invoiceRepo.ListForReconAsync(paymentType, from, to, ct);
 
-        // Apply reconciliation status filter in memory (DynamoDB scan does date + paymentType)
         invoices = reconStatus switch
         {
             "pending"    => invoices.Where(i => !i.ReconciledAt.HasValue).ToList(),
             "reconciled" => invoices.Where(i => i.ReconciledAt.HasValue).ToList(),
             _            => invoices
         };
+
+        if (amount.HasValue)
+            invoices = invoices.Where(i => i.GrandTotal == amount.Value).ToList();
+
 
         var now = DateTime.UtcNow;
         return invoices
