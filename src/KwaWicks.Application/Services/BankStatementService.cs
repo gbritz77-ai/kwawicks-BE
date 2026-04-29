@@ -233,7 +233,7 @@ public class BankStatementService : IBankStatementService
 
     private static AllocationWarning? BuildAmountWarning(decimal bankAmount, decimal allocationAmount)
     {
-        var diff = bankAmount - allocationAmount;
+        var diff = Math.Round(bankAmount, 2) - Math.Round(allocationAmount, 2);
         if (diff == 0m) return null;
 
         return new AllocationWarning
@@ -480,8 +480,8 @@ public class BankStatementService : IBankStatementService
             TransactionCount = s.TransactionCount,
             CreditCount      = s.CreditCount,
             TotalCredits     = s.TotalCredits,
-            AllocatedCount   = s.Transactions.Count(t => t.IsAllocated),
-            UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated),
+            AllocatedCount   = s.Transactions.Count(t => t.IsAllocated && t.Type == "Credit"),
+            UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && t.Type == "Credit"),
             UnallocatedAmount = s.Transactions
                 .Where(t => !t.IsAllocated && t.Type == "Credit")
                 .Sum(t => t.Amount),
@@ -498,8 +498,8 @@ public class BankStatementService : IBankStatementService
         CreditCount      = s.CreditCount,
         TotalCredits     = s.TotalCredits,
         UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
-        AllocatedCount   = s.Transactions.Count(t => t.IsAllocated),
-        UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated),
+        AllocatedCount   = s.Transactions.Count(t => t.IsAllocated && t.Type == "Credit"),
+        UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && t.Type == "Credit"),
         UnallocatedAmount = s.Transactions
             .Where(t => !t.IsAllocated && t.Type == "Credit")
             .Sum(t => t.Amount)
