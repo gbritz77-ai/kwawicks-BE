@@ -17,6 +17,12 @@ public class AllocateNonClientRequest
     public decimal Amount { get; set; }
 }
 
+public class AllocateSupplierRequest
+{
+    public string SupplierId { get; set; } = "";
+    public string Notes { get; set; } = "";
+}
+
 public class AllocationWarning
 {
     public string Code { get; set; } = "";          // "AMOUNT_MISMATCH"
@@ -41,10 +47,12 @@ public class BankTransactionResponse
     public decimal Amount { get; set; }
     public string Type { get; set; } = "";        // Credit | Debit
     public bool IsAllocated { get; set; }
-    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient"
+    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient" | "Supplier"
     public string AllocatedInvoiceId { get; set; } = "";
     public string AllocatedInvoiceNumber { get; set; } = "";
     public string NonClientDescription { get; set; } = "";
+    public string AllocatedSupplierId { get; set; } = "";
+    public string AllocatedSupplierName { get; set; } = "";
     public string? AllocatedAt { get; set; }
 }
 
@@ -86,9 +94,11 @@ public class BankReconAllocationReportItem
     public string Reference { get; set; } = "";
     public decimal Amount { get; set; }
     public string Type { get; set; } = "";
-    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient"
+    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient" | "Supplier"
     public string AllocatedInvoiceId { get; set; } = "";
     public string AllocatedInvoiceNumber { get; set; } = "";
     public string NonClientDescription { get; set; } = "";
+    public string AllocatedSupplierId { get; set; } = "";
+    public string AllocatedSupplierName { get; set; } = "";
     public string? AllocatedAt { get; set; }
 }

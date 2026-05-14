@@ -14,15 +14,18 @@ public class BankStatementsController : ControllerBase
     private readonly IBankStatementService _service;
     private readonly IInvoiceService _invoiceService;
     private readonly IClientService _clientService;
+    private readonly ISupplierService _supplierService;
 
     public BankStatementsController(
         IBankStatementService service,
         IInvoiceService invoiceService,
-        IClientService clientService)
+        IClientService clientService,
+        ISupplierService supplierService)
     {
-        _service        = service;
-        _invoiceService = invoiceService;
-        _clientService  = clientService;
+        _service         = service;
+        _invoiceService  = invoiceService;
+        _clientService   = clientService;
+        _supplierService = supplierService;
     }
 
     // GET /api/bank-statements/upload-url?fileName=mybank.csv
@@ -128,6 +131,30 @@ public class BankStatementsController : ControllerBase
         try
         {
             var result = await _service.AllocateNonClientAsync(statementId, transactionId, request, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not found")
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
+    // PUT /api/bank-statements/{statementId}/transactions/{transactionId}/allocate-supplier
+    [HttpPut("{statementId}/transactions/{transactionId}/allocate-supplier")]
+    [ProducesResponseType(typeof(AllocateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AllocateSupplier(
+        string statementId,
+        string transactionId,
+        [FromBody] AllocateSupplierRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.AllocateSupplierAsync(statementId, transactionId, request, ct);
             return Ok(result);
         }
         catch (InvalidOperationException ex)

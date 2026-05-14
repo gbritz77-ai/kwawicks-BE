@@ -10,17 +10,20 @@ public class BankStatementService : IBankStatementService
 {
     private readonly IBankStatementRepository _repo;
     private readonly IInvoiceService _invoiceService;
+    private readonly ISupplierService _supplierService;
     private readonly IS3Service _s3;
     private const string CsvFolder = "bank-statements";
 
     public BankStatementService(
         IBankStatementRepository repo,
         IInvoiceService invoiceService,
+        ISupplierService supplierService,
         IS3Service s3)
     {
-        _repo = repo ?? throw new ArgumentNullException(nameof(repo));
-        _invoiceService = invoiceService ?? throw new ArgumentNullException(nameof(invoiceService));
-        _s3 = s3 ?? throw new ArgumentNullException(nameof(s3));
+        _repo            = repo            ?? throw new ArgumentNullException(nameof(repo));
+        _invoiceService  = invoiceService  ?? throw new ArgumentNullException(nameof(invoiceService));
+        _supplierService = supplierService ?? throw new ArgumentNullException(nameof(supplierService));
+        _s3              = s3              ?? throw new ArgumentNullException(nameof(s3));
     }
 
     // ── Upload URL ─────────────────────────────────────────────────────────
@@ -157,6 +160,41 @@ public class BankStatementService : IBankStatementService
         };
     }
 
+    // ── Supplier allocation ────────────────────────────────────────────────
+
+    public async Task<AllocateResponse> AllocateSupplierAsync(
+        string statementId,
+        string transactionId,
+        AllocateSupplierRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.SupplierId))
+            throw new InvalidOperationException("A supplier is required.");
+
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found in statement {statementId}.");
+
+        if (tx.IsAllocated)
+            throw new InvalidOperationException("Transaction is already allocated.");
+
+        var supplier = await _supplierService.GetAsync(request.SupplierId, ct)
+            ?? throw new InvalidOperationException($"Supplier {request.SupplierId} not found.");
+
+        tx.IsAllocated            = true;
+        tx.AllocationType         = "Supplier";
+        tx.AllocatedSupplierId    = supplier.SupplierId;
+        tx.AllocatedSupplierName  = supplier.Name;
+        tx.NonClientDescription   = string.IsNullOrWhiteSpace(request.Notes) ? "" : request.Notes.Trim();
+        tx.AllocatedAt            = DateTime.UtcNow;
+
+        await _repo.UpdateAsync(statement, ct);
+
+        return new AllocateResponse { Statement = MapToResponse(statement) };
+    }
+
     // ── Deallocation ───────────────────────────────────────────────────────
 
     public async Task<BankStatementResponse> DeallocateAsync(
@@ -175,12 +213,14 @@ public class BankStatementService : IBankStatementService
 
         var allocatedInvoiceId = tx.AllocatedInvoiceId;
 
-        tx.IsAllocated           = false;
-        tx.AllocationType        = "";
-        tx.AllocatedInvoiceId    = "";
+        tx.IsAllocated            = false;
+        tx.AllocationType         = "";
+        tx.AllocatedInvoiceId     = "";
         tx.AllocatedInvoiceNumber = "";
-        tx.NonClientDescription  = "";
-        tx.AllocatedAt           = null;
+        tx.NonClientDescription   = "";
+        tx.AllocatedSupplierId    = "";
+        tx.AllocatedSupplierName  = "";
+        tx.AllocatedAt            = null;
 
         if (!string.IsNullOrWhiteSpace(allocatedInvoiceId))
             await _invoiceService.UnreconAsync(allocatedInvoiceId, ct);
@@ -208,18 +248,21 @@ public class BankStatementService : IBankStatementService
 
                 result.Add(new BankReconAllocationReportItem
                 {
-                    StatementId           = s.StatementId,
-                    FileName              = s.FileName,
-                    TransactionId         = tx.TransactionId,
-                    Date                  = tx.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                    Description           = tx.Description,
-                    Reference             = tx.Reference,
-                    Amount                = tx.Amount,
-                    AllocationType        = tx.AllocationType,
-                    AllocatedInvoiceId    = tx.AllocatedInvoiceId,
+                    StatementId            = s.StatementId,
+                    FileName               = s.FileName,
+                    TransactionId          = tx.TransactionId,
+                    Date                   = tx.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    Description            = tx.Description,
+                    Reference              = tx.Reference,
+                    Amount                 = tx.Amount,
+                    Type                   = tx.Type,
+                    AllocationType         = tx.AllocationType,
+                    AllocatedInvoiceId     = tx.AllocatedInvoiceId,
                     AllocatedInvoiceNumber = tx.AllocatedInvoiceNumber,
-                    NonClientDescription  = tx.NonClientDescription,
-                    AllocatedAt           = tx.AllocatedAt.HasValue
+                    NonClientDescription   = tx.NonClientDescription,
+                    AllocatedSupplierId    = tx.AllocatedSupplierId,
+                    AllocatedSupplierName  = tx.AllocatedSupplierName,
+                    AllocatedAt            = tx.AllocatedAt.HasValue
                         ? tx.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
                         : null
                 });
@@ -518,6 +561,8 @@ public class BankStatementService : IBankStatementService
         AllocatedInvoiceId     = t.AllocatedInvoiceId,
         AllocatedInvoiceNumber = t.AllocatedInvoiceNumber,
         NonClientDescription   = t.NonClientDescription,
+        AllocatedSupplierId    = t.AllocatedSupplierId,
+        AllocatedSupplierName  = t.AllocatedSupplierName,
         AllocatedAt            = t.AllocatedAt.HasValue
             ? t.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
             : null
