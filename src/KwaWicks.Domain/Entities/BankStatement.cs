@@ -28,5 +28,7 @@ public class BankTransaction
     public string NonClientDescription { get; set; } = "";
     public string AllocatedSupplierId { get; set; } = "";
     public string AllocatedSupplierName { get; set; } = "";
+    public string AllocatedClientId { get; set; } = "";
+    public string AllocatedClientName { get; set; } = "";
     public DateTime? AllocatedAt { get; set; }
 }

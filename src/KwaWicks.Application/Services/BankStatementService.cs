@@ -11,6 +11,8 @@ public class BankStatementService : IBankStatementService
     private readonly IBankStatementRepository _repo;
     private readonly IInvoiceService _invoiceService;
     private readonly ISupplierService _supplierService;
+    private readonly IClientService _clientService;
+    private readonly IClientCreditService _clientCreditService;
     private readonly IS3Service _s3;
     private const string CsvFolder = "bank-statements";
 
@@ -18,12 +20,16 @@ public class BankStatementService : IBankStatementService
         IBankStatementRepository repo,
         IInvoiceService invoiceService,
         ISupplierService supplierService,
+        IClientService clientService,
+        IClientCreditService clientCreditService,
         IS3Service s3)
     {
-        _repo            = repo            ?? throw new ArgumentNullException(nameof(repo));
-        _invoiceService  = invoiceService  ?? throw new ArgumentNullException(nameof(invoiceService));
-        _supplierService = supplierService ?? throw new ArgumentNullException(nameof(supplierService));
-        _s3              = s3              ?? throw new ArgumentNullException(nameof(s3));
+        _repo                = repo                ?? throw new ArgumentNullException(nameof(repo));
+        _invoiceService      = invoiceService      ?? throw new ArgumentNullException(nameof(invoiceService));
+        _supplierService     = supplierService     ?? throw new ArgumentNullException(nameof(supplierService));
+        _clientService       = clientService       ?? throw new ArgumentNullException(nameof(clientService));
+        _clientCreditService = clientCreditService ?? throw new ArgumentNullException(nameof(clientCreditService));
+        _s3                  = s3                  ?? throw new ArgumentNullException(nameof(s3));
     }
 
     // ── Upload URL ─────────────────────────────────────────────────────────
@@ -195,6 +201,51 @@ public class BankStatementService : IBankStatementService
         return new AllocateResponse { Statement = MapToResponse(statement) };
     }
 
+    // ── Client credit allocation ───────────────────────────────────────────
+
+    public async Task<AllocateResponse> AllocateClientCreditAsync(
+        string statementId,
+        string transactionId,
+        AllocateClientCreditRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.ClientId))
+            throw new InvalidOperationException("A client is required.");
+
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found in statement {statementId}.");
+
+        if (tx.IsAllocated)
+            throw new InvalidOperationException("Transaction is already allocated.");
+
+        var client = await _clientService.GetByIdAsync(request.ClientId, ct)
+            ?? throw new InvalidOperationException($"Client {request.ClientId} not found.");
+
+        // Record the EFT deposit in the client credit ledger
+        await _clientCreditService.AddDepositAsync(request.ClientId, new AddCreditDepositRequest
+        {
+            Amount        = tx.Amount,
+            PaymentMethod = "EFT",
+            Notes         = string.IsNullOrWhiteSpace(request.Notes)
+                              ? $"Bank statement: {statement.FileName} — {tx.Description}"
+                              : request.Notes.Trim(),
+            CreatedByUserId = "BankRecon"
+        }, ct);
+
+        tx.IsAllocated          = true;
+        tx.AllocationType       = "ClientCredit";
+        tx.AllocatedClientId    = client.ClientId;
+        tx.AllocatedClientName  = client.ClientName;
+        tx.AllocatedAt          = DateTime.UtcNow;
+
+        await _repo.UpdateAsync(statement, ct);
+
+        return new AllocateResponse { Statement = MapToResponse(statement) };
+    }
+
     // ── Deallocation ───────────────────────────────────────────────────────
 
     public async Task<BankStatementResponse> DeallocateAsync(
@@ -211,6 +262,11 @@ public class BankStatementService : IBankStatementService
         if (!tx.IsAllocated)
             throw new InvalidOperationException("Transaction is not currently allocated.");
 
+        if (tx.AllocationType == "ClientCredit")
+            throw new InvalidOperationException(
+                "Client credit payments cannot be reversed here. " +
+                "Open the Client Credit Ledger and add a manual adjustment to correct the balance.");
+
         var allocatedInvoiceId = tx.AllocatedInvoiceId;
 
         tx.IsAllocated            = false;
@@ -220,6 +276,8 @@ public class BankStatementService : IBankStatementService
         tx.NonClientDescription   = "";
         tx.AllocatedSupplierId    = "";
         tx.AllocatedSupplierName  = "";
+        tx.AllocatedClientId      = "";
+        tx.AllocatedClientName    = "";
         tx.AllocatedAt            = null;
 
         if (!string.IsNullOrWhiteSpace(allocatedInvoiceId))
@@ -262,6 +320,8 @@ public class BankStatementService : IBankStatementService
                     NonClientDescription   = tx.NonClientDescription,
                     AllocatedSupplierId    = tx.AllocatedSupplierId,
                     AllocatedSupplierName  = tx.AllocatedSupplierName,
+                    AllocatedClientId      = tx.AllocatedClientId,
+                    AllocatedClientName    = tx.AllocatedClientName,
                     AllocatedAt            = tx.AllocatedAt.HasValue
                         ? tx.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
                         : null
@@ -563,6 +623,8 @@ public class BankStatementService : IBankStatementService
         NonClientDescription   = t.NonClientDescription,
         AllocatedSupplierId    = t.AllocatedSupplierId,
         AllocatedSupplierName  = t.AllocatedSupplierName,
+        AllocatedClientId      = t.AllocatedClientId,
+        AllocatedClientName    = t.AllocatedClientName,
         AllocatedAt            = t.AllocatedAt.HasValue
             ? t.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
             : null

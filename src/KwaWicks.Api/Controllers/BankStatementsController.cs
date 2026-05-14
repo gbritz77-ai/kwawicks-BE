@@ -165,6 +165,30 @@ public class BankStatementsController : ControllerBase
         }
     }
 
+    // PUT /api/bank-statements/{statementId}/transactions/{transactionId}/allocate-client-credit
+    [HttpPut("{statementId}/transactions/{transactionId}/allocate-client-credit")]
+    [ProducesResponseType(typeof(AllocateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AllocateClientCredit(
+        string statementId,
+        string transactionId,
+        [FromBody] AllocateClientCreditRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.AllocateClientCreditAsync(statementId, transactionId, request, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not found")
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
     // GET /api/bank-statements/{statementId}/transactions/{transactionId}/matches?search=
     // Returns pending, unreconciled invoices whose grand total matches the bank transaction amount.
     [HttpGet("{statementId}/transactions/{transactionId}/matches")]

@@ -23,6 +23,12 @@ public class AllocateSupplierRequest
     public string Notes { get; set; } = "";
 }
 
+public class AllocateClientCreditRequest
+{
+    public string ClientId { get; set; } = "";
+    public string Notes { get; set; } = "";
+}
+
 public class AllocationWarning
 {
     public string Code { get; set; } = "";          // "AMOUNT_MISMATCH"
@@ -47,12 +53,14 @@ public class BankTransactionResponse
     public decimal Amount { get; set; }
     public string Type { get; set; } = "";        // Credit | Debit
     public bool IsAllocated { get; set; }
-    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient" | "Supplier"
+    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient" | "Supplier" | "ClientCredit"
     public string AllocatedInvoiceId { get; set; } = "";
     public string AllocatedInvoiceNumber { get; set; } = "";
     public string NonClientDescription { get; set; } = "";
     public string AllocatedSupplierId { get; set; } = "";
     public string AllocatedSupplierName { get; set; } = "";
+    public string AllocatedClientId { get; set; } = "";
+    public string AllocatedClientName { get; set; } = "";
     public string? AllocatedAt { get; set; }
 }
 
@@ -94,11 +102,13 @@ public class BankReconAllocationReportItem
     public string Reference { get; set; } = "";
     public decimal Amount { get; set; }
     public string Type { get; set; } = "";
-    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient" | "Supplier"
+    public string AllocationType { get; set; } = "";          // "Invoice" | "NonClient" | "Supplier" | "ClientCredit"
     public string AllocatedInvoiceId { get; set; } = "";
     public string AllocatedInvoiceNumber { get; set; } = "";
     public string NonClientDescription { get; set; } = "";
     public string AllocatedSupplierId { get; set; } = "";
     public string AllocatedSupplierName { get; set; } = "";
+    public string AllocatedClientId { get; set; } = "";
+    public string AllocatedClientName { get; set; } = "";
     public string? AllocatedAt { get; set; }
 }
