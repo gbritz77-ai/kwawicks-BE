@@ -105,7 +105,39 @@ public class DeliveryStatusItem
     public decimal GrandTotal { get; set; }
 }
 
-// ── Admin: Customer Statement ────────────────────────────────────────────────
+// ── Client Credit Ledger Statement ──────────────────────────────────────────
+public class ClientCreditStatementResponse
+{
+    public string CustomerId { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public string CustomerAddress { get; set; } = "";
+    public string CustomerContact { get; set; } = "";
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+    public decimal OpeningBalance { get; set; }
+    public List<ClientCreditStatementLine> Lines { get; set; } = new();
+    public decimal TotalDeposits { get; set; }
+    public decimal TotalCharges { get; set; }
+    public decimal ClosingBalance { get; set; }
+}
+
+public class ClientCreditStatementLine
+{
+    public DateTime Date { get; set; }
+    /// <summary>Deposit | InvoiceCharge | ManualAdjustment</summary>
+    public string EntryType { get; set; } = "";
+    /// <summary>EFT | Cash | CardMachine | ""</summary>
+    public string PaymentMethod { get; set; } = "";
+    /// <summary>Notes or reference text from the ledger entry.</summary>
+    public string Description { get; set; } = "";
+    public string CreatedByUserId { get; set; } = "";
+    /// <summary>Positive = credit/deposit; negative = charge.</summary>
+    public decimal Amount { get; set; }
+    public decimal RunningBalance { get; set; }
+}
+
+// ── Admin: Customer Statement (invoice-based — kept for existing reports) ────
 public class CustomerStatementResponse
 {
     public string CustomerId { get; set; } = "";

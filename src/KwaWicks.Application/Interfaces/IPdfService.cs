@@ -13,4 +13,8 @@ public interface IPdfService
     Task<byte[]> GenerateStatementPdfAsync(
         CustomerStatementResponse statement,
         CancellationToken ct = default);
+
+    Task<byte[]> GenerateClientCreditStatementPdfAsync(
+        ClientCreditStatementResponse statement,
+        CancellationToken ct = default);
 }

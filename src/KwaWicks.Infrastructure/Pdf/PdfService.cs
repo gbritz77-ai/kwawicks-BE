@@ -285,4 +285,207 @@ public class PdfService : IPdfService
         var bytes = doc.GeneratePdf();
         return Task.FromResult(bytes);
     }
+
+    public Task<byte[]> GenerateClientCreditStatementPdfAsync(
+        ClientCreditStatementResponse statement,
+        CancellationToken ct = default)
+    {
+        var periodLabel = statement.From.HasValue || statement.To.HasValue
+            ? (statement.From.HasValue ? statement.From.Value.ToString("dd/MM/yyyy") : "—")
+              + " to "
+              + (statement.To.HasValue ? statement.To.Value.ToString("dd/MM/yyyy") : "—")
+            : "All time";
+
+        var doc = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+
+                page.Content().Column(col =>
+                {
+                    // ── Header ─────────────────────────────────────────────
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem().Column(c =>
+                        {
+                            c.Item().Text("KwaWicks").Bold().FontSize(24).FontColor("#166534");
+                            c.Item().Text("ACCOUNT STATEMENT").Bold().FontSize(14).FontColor("#64748b");
+                        });
+                        row.RelativeItem().AlignRight().Column(c =>
+                        {
+                            c.Item().Text("Generated: " + statement.GeneratedAt.ToString("dd/MM/yyyy")).FontColor("#475569");
+                            c.Item().Text("Period: " + periodLabel).FontColor("#475569");
+                        });
+                    });
+
+                    col.Item().PaddingVertical(8).LineHorizontal(2).LineColor("#166534");
+
+                    // ── Client info ────────────────────────────────────────
+                    col.Item().PaddingBottom(16).Column(c =>
+                    {
+                        c.Item().Text("Account:").Bold().FontSize(10).FontColor("#64748b");
+                        c.Item().Text(statement.CustomerName).Bold().FontSize(13);
+                        if (!string.IsNullOrWhiteSpace(statement.CustomerAddress))
+                            c.Item().Text(statement.CustomerAddress).FontColor("#475569");
+                        if (!string.IsNullOrWhiteSpace(statement.CustomerContact))
+                            c.Item().Text(statement.CustomerContact).FontColor("#475569");
+                    });
+
+                    // ── Opening balance ────────────────────────────────────
+                    if (statement.From.HasValue)
+                    {
+                        col.Item().PaddingBottom(8).Row(row =>
+                        {
+                            row.RelativeItem().Text("Opening balance (before " + statement.From.Value.ToString("dd/MM/yyyy") + ")")
+                                .FontColor("#475569");
+                            var obColor = statement.OpeningBalance < 0 ? "#dc2626"
+                                        : statement.OpeningBalance > 0 ? "#166534"
+                                        : "#475569";
+                            row.ConstantItem(120).AlignRight()
+                                .Text("R " + statement.OpeningBalance.ToString("N2"))
+                                .FontColor(obColor).Bold();
+                        });
+                        col.Item().PaddingBottom(8).LineHorizontal(1).LineColor("#e2e8f0");
+                    }
+
+                    // ── Ledger table ───────────────────────────────────────
+                    col.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(cols =>
+                        {
+                            cols.ConstantColumn(70);    // Date
+                            cols.RelativeColumn(1.4f);  // Type
+                            cols.RelativeColumn(1f);    // Method
+                            cols.RelativeColumn(3f);    // Description
+                            cols.ConstantColumn(80);    // Amount
+                            cols.ConstantColumn(90);    // Balance
+                        });
+
+                        table.Header(header =>
+                        {
+                            static IContainer HeaderCell(IContainer c) =>
+                                c.Background("#1e293b").Padding(6);
+
+                            header.Cell().Element(HeaderCell).Text("Date").Bold().FontColor("#ffffff");
+                            header.Cell().Element(HeaderCell).Text("Type").Bold().FontColor("#ffffff");
+                            header.Cell().Element(HeaderCell).Text("Method").Bold().FontColor("#ffffff");
+                            header.Cell().Element(HeaderCell).Text("Description").Bold().FontColor("#ffffff");
+                            header.Cell().Element(HeaderCell).AlignRight().Text("Amount").Bold().FontColor("#ffffff");
+                            header.Cell().Element(HeaderCell).AlignRight().Text("Balance").Bold().FontColor("#ffffff");
+                        });
+
+                        if (statement.Lines.Count == 0)
+                        {
+                            IContainer EmptyCell(IContainer c) => c.Background("#ffffff").Padding(12);
+                            table.Cell().ColumnSpan(6).Element(EmptyCell)
+                                .AlignCenter().Text("No transactions found for this period.").FontColor("#94a3b8");
+                        }
+
+                        var alt = false;
+                        foreach (var line in statement.Lines)
+                        {
+                            var bg = alt ? "#f8fafc" : "#ffffff";
+                            alt = !alt;
+
+                            IContainer Cell(IContainer c) =>
+                                c.Background(bg).Padding(6).BorderBottom(1).BorderColor("#f1f5f9");
+
+                            // Amount: green for deposits, red for charges
+                            var amtColor = line.Amount >= 0 ? "#166534" : "#dc2626";
+                            var amtText  = line.Amount >= 0
+                                ? "+ R " + line.Amount.ToString("N2")
+                                : "− R " + Math.Abs(line.Amount).ToString("N2");
+
+                            // Running balance colour
+                            var balColor = line.RunningBalance < 0  ? "#dc2626"
+                                         : line.RunningBalance > 0  ? "#166534"
+                                         : "#475569";
+
+                            // Human-readable type label
+                            var typeLabel = line.EntryType switch
+                            {
+                                "Deposit"          => "Payment",
+                                "InvoiceCharge"    => "Invoice Charge",
+                                "ManualAdjustment" => "Adjustment",
+                                _                  => line.EntryType
+                            };
+
+                            // Tag bank-recon originated deposits
+                            var desc = line.Description;
+                            if (line.CreatedByUserId == "BankRecon" && !desc.Contains("Bank statement"))
+                                desc = "[Bank Recon] " + desc;
+
+                            table.Cell().Element(Cell).Text(line.Date.ToString("dd/MM/yy"));
+                            table.Cell().Element(Cell).Text(typeLabel);
+                            table.Cell().Element(Cell).Text(line.PaymentMethod);
+                            table.Cell().Element(Cell).Text(desc).FontColor("#374151");
+                            table.Cell().Element(Cell).AlignRight().Text(amtText).FontColor(amtColor).Bold();
+                            table.Cell().Element(Cell).AlignRight().Text("R " + line.RunningBalance.ToString("N2")).FontColor(balColor).Bold();
+                        }
+                    });
+
+                    // ── Summary footer ─────────────────────────────────────
+                    col.Item().PaddingTop(16).Row(row =>
+                    {
+                        row.RelativeItem();
+                        row.ConstantItem(300).Column(c =>
+                        {
+                            if (statement.From.HasValue)
+                            {
+                                c.Item().Row(r =>
+                                {
+                                    r.RelativeItem().Text("Opening Balance").FontColor("#475569");
+                                    r.ConstantItem(110).AlignRight().Text("R " + statement.OpeningBalance.ToString("N2")).FontColor("#475569");
+                                });
+                            }
+
+                            c.Item().Row(r =>
+                            {
+                                r.RelativeItem().Text("Total Payments Received").FontColor("#166534");
+                                r.ConstantItem(110).AlignRight().Text("R " + statement.TotalDeposits.ToString("N2")).FontColor("#166534");
+                            });
+
+                            c.Item().Row(r =>
+                            {
+                                r.RelativeItem().Text("Total Charges").FontColor("#dc2626");
+                                r.ConstantItem(110).AlignRight().Text("R " + statement.TotalCharges.ToString("N2")).FontColor("#dc2626");
+                            });
+
+                            c.Item().PaddingTop(6).LineHorizontal(2).LineColor("#1e293b");
+
+                            var closingColor = statement.ClosingBalance < 0  ? "#dc2626"
+                                             : statement.ClosingBalance > 0  ? "#166534"
+                                             : "#475569";
+
+                            var closingLabel = statement.ClosingBalance < 0
+                                ? "Amount Outstanding"
+                                : statement.ClosingBalance > 0
+                                    ? "Credit Available"
+                                    : "Account Settled";
+
+                            c.Item().PaddingTop(6).Row(r =>
+                            {
+                                r.RelativeItem().Text(closingLabel).Bold().FontSize(12).FontColor(closingColor);
+                                r.ConstantItem(110).AlignRight()
+                                    .Text("R " + Math.Abs(statement.ClosingBalance).ToString("N2"))
+                                    .Bold().FontSize(12).FontColor(closingColor);
+                            });
+                        });
+                    });
+                });
+
+                page.Footer().AlignCenter().Text(txt =>
+                {
+                    txt.Span("This statement was generated automatically. Please contact KwaWicks if you have any queries.  |  kwawicks.co.za")
+                        .FontSize(9).FontColor("#94a3b8");
+                });
+            });
+        });
+
+        var bytes = doc.GeneratePdf();
+        return Task.FromResult(bytes);
+    }
 }

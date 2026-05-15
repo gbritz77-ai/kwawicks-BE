@@ -119,10 +119,10 @@ public class WhatsAppController : ControllerBase
         DateTime? from = request.From is not null ? DateTime.Parse(request.From) : null;
         DateTime? to = request.To is not null ? DateTime.Parse(request.To) : null;
 
-        var statement = await _reportService.GetCustomerStatementAsync(clientId, from, to, ct);
+        var statement = await _reportService.GetClientCreditStatementAsync(clientId, from, to, ct);
 
         // Generate PDF
-        var pdfBytes = await _pdfService.GenerateStatementPdfAsync(statement, ct);
+        var pdfBytes = await _pdfService.GenerateClientCreditStatementPdfAsync(statement, ct);
 
         // Upload to S3
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();

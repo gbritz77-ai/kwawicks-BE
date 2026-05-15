@@ -9,13 +9,20 @@ public class ReportService : IReportService
     private readonly IDeliveryOrderRepository _deliveryOrders;
     private readonly IClientRepository _clients;
     private readonly ISpeciesRepository _species;
+    private readonly IClientCreditService _clientCreditService;
 
-    public ReportService(IInvoiceRepository invoices, IDeliveryOrderRepository deliveryOrders, IClientRepository clients, ISpeciesRepository species)
+    public ReportService(
+        IInvoiceRepository invoices,
+        IDeliveryOrderRepository deliveryOrders,
+        IClientRepository clients,
+        ISpeciesRepository species,
+        IClientCreditService clientCreditService)
     {
         _invoices = invoices;
         _deliveryOrders = deliveryOrders;
         _clients = clients;
         _species = species;
+        _clientCreditService = clientCreditService;
     }
 
     public async Task<RevenueSummaryResponse> GetRevenueSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
@@ -365,5 +372,69 @@ public class ReportService : IReportService
                 };
             })
             .ToList();
+    }
+
+    public async Task<ClientCreditStatementResponse> GetClientCreditStatementAsync(
+        string clientId,
+        DateTime? from,
+        DateTime? to,
+        CancellationToken ct = default)
+    {
+        var client = await _clients.GetAsync(clientId, ct)
+            ?? throw new InvalidOperationException($"Customer not found: {clientId}");
+
+        var ledger = await _clientCreditService.GetLedgerAsync(clientId, ct);
+
+        // Sort all entries chronologically so running balance is correct
+        var allEntries = ledger.Entries.OrderBy(e => e.CreatedAt).ToList();
+
+        // Opening balance = sum of all entries strictly before the from date
+        var openingBalance = from.HasValue
+            ? allEntries.Where(e => e.CreatedAt < from.Value).Sum(e => e.Amount)
+            : 0m;
+
+        // Filter to the requested date range
+        var inRange = allEntries
+            .Where(e => from == null || e.CreatedAt >= from.Value)
+            .Where(e => to == null   || e.CreatedAt <= to.Value)
+            .ToList();
+
+        // Build statement lines with a running balance
+        var running = openingBalance;
+        var lines = inRange.Select(e =>
+        {
+            running += e.Amount;
+            return new ClientCreditStatementLine
+            {
+                Date            = e.CreatedAt,
+                EntryType       = e.EntryType,
+                PaymentMethod   = e.PaymentMethod,
+                Description     = !string.IsNullOrWhiteSpace(e.Notes)
+                                      ? e.Notes
+                                      : e.Reference,
+                CreatedByUserId = e.CreatedByUserId,
+                Amount          = e.Amount,
+                RunningBalance  = running
+            };
+        }).ToList();
+
+        var totalDeposits = inRange.Where(e => e.Amount > 0).Sum(e => e.Amount);
+        var totalCharges  = inRange.Where(e => e.Amount < 0).Sum(e => Math.Abs(e.Amount));
+
+        return new ClientCreditStatementResponse
+        {
+            CustomerId      = client.ClientId,
+            CustomerName    = client.ClientName,
+            CustomerAddress = client.ClientAddress,
+            CustomerContact = client.ClientContactDetails,
+            From            = from,
+            To              = to,
+            GeneratedAt     = DateTime.UtcNow,
+            OpeningBalance  = openingBalance,
+            Lines           = lines,
+            TotalDeposits   = totalDeposits,
+            TotalCharges    = totalCharges,
+            ClosingBalance  = running   // final running value after all in-range entries
+        };
     }
 }

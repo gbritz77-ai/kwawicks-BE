@@ -14,4 +14,5 @@ public interface IReportService
     Task<CustomerStatementResponse> GetCustomerStatementAsync(string customerId, DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<List<CustomerStatementResponse>> GetAllCustomerStatementsAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<SpeciesRevenueResponse> GetSpeciesRevenueAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
+    Task<ClientCreditStatementResponse> GetClientCreditStatementAsync(string clientId, DateTime? from, DateTime? to, CancellationToken ct = default);
 }
