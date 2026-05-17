@@ -330,10 +330,12 @@ public class CollectionRequestService : ICollectionRequestService
                 .Where(l => l.SpeciesId == reqLine.SpeciesId)
                 .Sum(l => l.Qty);
 
-            if (alreadyAllocated + reqLine.Qty > crLine.OrderedQty)
+            // Use loaded qty as the cap once the driver has loaded (more accurate than ordered qty when there's a shortfall)
+            var effectiveQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
+            if (alreadyAllocated + reqLine.Qty > effectiveQty)
                 throw new InvalidOperationException(
                     $"Allocation of {reqLine.Qty} for species {reqLine.SpeciesId} exceeds available qty. " +
-                    $"Ordered: {crLine.OrderedQty}, already allocated: {alreadyAllocated}.");
+                    $"{(crLine.LoadedQty > 0 ? "Loaded" : "Ordered")}: {effectiveQty}, already allocated: {alreadyAllocated}.");
         }
 
         // Build the DeliveryOrder lines, resolving species names
@@ -442,10 +444,12 @@ public class CollectionRequestService : ICollectionRequestService
                 .Where(l => l.SpeciesId == edit.SpeciesId)
                 .Sum(l => l.Qty);
 
-            if (otherAllocated + edit.Qty > crLine.OrderedQty)
+            // Use loaded qty as the cap once the driver has loaded (more accurate than ordered qty when there's a shortfall)
+            var effectiveEditQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
+            if (otherAllocated + edit.Qty > effectiveEditQty)
                 throw new InvalidOperationException(
                     $"New qty {edit.Qty} for species {edit.SpeciesId} combined with other allocations ({otherAllocated}) " +
-                    $"exceeds the ordered qty ({crLine.OrderedQty}).");
+                    $"exceeds the {(crLine.LoadedQty > 0 ? "loaded" : "ordered")} qty ({effectiveEditQty}).");
         }
 
         // Adjust QtyBookedOutForDelivery for each changed line
