@@ -8,7 +8,7 @@ namespace KwaWicks.Api.Controllers;
 [ApiController]
 [Route("api/petty-cash")]
 [Produces("application/json")]
-[Authorize(Policy = "FinancialAccess")]
+[Authorize(Policy = "PettyCashAccess")]
 public class PettyCashController : ControllerBase
 {
     private readonly IPettyCashService _service;
