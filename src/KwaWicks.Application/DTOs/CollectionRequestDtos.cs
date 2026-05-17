@@ -56,6 +56,7 @@ public class CollectionRequestResponse
     public bool ShortfallFlagged { get; set; }
     public List<CollectionRequestLineResponse> Lines { get; set; } = new();
     public List<CollectionDeliveryAllocationResponse> DeliveryAllocations { get; set; } = new();
+    public List<RoadsaleLineResponse> RoadsideSales { get; set; } = new();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -138,4 +139,27 @@ public class CollectionAllocationLineResponse
     public string SpeciesName { get; set; } = "";
     public int Qty { get; set; }
     public decimal UnitPrice { get; set; }
+}
+
+// ── Roadside sales ─────────────────────────────────────────────────────────────
+public class SetRoadsideSalesRequest
+{
+    public List<RoadsaleLineRequest> Lines { get; set; } = new();
+}
+
+public class RoadsaleLineRequest
+{
+    public string SpeciesId { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal UnitPrice { get; set; }
+    public string PaymentType { get; set; } = ""; // Cash, EFT
+}
+
+public class RoadsaleLineResponse
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal UnitPrice { get; set; }
+    public string PaymentType { get; set; } = "";
 }

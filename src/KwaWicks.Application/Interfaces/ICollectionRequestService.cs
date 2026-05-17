@@ -17,5 +17,6 @@ public interface ICollectionRequestService
     Task<string> GetDeliveryNoteViewUrlAsync(string id, CancellationToken ct = default);
     Task<CollectionRequestResponse> AddDeliveryAllocationAsync(string id, AddDeliveryAllocationRequest request, CancellationToken ct = default);
     Task<CollectionRequestResponse> EditDeliveryAllocationAsync(string id, string deliveryOrderId, EditAllocationRequest request, CancellationToken ct = default);
+    Task<CollectionRequestResponse> SetRoadsideSalesAsync(string id, SetRoadsideSalesRequest request, CancellationToken ct = default);
     Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default);
 }

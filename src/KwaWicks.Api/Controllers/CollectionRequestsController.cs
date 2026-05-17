@@ -168,6 +168,21 @@ public class CollectionRequestsController : ControllerBase
         catch (Exception ex) { return StatusCode(500, ex.Message); }
     }
 
+    // PUT /api/collection-requests/{id}/roadside-sales  (replaces entire set)
+    [HttpPut("{id}/roadside-sales")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> SetRoadsideSales(string id, [FromBody] SetRoadsideSalesRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.SetRoadsideSalesAsync(id, request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
+
     // PUT /api/collection-requests/{id}/allocations/{deliveryOrderId}
     [HttpPut("{id}/allocations/{deliveryOrderId}")]
     [Authorize(Policy = "AdminOnly")]

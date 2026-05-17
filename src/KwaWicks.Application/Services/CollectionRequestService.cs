@@ -516,6 +516,65 @@ public class CollectionRequestService : ICollectionRequestService
         return MapToResponse(cr);
     }
 
+    public async Task<CollectionRequestResponse> SetRoadsideSalesAsync(string id, SetRoadsideSalesRequest request, CancellationToken ct = default)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+
+        var cr = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {id}");
+
+        if (cr.Status == "FinanceAcknowledged")
+            throw new InvalidOperationException("Cannot record roadside sales after the collection has been finance-acknowledged.");
+
+        // Validate each line
+        foreach (var line in request.Lines)
+        {
+            if (line.Qty <= 0)
+                throw new ArgumentException($"Quantity must be greater than zero for species {line.SpeciesId}.");
+
+            if (!new[] { "Cash", "EFT" }.Contains(line.PaymentType, StringComparer.OrdinalIgnoreCase))
+                throw new ArgumentException($"PaymentType must be Cash or EFT for species {line.SpeciesId}.");
+
+            if (!cr.Lines.Any(l => l.SpeciesId == line.SpeciesId))
+                throw new InvalidOperationException($"Species {line.SpeciesId} is not part of this collection request.");
+        }
+
+        // Validate per-species: total roadside qty <= hub return available (loaded - client allocated)
+        var bySpecies = request.Lines.GroupBy(l => l.SpeciesId);
+        foreach (var group in bySpecies)
+        {
+            var crLine = cr.Lines.First(l => l.SpeciesId == group.Key);
+            var baseQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
+            var clientAllocated = cr.DeliveryAllocations
+                .SelectMany(a => a.Lines)
+                .Where(l => l.SpeciesId == group.Key)
+                .Sum(l => l.Qty);
+            var hubReturn = baseQty - clientAllocated;
+            var roadsaleTotal = group.Sum(l => l.Qty);
+
+            if (roadsaleTotal > hubReturn)
+                throw new InvalidOperationException(
+                    $"Roadside sales of {roadsaleTotal} for {crLine.SpeciesName} exceed the hub return available ({hubReturn}).");
+        }
+
+        // Replace roadside sales (PUT semantics — idempotent re-save)
+        cr.RoadsideSales = request.Lines.Select(l =>
+        {
+            var crLine = cr.Lines.First(x => x.SpeciesId == l.SpeciesId);
+            return new Domain.Entities.CollectionRoadsaleLine
+            {
+                SpeciesId   = l.SpeciesId,
+                SpeciesName = crLine.SpeciesName,
+                Qty         = l.Qty,
+                UnitPrice   = l.UnitPrice,
+                PaymentType = l.PaymentType,
+            };
+        }).ToList();
+
+        await _repo.UpdateAsync(cr, ct);
+        return MapToResponse(cr);
+    }
+
     public async Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
         var all = await _repo.ListAsync(null, null, null, ct);
@@ -588,6 +647,14 @@ public class CollectionRequestService : ICollectionRequestService
                 Qty = l.Qty,
                 UnitPrice = l.UnitPrice
             }).ToList()
+        }).ToList(),
+        RoadsideSales = cr.RoadsideSales.Select(r => new RoadsaleLineResponse
+        {
+            SpeciesId   = r.SpeciesId,
+            SpeciesName = r.SpeciesName,
+            Qty         = r.Qty,
+            UnitPrice   = r.UnitPrice,
+            PaymentType = r.PaymentType,
         }).ToList()
     };
 }

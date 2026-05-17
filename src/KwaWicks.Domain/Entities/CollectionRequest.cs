@@ -16,6 +16,7 @@ public class CollectionRequest
     public string DeliveryNoteS3Key { get; set; } = "";
     public List<CollectionRequestLine> Lines { get; set; } = new();
     public List<CollectionDeliveryAllocation> DeliveryAllocations { get; set; } = new();
+    public List<CollectionRoadsaleLine> RoadsideSales { get; set; } = new();
     public bool ShortfallFlagged { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -35,6 +36,15 @@ public class CollectionAllocationLine
     public string SpeciesName { get; set; } = "";
     public int Qty { get; set; }
     public decimal UnitPrice { get; set; }
+}
+
+public class CollectionRoadsaleLine
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal UnitPrice { get; set; }
+    public string PaymentType { get; set; } = ""; // Cash, EFT
 }
 
 public class CollectionRequestLine
