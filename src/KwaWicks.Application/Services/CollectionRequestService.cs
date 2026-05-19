@@ -11,6 +11,7 @@ public class CollectionRequestService : ICollectionRequestService
     private readonly ISpeciesRepository _speciesRepo;
     private readonly IDeliveryOrderRepository _deliveryRepo;
     private readonly IClientRepository _clientRepo;
+    private readonly IInvoiceRepository _invoiceRepo;
     private readonly IS3Service _s3;
 
     public CollectionRequestService(
@@ -19,6 +20,7 @@ public class CollectionRequestService : ICollectionRequestService
         ISpeciesRepository speciesRepo,
         IDeliveryOrderRepository deliveryRepo,
         IClientRepository clientRepo,
+        IInvoiceRepository invoiceRepo,
         IS3Service s3)
     {
         _repo = repo;
@@ -26,6 +28,7 @@ public class CollectionRequestService : ICollectionRequestService
         _speciesRepo = speciesRepo;
         _deliveryRepo = deliveryRepo;
         _clientRepo = clientRepo;
+        _invoiceRepo = invoiceRepo;
         _s3 = s3;
     }
 
@@ -72,19 +75,22 @@ public class CollectionRequestService : ICollectionRequestService
             await _poRepo.UpdateAsync(po, ct);
         }
 
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionRequestResponse?> GetAsync(string id, CancellationToken ct = default)
     {
         var cr = await _repo.GetAsync(id, ct);
-        return cr == null ? null : MapToResponse(cr);
+        return cr == null ? null : await MapToResponseAsync(cr, ct);
     }
 
     public async Task<List<CollectionRequestResponse>> ListAsync(string? driverId = null, string? status = null, string? procurementOrderId = null, CancellationToken ct = default)
     {
         var items = await _repo.ListAsync(driverId, status, procurementOrderId, ct);
-        return items.Select(MapToResponse).ToList();
+        var results = new List<CollectionRequestResponse>(items.Count);
+        foreach (var item in items)
+            results.Add(await MapToResponseAsync(item, ct));
+        return results;
     }
 
     public async Task<CollectionRequestResponse> DriverLoadAsync(string id, DriverLoadingUpdateRequest request, CancellationToken ct = default)
@@ -108,7 +114,7 @@ public class CollectionRequestService : ICollectionRequestService
         cr.Status = "Loading";
         cr.ShortfallFlagged = cr.Lines.Any(l => l.LoadedQty < l.OrderedQty);
         await _repo.UpdateAsync(cr, ct);
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionRequestResponse> DispatchAsync(string id, CancellationToken ct = default)
@@ -146,7 +152,7 @@ public class CollectionRequestService : ICollectionRequestService
             await _poRepo.UpdateAsync(po, ct);
         }
 
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionRequestResponse> ArriveAsync(string id, CancellationToken ct = default)
@@ -159,7 +165,7 @@ public class CollectionRequestService : ICollectionRequestService
 
         cr.Status = "ArrivedAtHub";
         await _repo.UpdateAsync(cr, ct);
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionRequestResponse> HubConfirmAsync(string id, HubConfirmReceiptRequest request, CancellationToken ct = default)
@@ -232,7 +238,7 @@ public class CollectionRequestService : ICollectionRequestService
             throw;
         }
 
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionRequestResponse> FinanceAcknowledgeAsync(string id, string invoiceS3Key, CancellationToken ct = default)
@@ -255,7 +261,7 @@ public class CollectionRequestService : ICollectionRequestService
             await _poRepo.UpdateAsync(po, ct);
         }
 
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionInvoiceUploadUrlResponse> GetInvoiceUploadUrlAsync(string id, CancellationToken ct = default)
@@ -403,7 +409,7 @@ public class CollectionRequestService : ICollectionRequestService
 
         await _repo.UpdateAsync(cr, ct);
 
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionRequestResponse> EditDeliveryAllocationAsync(
@@ -513,7 +519,7 @@ public class CollectionRequestService : ICollectionRequestService
             throw;
         }
 
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<CollectionRequestResponse> SetRoadsideSalesAsync(string id, SetRoadsideSalesRequest request, CancellationToken ct = default)
@@ -572,7 +578,7 @@ public class CollectionRequestService : ICollectionRequestService
         }).ToList();
 
         await _repo.UpdateAsync(cr, ct);
-        return MapToResponse(cr);
+        return await MapToResponseAsync(cr, ct);
     }
 
     public async Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
@@ -608,53 +614,84 @@ public class CollectionRequestService : ICollectionRequestService
         }).ToList();
     }
 
-    private static CollectionRequestResponse MapToResponse(CollectionRequest cr) => new()
+    private async Task<CollectionRequestResponse> MapToResponseAsync(CollectionRequest cr, CancellationToken ct)
     {
-        CollectionRequestId = cr.CollectionRequestId,
-        ProcurementOrderId = cr.ProcurementOrderId,
-        SupplierId = cr.SupplierId,
-        SupplierName = cr.SupplierName,
-        AssignedDriverId = cr.AssignedDriverId,
-        AssignedDriverName = cr.AssignedDriverName,
-        HubId = cr.HubId,
-        Status = cr.Status,
-        Notes = cr.Notes,
-        CollectionDate = cr.CollectionDate,
-        InvoiceS3Key = cr.InvoiceS3Key,
-        DeliveryNoteS3Key = cr.DeliveryNoteS3Key,
-        ShortfallFlagged = cr.ShortfallFlagged,
-        CreatedAt = cr.CreatedAt,
-        UpdatedAt = cr.UpdatedAt,
-        Lines = cr.Lines.Select(l => new CollectionRequestLineResponse
+        var response = new CollectionRequestResponse
         {
-            SpeciesId = l.SpeciesId,
-            SpeciesName = l.SpeciesName,
-            OrderedQty = l.OrderedQty,
-            LoadedQty = l.LoadedQty,
-            LoadingNotes = l.LoadingNotes,
-            ReceivedQty = l.ReceivedQty,
-            DiscrepancyNotes = l.DiscrepancyNotes
-        }).ToList(),
-        DeliveryAllocations = cr.DeliveryAllocations.Select(a => new CollectionDeliveryAllocationResponse
-        {
-            DeliveryOrderId = a.DeliveryOrderId,
-            ClientId = a.ClientId,
-            ClientName = a.ClientName,
-            Lines = a.Lines.Select(l => new CollectionAllocationLineResponse
+            CollectionRequestId = cr.CollectionRequestId,
+            ProcurementOrderId  = cr.ProcurementOrderId,
+            SupplierId          = cr.SupplierId,
+            SupplierName        = cr.SupplierName,
+            AssignedDriverId    = cr.AssignedDriverId,
+            AssignedDriverName  = cr.AssignedDriverName,
+            HubId               = cr.HubId,
+            Status              = cr.Status,
+            Notes               = cr.Notes,
+            CollectionDate      = cr.CollectionDate,
+            InvoiceS3Key        = cr.InvoiceS3Key,
+            DeliveryNoteS3Key   = cr.DeliveryNoteS3Key,
+            ShortfallFlagged    = cr.ShortfallFlagged,
+            CreatedAt           = cr.CreatedAt,
+            UpdatedAt           = cr.UpdatedAt,
+            Lines = cr.Lines.Select(l => new CollectionRequestLineResponse
             {
-                SpeciesId = l.SpeciesId,
-                SpeciesName = l.SpeciesName,
-                Qty = l.Qty,
-                UnitPrice = l.UnitPrice
+                SpeciesId        = l.SpeciesId,
+                SpeciesName      = l.SpeciesName,
+                OrderedQty       = l.OrderedQty,
+                LoadedQty        = l.LoadedQty,
+                LoadingNotes     = l.LoadingNotes,
+                ReceivedQty      = l.ReceivedQty,
+                DiscrepancyNotes = l.DiscrepancyNotes
+            }).ToList(),
+            RoadsideSales = cr.RoadsideSales.Select(r => new RoadsaleLineResponse
+            {
+                SpeciesId   = r.SpeciesId,
+                SpeciesName = r.SpeciesName,
+                Qty         = r.Qty,
+                UnitPrice   = r.UnitPrice,
+                PaymentType = r.PaymentType,
             }).ToList()
-        }).ToList(),
-        RoadsideSales = cr.RoadsideSales.Select(r => new RoadsaleLineResponse
+        };
+
+        // Enrich delivery allocations with actual delivery + invoice data
+        var enrichedAllocations = new List<CollectionDeliveryAllocationResponse>();
+        foreach (var a in cr.DeliveryAllocations)
         {
-            SpeciesId   = r.SpeciesId,
-            SpeciesName = r.SpeciesName,
-            Qty         = r.Qty,
-            UnitPrice   = r.UnitPrice,
-            PaymentType = r.PaymentType,
-        }).ToList()
-    };
+            Domain.Entities.DeliveryOrder? doOrder = null;
+            string paymentType = "";
+            try
+            {
+                doOrder = await _deliveryRepo.GetAsync(a.DeliveryOrderId, ct);
+
+                if (doOrder != null && !string.IsNullOrEmpty(doOrder.InvoiceId))
+                {
+                    var invoice = await _invoiceRepo.GetAsync(doOrder.InvoiceId, ct);
+                    paymentType = invoice?.PaymentType ?? "";
+                }
+            }
+            catch { /* non-fatal — degrade gracefully if delivery order is unavailable */ }
+
+            enrichedAllocations.Add(new CollectionDeliveryAllocationResponse
+            {
+                DeliveryOrderId = a.DeliveryOrderId,
+                ClientId        = a.ClientId,
+                ClientName      = a.ClientName,
+                DeliveryStatus  = doOrder?.Status ?? "",
+                PaymentType     = paymentType,
+                Lines = a.Lines.Select(l => new CollectionAllocationLineResponse
+                {
+                    SpeciesId    = l.SpeciesId,
+                    SpeciesName  = l.SpeciesName,
+                    Qty          = l.Qty,
+                    UnitPrice    = l.UnitPrice,
+                    DeliveredQty = doOrder?.Lines
+                        .FirstOrDefault(dl => dl.SpeciesId == l.SpeciesId)
+                        ?.DeliveredQty ?? 0,
+                }).ToList()
+            });
+        }
+
+        response.DeliveryAllocations = enrichedAllocations;
+        return response;
+    }
 }

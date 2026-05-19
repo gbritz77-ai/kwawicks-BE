@@ -130,6 +130,10 @@ public class CollectionDeliveryAllocationResponse
     public string DeliveryOrderId { get; set; } = "";
     public string ClientId { get; set; } = "";
     public string ClientName { get; set; } = "";
+    /// <summary>Status of the linked delivery order (Open / AwaitingCollection / OutForDelivery / Delivered / MarkedAtHub).</summary>
+    public string DeliveryStatus { get; set; } = "";
+    /// <summary>Payment type from the linked invoice once the driver has invoiced (Cash / EFT / Credit / "").</summary>
+    public string PaymentType { get; set; } = "";
     public List<CollectionAllocationLineResponse> Lines { get; set; } = new();
 }
 
@@ -137,8 +141,11 @@ public class CollectionAllocationLineResponse
 {
     public string SpeciesId { get; set; } = "";
     public string SpeciesName { get; set; } = "";
+    /// <summary>Quantity allocated at planning time.</summary>
     public int Qty { get; set; }
     public decimal UnitPrice { get; set; }
+    /// <summary>Actual quantity delivered to the client (0 = not yet delivered / invoice not yet created).</summary>
+    public int DeliveredQty { get; set; }
 }
 
 // ── Roadside sales ─────────────────────────────────────────────────────────────
