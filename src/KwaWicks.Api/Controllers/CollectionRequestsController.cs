@@ -183,6 +183,29 @@ public class CollectionRequestsController : ControllerBase
         catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
     }
 
+    // POST /api/collection-requests/{id}/allocations/{deliveryOrderId}/confirm-delivery
+    // Admin records actual delivered qty + payment type, creating the client invoice on behalf of the driver.
+    [HttpPost("{id}/allocations/{deliveryOrderId}/confirm-delivery")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(CollectionRequestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ConfirmDelivery(
+        string id,
+        string deliveryOrderId,
+        [FromBody] AdminConfirmDeliveryRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.ConfirmDeliveryAsync(id, deliveryOrderId, request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
+
     // PUT /api/collection-requests/{id}/allocations/{deliveryOrderId}
     [HttpPut("{id}/allocations/{deliveryOrderId}")]
     [Authorize(Policy = "AdminOnly")]

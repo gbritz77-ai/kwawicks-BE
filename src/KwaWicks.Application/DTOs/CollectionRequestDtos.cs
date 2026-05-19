@@ -148,6 +148,23 @@ public class CollectionAllocationLineResponse
     public int DeliveredQty { get; set; }
 }
 
+// ── Admin: confirm actual delivered qty + payment type ─────────────────────────
+public class AdminConfirmDeliveryRequest
+{
+    public List<AdminConfirmDeliveryLine> Lines { get; set; } = new();
+    /// <summary>Cash, EFT, Credit — recorded on the generated invoice.</summary>
+    public string PaymentType { get; set; } = "";
+}
+
+public class AdminConfirmDeliveryLine
+{
+    public string SpeciesId { get; set; } = "";
+    /// <summary>How many the client actually took. Remainder is treated as NotWanted return.</summary>
+    public int DeliveredQty { get; set; }
+    /// <summary>Sell price per unit. If 0, falls back to the delivery order line price.</summary>
+    public decimal UnitPrice { get; set; }
+}
+
 // ── Roadside sales ─────────────────────────────────────────────────────────────
 public class SetRoadsideSalesRequest
 {

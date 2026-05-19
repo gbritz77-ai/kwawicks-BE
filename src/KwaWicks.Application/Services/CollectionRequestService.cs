@@ -12,6 +12,7 @@ public class CollectionRequestService : ICollectionRequestService
     private readonly IDeliveryOrderRepository _deliveryRepo;
     private readonly IClientRepository _clientRepo;
     private readonly IInvoiceRepository _invoiceRepo;
+    private readonly IInvoiceService _invoiceService;
     private readonly IS3Service _s3;
 
     public CollectionRequestService(
@@ -21,6 +22,7 @@ public class CollectionRequestService : ICollectionRequestService
         IDeliveryOrderRepository deliveryRepo,
         IClientRepository clientRepo,
         IInvoiceRepository invoiceRepo,
+        IInvoiceService invoiceService,
         IS3Service s3)
     {
         _repo = repo;
@@ -29,6 +31,7 @@ public class CollectionRequestService : ICollectionRequestService
         _deliveryRepo = deliveryRepo;
         _clientRepo = clientRepo;
         _invoiceRepo = invoiceRepo;
+        _invoiceService = invoiceService;
         _s3 = s3;
     }
 
@@ -579,6 +582,86 @@ public class CollectionRequestService : ICollectionRequestService
 
         await _repo.UpdateAsync(cr, ct);
         return await MapToResponseAsync(cr, ct);
+    }
+
+    public async Task<CollectionRequestResponse> ConfirmDeliveryAsync(
+        string crId, string deliveryOrderId, AdminConfirmDeliveryRequest request, CancellationToken ct = default)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+
+        var cr = await _repo.GetAsync(crId, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {crId}");
+
+        var allocation = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == deliveryOrderId)
+            ?? throw new InvalidOperationException($"Allocation for delivery order {deliveryOrderId} not found on this collection request.");
+
+        var doOrder = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (!string.IsNullOrEmpty(doOrder.InvoiceId))
+            throw new InvalidOperationException("This delivery has already been invoiced. Use the invoice management flow to make changes.");
+
+        if (doOrder.Status != "OutForDelivery" && doOrder.Status != "AwaitingCollection")
+            throw new InvalidOperationException($"Cannot confirm delivery for an order with status '{doOrder.Status}'.");
+
+        // Validate requested delivered quantities
+        foreach (var l in request.Lines)
+        {
+            if (l.DeliveredQty < 0)
+                throw new ArgumentException($"DeliveredQty cannot be negative for species {l.SpeciesId}.");
+
+            var doLine = doOrder.Lines.FirstOrDefault(dl => dl.SpeciesId == l.SpeciesId)
+                ?? throw new InvalidOperationException($"Species {l.SpeciesId} is not on delivery order {deliveryOrderId}.");
+
+            if (l.DeliveredQty > doLine.Quantity)
+                throw new ArgumentException(
+                    $"DeliveredQty {l.DeliveredQty} exceeds ordered qty {doLine.Quantity} for species {l.SpeciesId}.");
+        }
+
+        // Build invoice lines: include ALL delivery order lines so stock reconciliation is complete.
+        // Any species not in the admin request defaults to deliveredQty=0 (all returned as NotWanted).
+        var invoiceLines = doOrder.Lines.Select(doLine =>
+        {
+            var reqLine = request.Lines.FirstOrDefault(l => l.SpeciesId == doLine.SpeciesId);
+            var deliveredQty = reqLine?.DeliveredQty ?? 0;
+            var unitPrice    = (reqLine?.UnitPrice ?? 0) > 0 ? reqLine!.UnitPrice : doLine.UnitPrice;
+            return new CreateInvoiceFromDeliveryLine
+            {
+                SpeciesId              = doLine.SpeciesId,
+                DeliveredQty           = deliveredQty,
+                ReturnedNotWantedQty   = doLine.Quantity - deliveredQty,
+                ReturnedDeadQty        = 0,
+                ReturnedMutilatedQty   = 0,
+                UnitPrice              = unitPrice,
+                VatRate                = 0m, // admin confirmations use VAT-inclusive prices
+            };
+        }).ToList();
+
+        // Force status to OutForDelivery so CreateFromDeliveryAsync accepts it
+        if (doOrder.Status == "AwaitingCollection")
+        {
+            doOrder.Status = "OutForDelivery";
+            await _deliveryRepo.UpdateAsync(doOrder, ct);
+        }
+
+        var invoiceRequest = new CreateInvoiceFromDeliveryRequest
+        {
+            CreatedByDriverId = "admin",
+            Lines             = invoiceLines,
+        };
+
+        var invoiceId = await _invoiceService.CreateFromDeliveryAsync(deliveryOrderId, invoiceRequest, ct);
+
+        // Record payment type on the invoice
+        if (!string.IsNullOrWhiteSpace(request.PaymentType))
+        {
+            await _invoiceService.RecordPaymentAsync(invoiceId,
+                new RecordPaymentRequest { PaymentType = request.PaymentType }, ct);
+        }
+
+        // Re-fetch CR so MapToResponseAsync picks up the fresh delivery order data
+        var updatedCr = await _repo.GetAsync(crId, ct) ?? cr;
+        return await MapToResponseAsync(updatedCr, ct);
     }
 
     public async Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
