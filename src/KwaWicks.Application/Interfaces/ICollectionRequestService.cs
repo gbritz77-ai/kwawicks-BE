@@ -20,5 +20,7 @@ public interface ICollectionRequestService
     Task<CollectionRequestResponse> SetRoadsideSalesAsync(string id, SetRoadsideSalesRequest request, CancellationToken ct = default);
     /// <summary>Admin records the actual qty delivered to a client + payment type, creating the invoice on their behalf.</summary>
     Task<CollectionRequestResponse> ConfirmDeliveryAsync(string crId, string deliveryOrderId, AdminConfirmDeliveryRequest request, CancellationToken ct = default);
+    /// <summary>Hub staff physically accepts HUB-allocated stock into inventory, updating QtyOnHandHub.</summary>
+    Task<CollectionRequestResponse> HubAcceptAllocationAsync(string crId, HubAcceptAllocationRequest request, CancellationToken ct = default);
     Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default);
 }

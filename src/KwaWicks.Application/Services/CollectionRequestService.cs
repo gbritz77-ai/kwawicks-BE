@@ -753,6 +753,83 @@ public class CollectionRequestService : ICollectionRequestService
         return await MapToResponseAsync(updatedCr, ct);
     }
 
+    public async Task<CollectionRequestResponse> HubAcceptAllocationAsync(
+        string crId, HubAcceptAllocationRequest request, CancellationToken ct = default)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+
+        var cr = await _repo.GetAsync(crId, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {crId}");
+
+        var hubAlloc = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == "HUB")
+            ?? throw new InvalidOperationException("No HUB allocation found on this collection request.");
+
+        if (hubAlloc.HubAcceptanceStatus == "Accepted")
+            throw new InvalidOperationException("Hub allocation has already been accepted.");
+
+        if (request.Lines == null || request.Lines.Count == 0)
+            throw new ArgumentException("At least one line is required.");
+
+        // Validate each line
+        foreach (var reqLine in request.Lines)
+        {
+            if (reqLine.AcceptedQty < 0)
+                throw new ArgumentException($"AcceptedQty cannot be negative for species {reqLine.SpeciesId}.");
+
+            var allocLine = hubAlloc.Lines.FirstOrDefault(l => l.SpeciesId == reqLine.SpeciesId)
+                ?? throw new InvalidOperationException($"Species {reqLine.SpeciesId} is not in the hub allocation.");
+
+            if (reqLine.AcceptedQty > allocLine.Qty)
+                throw new ArgumentException(
+                    $"AcceptedQty {reqLine.AcceptedQty} exceeds allocated qty {allocLine.Qty} for species {reqLine.SpeciesId}.");
+        }
+
+        // Increment hub inventory and record accepted qty per line
+        var bookedIn = new List<(string speciesId, int qty)>();
+        try
+        {
+            foreach (var reqLine in request.Lines.Where(l => l.AcceptedQty > 0))
+            {
+                ct.ThrowIfCancellationRequested();
+                var species = await _speciesRepo.GetAsync(reqLine.SpeciesId, ct);
+                if (species != null)
+                {
+                    species.QtyOnHandHub += reqLine.AcceptedQty;
+                    await _speciesRepo.UpdateAsync(species, ct);
+                    bookedIn.Add((reqLine.SpeciesId, reqLine.AcceptedQty));
+                }
+
+                var allocLine = hubAlloc.Lines.First(l => l.SpeciesId == reqLine.SpeciesId);
+                allocLine.AcceptedQty = reqLine.AcceptedQty;
+            }
+
+            hubAlloc.HubAcceptanceStatus = "Accepted";
+            hubAlloc.HubAcceptedAt = DateTime.UtcNow;
+
+            await _repo.UpdateAsync(cr, ct);
+        }
+        catch
+        {
+            // Compensating rollback
+            foreach (var (speciesId, qty) in bookedIn)
+            {
+                try
+                {
+                    var s = await _speciesRepo.GetAsync(speciesId, ct);
+                    if (s != null)
+                    {
+                        s.QtyOnHandHub = Math.Max(0, s.QtyOnHandHub - qty);
+                        await _speciesRepo.UpdateAsync(s, ct);
+                    }
+                }
+                catch { /* swallow rollback errors */ }
+            }
+            throw;
+        }
+
+        return await MapToResponseAsync(cr, ct);
+    }
+
     public async Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
         var all = await _repo.ListAsync(null, null, null, ct);
@@ -829,16 +906,17 @@ public class CollectionRequestService : ICollectionRequestService
         var enrichedAllocations = new List<CollectionDeliveryAllocationResponse>();
         foreach (var a in cr.DeliveryAllocations)
         {
-            // Hub-direct allocations have no delivery order or invoice — return immediately
+            // Hub-direct allocations have no delivery order or invoice — enrich with acceptance status
             if (a.DeliveryOrderId == "HUB")
             {
                 enrichedAllocations.Add(new CollectionDeliveryAllocationResponse
                 {
-                    DeliveryOrderId = "HUB",
-                    ClientId        = "HUB",
-                    ClientName      = a.ClientName,
-                    DeliveryStatus  = "HubDirect",
-                    PaymentType     = "",
+                    DeliveryOrderId      = "HUB",
+                    ClientId             = "HUB",
+                    ClientName           = a.ClientName,
+                    DeliveryStatus       = "HubDirect",
+                    PaymentType          = "",
+                    HubAcceptanceStatus  = a.HubAcceptanceStatus ?? "",
                     Lines = a.Lines.Select(l => new CollectionAllocationLineResponse
                     {
                         SpeciesId    = l.SpeciesId,
@@ -846,6 +924,7 @@ public class CollectionRequestService : ICollectionRequestService
                         Qty          = l.Qty,
                         UnitPrice    = 0m,
                         DeliveredQty = 0,
+                        AcceptedQty  = l.AcceptedQty,
                     }).ToList()
                 });
                 continue;

@@ -130,10 +130,12 @@ public class CollectionDeliveryAllocationResponse
     public string DeliveryOrderId { get; set; } = "";
     public string ClientId { get; set; } = "";
     public string ClientName { get; set; } = "";
-    /// <summary>Status of the linked delivery order (Open / AwaitingCollection / OutForDelivery / Delivered / MarkedAtHub).</summary>
+    /// <summary>Status of the linked delivery order (Open / AwaitingCollection / OutForDelivery / Delivered / MarkedAtHub / HubDirect).</summary>
     public string DeliveryStatus { get; set; } = "";
     /// <summary>Payment type from the linked invoice once the driver has invoiced (Cash / EFT / Credit / "").</summary>
     public string PaymentType { get; set; } = "";
+    /// <summary>For HUB allocations: "" or "Accepted" once hub staff physically verified the stock.</summary>
+    public string HubAcceptanceStatus { get; set; } = "";
     public List<CollectionAllocationLineResponse> Lines { get; set; } = new();
 }
 
@@ -146,6 +148,8 @@ public class CollectionAllocationLineResponse
     public decimal UnitPrice { get; set; }
     /// <summary>Actual quantity delivered to the client (0 = not yet delivered / invoice not yet created).</summary>
     public int DeliveredQty { get; set; }
+    /// <summary>For HUB allocations: qty hub staff physically accepted into inventory (0 = not yet accepted).</summary>
+    public int AcceptedQty { get; set; }
 }
 
 // ── Admin: confirm actual delivered qty + payment type ─────────────────────────
@@ -163,6 +167,19 @@ public class AdminConfirmDeliveryLine
     public int DeliveredQty { get; set; }
     /// <summary>Sell price per unit. If 0, falls back to the delivery order line price.</summary>
     public decimal UnitPrice { get; set; }
+}
+
+// ── Hub stock acceptance ───────────────────────────────────────────────────────
+public class HubAcceptAllocationRequest
+{
+    public List<HubAcceptAllocationLine> Lines { get; set; } = new();
+}
+
+public class HubAcceptAllocationLine
+{
+    public string SpeciesId { get; set; } = "";
+    /// <summary>Qty hub staff physically counted. Must be ≤ allocated qty.</summary>
+    public int AcceptedQty { get; set; }
 }
 
 // ── Roadside sales ─────────────────────────────────────────────────────────────

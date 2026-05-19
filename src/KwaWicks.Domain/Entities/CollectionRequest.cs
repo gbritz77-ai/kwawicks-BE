@@ -28,6 +28,10 @@ public class CollectionDeliveryAllocation
     public string ClientId { get; set; } = "";
     public string ClientName { get; set; } = "";
     public List<CollectionAllocationLine> Lines { get; set; } = new();
+
+    // Hub-direct allocations only — tracks whether hub staff has physically accepted the stock
+    public string HubAcceptanceStatus { get; set; } = ""; // "" | "Accepted"
+    public DateTime? HubAcceptedAt { get; set; }
 }
 
 public class CollectionAllocationLine
@@ -36,6 +40,9 @@ public class CollectionAllocationLine
     public string SpeciesName { get; set; } = "";
     public int Qty { get; set; }
     public decimal UnitPrice { get; set; }
+
+    /// <summary>For HUB allocations: qty hub staff physically counted and accepted. 0 = not yet accepted.</summary>
+    public int AcceptedQty { get; set; }
 }
 
 public class CollectionRoadsaleLine
