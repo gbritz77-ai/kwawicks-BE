@@ -133,7 +133,8 @@ public class CollectionRequestService : ICollectionRequestService
 
         // Stock is now on the driver's vehicle — activate any delivery orders that were
         // waiting for collection to begin (AwaitingCollection → OutForDelivery).
-        foreach (var allocation in cr.DeliveryAllocations)
+        // HUB allocations (sentinel DeliveryOrderId = "HUB") have no delivery order — skip them.
+        foreach (var allocation in cr.DeliveryAllocations.Where(a => a.DeliveryOrderId != "HUB"))
         {
             try
             {
@@ -321,6 +322,57 @@ public class CollectionRequestService : ICollectionRequestService
         if (request.Lines == null || request.Lines.Count == 0)
             throw new ArgumentException("At least one allocation line is required.");
 
+        // ── Hub-direct allocation (sentinel clientId = "HUB") ──────────────────
+        // Stock earmarked for the hub stays on site — no delivery order, no QtyBookedOutForDelivery.
+        if (request.ClientId.Equals("HUB", StringComparison.OrdinalIgnoreCase))
+        {
+            // Validate quantities (same rules as client allocations)
+            foreach (var reqLine in request.Lines)
+            {
+                var crLine = cr.Lines.FirstOrDefault(l => l.SpeciesId == reqLine.SpeciesId)
+                    ?? throw new InvalidOperationException($"Species {reqLine.SpeciesId} is not part of this collection.");
+
+                if (reqLine.Qty <= 0)
+                    throw new ArgumentException($"Quantity for species {reqLine.SpeciesId} must be greater than zero.");
+
+                var alreadyAllocated = cr.DeliveryAllocations
+                    .SelectMany(a => a.Lines)
+                    .Where(l => l.SpeciesId == reqLine.SpeciesId)
+                    .Sum(l => l.Qty);
+
+                var effectiveQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
+                if (alreadyAllocated + reqLine.Qty > effectiveQty)
+                    throw new InvalidOperationException(
+                        $"Hub allocation of {reqLine.Qty} for species {reqLine.SpeciesId} exceeds available qty. " +
+                        $"{(crLine.LoadedQty > 0 ? "Loaded" : "Ordered")}: {effectiveQty}, already allocated: {alreadyAllocated}.");
+            }
+
+            var hubLines = new List<CollectionAllocationLine>();
+            foreach (var reqLine in request.Lines)
+            {
+                var species = await _speciesRepo.GetAsync(reqLine.SpeciesId, ct);
+                hubLines.Add(new CollectionAllocationLine
+                {
+                    SpeciesId   = reqLine.SpeciesId,
+                    SpeciesName = species?.Name ?? reqLine.SpeciesId,
+                    Qty         = reqLine.Qty,
+                    UnitPrice   = 0m, // hub stock has no outgoing sale price
+                });
+            }
+
+            cr.DeliveryAllocations.Add(new CollectionDeliveryAllocation
+            {
+                DeliveryOrderId = "HUB", // sentinel — not a real delivery order
+                ClientId        = "HUB",
+                ClientName      = "Hub Stock",
+                Lines           = hubLines,
+            });
+
+            await _repo.UpdateAsync(cr, ct);
+            return await MapToResponseAsync(cr, ct);
+        }
+
+        // ── Regular client allocation ───────────────────────────────────────────
         var client = await _clientRepo.GetAsync(request.ClientId, ct)
             ?? throw new InvalidOperationException($"Client not found: {request.ClientId}");
 
@@ -428,6 +480,40 @@ public class CollectionRequestService : ICollectionRequestService
         var allocation = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == deliveryOrderId)
             ?? throw new InvalidOperationException($"Allocation for delivery order {deliveryOrderId} not found on this collection request.");
 
+        // ── Hub-direct allocation edit (no delivery order, no stock adjustment) ──
+        if (deliveryOrderId == "HUB")
+        {
+            foreach (var edit in request.Lines)
+            {
+                if (edit.Qty <= 0)
+                    throw new ArgumentException($"Quantity must be greater than 0 for species {edit.SpeciesId}.");
+
+                // Validate against cap (excluding this allocation's own current qty)
+                var crLine = cr.Lines.FirstOrDefault(l => l.SpeciesId == edit.SpeciesId);
+                if (crLine != null)
+                {
+                    var otherAllocated = cr.DeliveryAllocations
+                        .Where(a => a.DeliveryOrderId != "HUB")
+                        .SelectMany(a => a.Lines)
+                        .Where(l => l.SpeciesId == edit.SpeciesId)
+                        .Sum(l => l.Qty);
+                    var effectiveQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
+                    if (otherAllocated + edit.Qty > effectiveQty)
+                        throw new InvalidOperationException(
+                            $"Hub allocation {edit.Qty} for species {edit.SpeciesId} combined with client allocations ({otherAllocated}) " +
+                            $"exceeds the {(crLine.LoadedQty > 0 ? "loaded" : "ordered")} qty ({effectiveQty}).");
+                }
+
+                var hubLine = allocation.Lines.FirstOrDefault(l => l.SpeciesId == edit.SpeciesId);
+                if (hubLine != null) hubLine.Qty = edit.Qty;
+            }
+
+            cr.UpdatedAt = DateTime.UtcNow;
+            await _repo.UpdateAsync(cr, ct);
+            return await MapToResponseAsync(cr, ct);
+        }
+
+        // ── Regular client allocation edit ─────────────────────────────────────
         var deliveryOrder = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
             ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
 
@@ -595,6 +681,9 @@ public class CollectionRequestService : ICollectionRequestService
         var allocation = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == deliveryOrderId)
             ?? throw new InvalidOperationException($"Allocation for delivery order {deliveryOrderId} not found on this collection request.");
 
+        if (deliveryOrderId == "HUB")
+            throw new InvalidOperationException("Hub-direct allocations do not require delivery confirmation — stock stays at the hub.");
+
         var doOrder = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
             ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
 
@@ -740,6 +829,28 @@ public class CollectionRequestService : ICollectionRequestService
         var enrichedAllocations = new List<CollectionDeliveryAllocationResponse>();
         foreach (var a in cr.DeliveryAllocations)
         {
+            // Hub-direct allocations have no delivery order or invoice — return immediately
+            if (a.DeliveryOrderId == "HUB")
+            {
+                enrichedAllocations.Add(new CollectionDeliveryAllocationResponse
+                {
+                    DeliveryOrderId = "HUB",
+                    ClientId        = "HUB",
+                    ClientName      = a.ClientName,
+                    DeliveryStatus  = "HubDirect",
+                    PaymentType     = "",
+                    Lines = a.Lines.Select(l => new CollectionAllocationLineResponse
+                    {
+                        SpeciesId    = l.SpeciesId,
+                        SpeciesName  = l.SpeciesName,
+                        Qty          = l.Qty,
+                        UnitPrice    = 0m,
+                        DeliveredQty = 0,
+                    }).ToList()
+                });
+                continue;
+            }
+
             Domain.Entities.DeliveryOrder? doOrder = null;
             string paymentType = "";
             try
