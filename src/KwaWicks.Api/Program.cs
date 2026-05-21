@@ -106,6 +106,9 @@ builder.Services.AddScoped<IProcurementOrderRepository>(sp =>
 builder.Services.AddScoped<ICollectionRequestRepository>(sp =>
     new CollectionRequestRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IDeliveryRunRepository>(sp =>
+    new DeliveryRunRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 builder.Services.AddScoped<IStaffMemberRepository>(sp =>
     new StaffMemberRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
@@ -150,6 +153,7 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
+builder.Services.AddScoped<IDeliveryRunService, DeliveryRunService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
 builder.Services.AddScoped<IClientCreditService>(sp =>
     new ClientCreditService(
