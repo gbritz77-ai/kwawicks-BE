@@ -139,6 +139,9 @@ builder.Services.AddScoped<IBankStatementRepository>(sp =>
 builder.Services.AddScoped<IDriverStockAllocationRepository>(sp =>
     new DriverStockAllocationRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IStockLossRepository>(sp =>
+    new StockLossRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 // Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
@@ -172,6 +175,7 @@ builder.Services.AddScoped<ICostAverageService, CostAverageService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IBankStatementService, BankStatementService>();
 builder.Services.AddScoped<IDriverStockAllocationService, DriverStockAllocationService>();
+builder.Services.AddScoped<IStockLossService, StockLossService>();
 builder.Services.AddScoped<IPettyCashService>(sp =>
     new PettyCashService(
         sp.GetRequiredService<IPettyCashRepository>(),
