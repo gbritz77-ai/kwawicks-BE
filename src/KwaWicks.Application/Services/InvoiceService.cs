@@ -12,6 +12,7 @@ public class InvoiceService : IInvoiceService
     private readonly ISpeciesRepository _speciesRepo;
     private readonly IS3Service _s3Service;
     private readonly IPriceApprovalService _priceApproval;
+    private readonly IClientRepository _clientRepo;
 
     public InvoiceService(
         IInvoiceRepository invoiceRepo,
@@ -19,7 +20,8 @@ public class InvoiceService : IInvoiceService
         IHubTaskRepository hubTaskRepo,
         ISpeciesRepository speciesRepo,
         IS3Service s3Service,
-        IPriceApprovalService priceApproval)
+        IPriceApprovalService priceApproval,
+        IClientRepository clientRepo)
     {
         _invoiceRepo = invoiceRepo ?? throw new ArgumentNullException(nameof(invoiceRepo));
         _deliveryRepo = deliveryRepo ?? throw new ArgumentNullException(nameof(deliveryRepo));
@@ -27,6 +29,7 @@ public class InvoiceService : IInvoiceService
         _speciesRepo = speciesRepo ?? throw new ArgumentNullException(nameof(speciesRepo));
         _s3Service = s3Service ?? throw new ArgumentNullException(nameof(s3Service));
         _priceApproval = priceApproval ?? throw new ArgumentNullException(nameof(priceApproval));
+        _clientRepo = clientRepo ?? throw new ArgumentNullException(nameof(clientRepo));
     }
 
     // ── Hub-side: create invoice directly (existing flow) ──────────────────
@@ -351,6 +354,18 @@ public class InvoiceService : IInvoiceService
         invoice.Status = "Paid";
         invoice.UpdatedAt = DateTime.UtcNow;
         await _invoiceRepo.UpdateAsync(invoice, ct);
+
+        // For Credit invoices, add the invoice total to the client's outstanding credit balance
+        if (invoice.PaymentType == "Credit" && !string.IsNullOrWhiteSpace(invoice.CustomerId))
+        {
+            var client = await _clientRepo.GetAsync(invoice.CustomerId, ct);
+            if (client != null)
+            {
+                client.CreditBalance += invoice.GrandTotal;
+                client.UpdatedAtUtc = DateTime.UtcNow;
+                await _clientRepo.PutAsync(client, ct);
+            }
+        }
     }
 
     // ── EFT receipt upload ──────────────────────────────────────────────────
