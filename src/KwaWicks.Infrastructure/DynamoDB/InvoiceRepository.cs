@@ -133,8 +133,12 @@ public class InvoiceRepository : IInvoiceRepository
 
     public async Task<decimal> SumCashSalesAsync(DateTime? since, CancellationToken ct)
     {
-        var filterParts = new List<string> { "EntityType = :et", "PaymentType = :pt" };
-        var values = new Dictionary<string, AttributeValue>
+        decimal total = 0m;
+        ScanResponse? response;
+
+        // ── 1. Pure-cash invoices — sum GrandTotal ────────────────────────
+        var cashFilterParts = new List<string> { "EntityType = :et", "PaymentType = :pt" };
+        var cashValues = new Dictionary<string, AttributeValue>
         {
             [":et"] = new() { S = "Invoice" },
             [":pt"] = new() { S = "Cash" }
@@ -142,27 +146,65 @@ public class InvoiceRepository : IInvoiceRepository
 
         if (since.HasValue)
         {
-            filterParts.Add("CreatedAtUtc >= :since");
-            values[":since"] = new() { S = since.Value.ToString("O", CultureInfo.InvariantCulture) };
+            cashFilterParts.Add("CreatedAtUtc >= :since");
+            cashValues[":since"] = new() { S = since.Value.ToString("O", CultureInfo.InvariantCulture) };
         }
 
-        var req = new ScanRequest
+        var cashReq = new ScanRequest
         {
             TableName = _tableName,
-            FilterExpression = string.Join(" AND ", filterParts),
-            ExpressionAttributeValues = values,
+            FilterExpression = string.Join(" AND ", cashFilterParts),
+            ExpressionAttributeValues = cashValues,
             ProjectionExpression = "GrandTotal"
         };
 
-        decimal total = 0m;
-        ScanResponse? response;
         do
         {
-            response = await _ddb.ScanAsync(req, ct);
+            response = await _ddb.ScanAsync(cashReq, ct);
             foreach (var item in response.Items)
-                if (item.TryGetValue("GrandTotal", out var gt) && decimal.TryParse(gt.N, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
+                if (item.TryGetValue("GrandTotal", out var gt) &&
+                    decimal.TryParse(gt.N, NumberStyles.Any, CultureInfo.InvariantCulture, out var val))
                     total += val;
-            req.ExclusiveStartKey = response.LastEvaluatedKey;
+            cashReq.ExclusiveStartKey = response.LastEvaluatedKey;
+        }
+        while (response.LastEvaluatedKey is { Count: > 0 });
+
+        // ── 2. Split invoices — sum only the Cash leg ─────────────────────
+        var splitFilterParts = new List<string> { "EntityType = :et2", "PaymentType = :pt2" };
+        var splitValues = new Dictionary<string, AttributeValue>
+        {
+            [":et2"] = new() { S = "Invoice" },
+            [":pt2"] = new() { S = "Split" }
+        };
+
+        if (since.HasValue)
+        {
+            splitFilterParts.Add("CreatedAtUtc >= :since2");
+            splitValues[":since2"] = new() { S = since.Value.ToString("O", CultureInfo.InvariantCulture) };
+        }
+
+        var splitReq = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = string.Join(" AND ", splitFilterParts),
+            ExpressionAttributeValues = splitValues,
+            ProjectionExpression = "SplitPaymentsJson"
+        };
+
+        do
+        {
+            response = await _ddb.ScanAsync(splitReq, ct);
+            foreach (var item in response.Items)
+            {
+                if (!item.TryGetValue("SplitPaymentsJson", out var spj) || string.IsNullOrEmpty(spj.S))
+                    continue;
+                var splits = JsonSerializer.Deserialize<List<KwaWicks.Domain.Entities.SplitPayment>>(spj.S);
+                if (splits is null) continue;
+                total += splits
+                    .Where(s => string.Equals(s.Method, "Cash", StringComparison.OrdinalIgnoreCase))
+                    .Sum(s => s.Amount);
+            }
+            splitReq.ExclusiveStartKey = response.LastEvaluatedKey;
         }
         while (response.LastEvaluatedKey is { Count: > 0 });
 
