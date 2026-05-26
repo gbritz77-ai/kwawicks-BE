@@ -24,5 +24,9 @@ public interface ICollectionRequestService
     Task<CollectionRequestResponse> HubAcceptAllocationAsync(string crId, HubAcceptAllocationRequest request, CancellationToken ct = default);
     /// <summary>Removes a delivery allocation that was added by mistake, reversing all stock bookings and deleting the delivery order.</summary>
     Task<CollectionRequestResponse> RemoveDeliveryAllocationAsync(string crId, string deliveryOrderId, CancellationToken ct = default);
+    /// <summary>Admin/Owner corrects the payment type on a delivered allocation (and optionally attaches a POP receipt).</summary>
+    Task<CollectionRequestResponse> PatchAllocationPaymentAsync(string crId, string deliveryOrderId, PatchAllocationPaymentRequest request, CancellationToken ct = default);
+    /// <summary>Returns a presigned S3 upload URL for attaching a proof-of-payment to a delivered allocation.</summary>
+    Task<CollectionInvoiceUploadUrlResponse> GetAllocationPopUploadUrlAsync(string crId, string deliveryOrderId, CancellationToken ct = default);
     Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default);
 }

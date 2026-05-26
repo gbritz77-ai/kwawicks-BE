@@ -182,6 +182,16 @@ public class HubAcceptAllocationLine
     public int AcceptedQty { get; set; }
 }
 
+// ── Patch allocation payment type (admin/owner correction) ────────────────────
+public class PatchAllocationPaymentRequest
+{
+    /// <summary>Cash | EFT | Credit | CardMachine</summary>
+    public string PaymentType { get; set; } = "";
+
+    /// <summary>S3 key of the proof-of-payment uploaded before calling this endpoint. Optional.</summary>
+    public string? ReceiptS3Key { get; set; }
+}
+
 // ── Roadside sales ─────────────────────────────────────────────────────────────
 public class SetRoadsideSalesRequest
 {

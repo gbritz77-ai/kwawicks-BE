@@ -911,6 +911,69 @@ public class CollectionRequestService : ICollectionRequestService
         return await MapToResponseAsync(cr, ct);
     }
 
+    public async Task<CollectionRequestResponse> PatchAllocationPaymentAsync(
+        string crId, string deliveryOrderId, PatchAllocationPaymentRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.PaymentType))
+            throw new ArgumentException("PaymentType is required.");
+
+        var cr = await _repo.GetAsync(crId, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {crId}");
+
+        if (!cr.DeliveryAllocations.Any(a => a.DeliveryOrderId == deliveryOrderId))
+            throw new InvalidOperationException($"Allocation '{deliveryOrderId}' not found on this collection request.");
+
+        if (deliveryOrderId == "HUB")
+            throw new InvalidOperationException("HUB allocations do not have invoices — payment type cannot be changed.");
+
+        var doOrder = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (string.IsNullOrEmpty(doOrder.InvoiceId))
+            throw new InvalidOperationException("This delivery has not been invoiced yet — confirm the delivery first.");
+
+        // Update payment type on the invoice
+        await _invoiceService.RecordPaymentAsync(doOrder.InvoiceId,
+            new RecordPaymentRequest { PaymentType = request.PaymentType }, ct);
+
+        // If a POP receipt S3 key was provided, store it on the invoice directly
+        if (!string.IsNullOrWhiteSpace(request.ReceiptS3Key))
+        {
+            var invoice = await _invoiceRepo.GetAsync(doOrder.InvoiceId, ct);
+            if (invoice != null)
+            {
+                invoice.ReceiptS3Key = request.ReceiptS3Key.Trim();
+                invoice.UpdatedAt = DateTime.UtcNow;
+                await _invoiceRepo.UpdateAsync(invoice, ct);
+            }
+        }
+
+        return await MapToResponseAsync(cr, ct);
+    }
+
+    public async Task<CollectionInvoiceUploadUrlResponse> GetAllocationPopUploadUrlAsync(
+        string crId, string deliveryOrderId, CancellationToken ct = default)
+    {
+        var cr = await _repo.GetAsync(crId, ct)
+            ?? throw new InvalidOperationException($"Collection request not found: {crId}");
+
+        if (!cr.DeliveryAllocations.Any(a => a.DeliveryOrderId == deliveryOrderId))
+            throw new InvalidOperationException($"Allocation '{deliveryOrderId}' not found on this collection request.");
+
+        if (deliveryOrderId == "HUB")
+            throw new InvalidOperationException("HUB allocations do not have invoices.");
+
+        var doOrder = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (string.IsNullOrEmpty(doOrder.InvoiceId))
+            throw new InvalidOperationException("This delivery has not been invoiced yet — confirm the delivery first.");
+
+        // Reuse the invoice receipt upload-URL mechanism
+        var result = await _invoiceService.GetReceiptUploadUrlAsync(doOrder.InvoiceId, ct);
+        return new CollectionInvoiceUploadUrlResponse { UploadUrl = result.PresignedUrl, S3Key = result.S3Key };
+    }
+
     public async Task<List<CollectionShortfallReportItem>> GetShortfallReportAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
         var all = await _repo.ListAsync(null, null, null, ct);

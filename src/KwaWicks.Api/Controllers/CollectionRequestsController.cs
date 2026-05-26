@@ -247,6 +247,45 @@ public class CollectionRequestsController : ControllerBase
         catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
     }
 
+    // PATCH /api/collection-requests/{id}/allocations/{deliveryOrderId}/payment
+    // Admin/Owner corrects the payment type on a delivered allocation, optionally attaching POP.
+    [HttpPatch("{id}/allocations/{deliveryOrderId}/payment")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(CollectionRequestResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PatchAllocationPayment(
+        string id,
+        string deliveryOrderId,
+        [FromBody] PatchAllocationPaymentRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.PatchAllocationPaymentAsync(id, deliveryOrderId, request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
+
+    // GET /api/collection-requests/{id}/allocations/{deliveryOrderId}/pop-upload-url
+    // Returns a presigned S3 URL for uploading a proof-of-payment for a delivered allocation.
+    [HttpGet("{id}/allocations/{deliveryOrderId}/pop-upload-url")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(CollectionInvoiceUploadUrlResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAllocationPopUploadUrl(string id, string deliveryOrderId, CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.GetAllocationPopUploadUrlAsync(id, deliveryOrderId, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
+
     // PUT /api/collection-requests/{id}/allocations/{deliveryOrderId}
     [HttpPut("{id}/allocations/{deliveryOrderId}")]
     [Authorize(Policy = "AdminOnly")]
