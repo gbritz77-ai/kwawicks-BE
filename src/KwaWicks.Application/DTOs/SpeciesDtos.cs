@@ -39,6 +39,7 @@ public class SpeciesResponse
     public int QtyOnHandHub { get; set; }
     public int QtyBookedOutForDelivery { get; set; }
 
-    // ✅ Derived (optional – can also compute in UI)
-    public int QtyAvailable => QtyOnHandHub - QtyBookedOutForDelivery;
+    // QtyOnHandHub is already reduced when a delivery order is created,
+    // so it IS the available-to-sell quantity — no further subtraction needed.
+    public int QtyAvailable => QtyOnHandHub;
 }
