@@ -89,7 +89,8 @@ public class DeliveryRunService : IDeliveryRunService
                 var species = await _speciesRepo.GetAsync(reqLine.SpeciesId, ct)
                     ?? throw new InvalidOperationException($"Species not found: {reqLine.SpeciesId}");
 
-                var available = species.QtyOnHandHub - species.QtyBookedOutForDelivery;
+                // QtyOnHandHub is already net of any booked deliveries — no further subtraction needed.
+                var available = species.QtyOnHandHub;
                 if (available < reqLine.Qty)
                     throw new InvalidOperationException(
                         $"Insufficient stock for {species.Name}. Available: {available}, requested: {reqLine.Qty}.");
