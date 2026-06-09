@@ -358,6 +358,13 @@ public class BankStatementService : IBankStatementService
             .Replace("\r", "\n")
             .Split('\n');
 
+        // ── FNB / Standard Bank HIST format (no header row) ──────────────────
+        // Rows look like:  HIST,20260528,,12418.34,CREDIT TRANSFER,YOCO …,6088,0
+        //   col[0]=HIST  col[1]=date(yyyyMMdd)  col[2]=empty|##
+        //   col[3]=signed-amount  col[4]=tx-type  col[5]=description
+        if (lines.Any(l => l.StartsWith("HIST,", StringComparison.OrdinalIgnoreCase)))
+            return ParseFnbHistFormat(lines);
+
         // Find the header row (first row with recognisable column names)
         int headerIdx = -1;
         string[]? headers = null;
@@ -455,6 +462,55 @@ public class BankStatementService : IBankStatementService
                 Type        = type
             });
         }
+
+        return transactions;
+    }
+
+    // ── FNB / Standard Bank HIST-format parser ────────────────────────────
+    // Format (no header row):
+    //   HIST,YYYYMMDD,{empty|##},signedAmount,TxType,Description,code,0
+    // Non-HIST rows are metadata (branch info, open/close balances) — skipped.
+
+    private static List<BankTransaction> ParseFnbHistFormat(string[] lines)
+    {
+        var transactions = new List<BankTransaction>();
+
+        foreach (var rawLine in lines)
+        {
+            if (!rawLine.StartsWith("HIST,", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var cols = SplitCsvLine(rawLine);
+            if (cols.Length < 6) continue;
+
+            // col[1] = date (yyyyMMdd)
+            if (!TryParseDate(cols[1], out var date)) continue;
+
+            // col[3] = signed amount  (+ve = credit, −ve = debit)
+            if (!TryParseDecimal(cols[3], out var signedAmount)) continue;
+            if (signedAmount == 0m) continue;
+
+            var txType      = cols[4].Trim();                              // e.g. "CREDIT TRANSFER"
+            var narrative   = cols.Length > 5 ? cols[5].Trim() : "";      // e.g. "YOCO 5V14U 280526"
+
+            // Build a readable description: "CREDIT TRANSFER — YOCO 5V14U 280526"
+            var description = string.IsNullOrWhiteSpace(narrative)
+                ? txType
+                : $"{txType} — {narrative}";
+
+            transactions.Add(new BankTransaction
+            {
+                Date        = DateTime.SpecifyKind(date, DateTimeKind.Utc),
+                Description = description,
+                Reference   = narrative,
+                Amount      = Math.Abs(signedAmount),
+                Type        = signedAmount >= 0m ? "Credit" : "Debit",
+            });
+        }
+
+        if (transactions.Count == 0)
+            throw new InvalidOperationException(
+                "No HIST transaction rows could be parsed from this bank statement.");
 
         return transactions;
     }
