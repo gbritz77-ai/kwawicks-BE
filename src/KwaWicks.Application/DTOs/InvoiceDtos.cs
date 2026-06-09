@@ -121,6 +121,7 @@ public class ReconInvoiceItem
     public string ReconNotes { get; set; } = "";
     public DateTime? ReconciledAt { get; set; }
     public int DaysOutstanding { get; set; }
+    public List<SplitPaymentLineResponse> SplitPayments { get; set; } = new();
 }
 
 // ── Response DTO ───────────────────────────────────────────────────────────

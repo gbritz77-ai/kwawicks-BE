@@ -482,7 +482,12 @@ public class InvoiceService : IInvoiceService
                 ReconReference  = i.ReconReference,
                 ReconNotes      = i.ReconNotes,
                 ReconciledAt    = i.ReconciledAt,
-                DaysOutstanding = (int)(now - i.CreatedAt).TotalDays
+                DaysOutstanding = (int)(now - i.CreatedAt).TotalDays,
+                SplitPayments   = i.SplitPayments.Select(s => new SplitPaymentLineResponse
+                {
+                    Method = s.Method,
+                    Amount = s.Amount
+                }).ToList()
             })
             .ToList();
     }
