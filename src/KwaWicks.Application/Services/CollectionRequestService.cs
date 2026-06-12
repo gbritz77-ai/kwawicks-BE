@@ -415,9 +415,11 @@ public class CollectionRequestService : ICollectionRequestService
                 UnitPrice = unitPrice
             });
 
-            // Atomically mark stock as en-route: BookedOutForDelivery increases only
-            // (on the truck, not physically at hub — QtyOnHandHub is NOT decremented here)
-            await _speciesRepo.AdjustStockAsync(reqLine.SpeciesId, 0, +reqLine.Qty, ct);
+            // Hub Internal: stock leaves hub now — deduct on-hand like a standard delivery order.
+            // External supplier: stock comes from supplier, not hub — only mark as booked.
+            int onHandDelta = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase) ? -reqLine.Qty : 0;
+            await _speciesRepo.AdjustStockAsync(reqLine.SpeciesId, onHandDelta, +reqLine.Qty, ct,
+                minOnHandRequired: onHandDelta < 0 ? reqLine.Qty : 0);
         }
 
         // Delivery orders are hidden from drivers until stock is actually collected from the supplier.
@@ -534,7 +536,9 @@ public class CollectionRequestService : ICollectionRequestService
                     $"exceeds the {(crLine.LoadedQty > 0 ? "loaded" : "ordered")} qty ({effectiveEditQty}).");
         }
 
-        // Adjust QtyBookedOutForDelivery for each changed line
+        // Adjust stock for each changed line.
+        // Hub Internal: also adjust on-hand (delta > 0 = more stock leaves hub; delta < 0 = some returns).
+        bool isHubInternalEdit = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase);
         var adjustedSpecies = new List<(string speciesId, int delta)>();
         try
         {
@@ -548,7 +552,9 @@ public class CollectionRequestService : ICollectionRequestService
                 int delta = edit.Qty - allocationLine.Qty;
                 if (delta != 0)
                 {
-                    await _speciesRepo.AdjustStockAsync(edit.SpeciesId, 0, +delta, ct);
+                    int onHandDelta = isHubInternalEdit ? -delta : 0;
+                    int minRequired = (isHubInternalEdit && delta > 0) ? delta : 0;
+                    await _speciesRepo.AdjustStockAsync(edit.SpeciesId, onHandDelta, +delta, ct, minOnHandRequired: minRequired);
                     adjustedSpecies.Add((edit.SpeciesId, delta));
                 }
 
@@ -573,12 +579,13 @@ public class CollectionRequestService : ICollectionRequestService
         }
         catch
         {
-            // Rollback QtyBookedOutForDelivery adjustments
+            // Rollback adjustments
             foreach (var (speciesId, delta) in adjustedSpecies)
             {
                 try
                 {
-                    await _speciesRepo.AdjustStockAsync(speciesId, 0, -delta, CancellationToken.None);
+                    int onHandRollback = isHubInternalEdit ? +delta : 0;
+                    await _speciesRepo.AdjustStockAsync(speciesId, onHandRollback, -delta, CancellationToken.None);
                 }
                 catch { /* swallow rollback errors */ }
             }
@@ -832,14 +839,17 @@ public class CollectionRequestService : ICollectionRequestService
             throw new InvalidOperationException(
                 $"Cannot remove this allocation — the delivery order has status '{deliveryOrder.Status}'.");
 
-        // Atomically reverse QtyBookedOutForDelivery for each species in the allocation
+        // Reverse the stock adjustment that was made when the allocation was added.
+        // Hub Internal: restore on-hand (was deducted at allocation time). External: only un-book.
+        bool isHubInternal = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase);
         var reversed = new List<(string speciesId, int qty)>();
         try
         {
             foreach (var line in allocation.Lines)
             {
                 ct.ThrowIfCancellationRequested();
-                await _speciesRepo.AdjustStockAsync(line.SpeciesId, 0, -line.Qty, ct);
+                int onHandRestore = isHubInternal ? +line.Qty : 0;
+                await _speciesRepo.AdjustStockAsync(line.SpeciesId, onHandRestore, -line.Qty, ct);
                 reversed.Add((line.SpeciesId, line.Qty));
             }
 
@@ -853,12 +863,13 @@ public class CollectionRequestService : ICollectionRequestService
         }
         catch
         {
-            // Compensating rollback — re-book the species quantities
+            // Compensating rollback
             foreach (var (speciesId, qty) in reversed)
             {
                 try
                 {
-                    await _speciesRepo.AdjustStockAsync(speciesId, 0, +qty, CancellationToken.None);
+                    int onHandRollback = isHubInternal ? -qty : 0;
+                    await _speciesRepo.AdjustStockAsync(speciesId, onHandRollback, +qty, CancellationToken.None);
                 }
                 catch { /* swallow rollback errors */ }
             }
