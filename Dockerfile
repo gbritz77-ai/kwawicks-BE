@@ -12,5 +12,8 @@ WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
+ARG BUILD_DATE=unknown
+ENV BUILD_DATE=${BUILD_DATE}
+
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet","KwaWicks.Api.dll"]

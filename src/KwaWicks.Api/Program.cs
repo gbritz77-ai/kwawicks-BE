@@ -278,5 +278,9 @@ app.MapControllers();
 
 app.MapGet("/", () => Results.Ok("KwaWicks API is running"));
 app.MapGet("/health", () => Results.Ok("ok"));
+app.MapGet("/version", () => Results.Ok(new
+{
+    deployedAt = Environment.GetEnvironmentVariable("BUILD_DATE") ?? "unknown"
+})).RequireCors(UiCors);
 
 app.Run();
