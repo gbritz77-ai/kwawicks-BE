@@ -469,7 +469,7 @@ public class CollectionRequestService : ICollectionRequestService
         var allocation = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == deliveryOrderId)
             ?? throw new InvalidOperationException($"Allocation for delivery order {deliveryOrderId} not found on this collection request.");
 
-        // ── Hub-direct allocation edit (no delivery order, no stock adjustment) ──
+        // ── Hub-direct allocation edit ──────────────────────────────────────────
         if (deliveryOrderId == "HUB")
         {
             foreach (var edit in request.Lines)
@@ -494,7 +494,20 @@ public class CollectionRequestService : ICollectionRequestService
                 }
 
                 var hubLine = allocation.Lines.FirstOrDefault(l => l.SpeciesId == edit.SpeciesId);
-                if (hubLine != null) hubLine.Qty = edit.Qty;
+                if (hubLine == null) continue;
+
+                // For hub-internal CRs the original allocation deducted QtyOnHandHub.
+                // Adjust for the delta so the on-hand balance stays accurate.
+                if (cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase))
+                {
+                    int delta = edit.Qty - hubLine.Qty;
+                    if (delta != 0)
+                        await _speciesRepo.AdjustStockAsync(
+                            edit.SpeciesId, -delta, 0, ct,
+                            minOnHandRequired: delta > 0 ? delta : 0);
+                }
+
+                hubLine.Qty = edit.Qty;
             }
 
             cr.UpdatedAt = DateTime.UtcNow;
@@ -768,38 +781,18 @@ public class CollectionRequestService : ICollectionRequestService
                     $"AcceptedQty {reqLine.AcceptedQty} exceeds allocated qty {allocLine.Qty} for species {reqLine.SpeciesId}.");
         }
 
-        // Increment hub inventory and record accepted qty per line
-        var bookedIn = new List<(string speciesId, int qty)>();
-        try
+        // Record accepted qty per line — stock was already added to QtyOnHandHub by HubConfirmAsync,
+        // so no further AdjustStockAsync call is needed here.
+        foreach (var reqLine in request.Lines.Where(l => l.AcceptedQty > 0))
         {
-            foreach (var reqLine in request.Lines.Where(l => l.AcceptedQty > 0))
-            {
-                ct.ThrowIfCancellationRequested();
-                await _speciesRepo.AdjustStockAsync(reqLine.SpeciesId, +reqLine.AcceptedQty, 0, ct);
-                bookedIn.Add((reqLine.SpeciesId, reqLine.AcceptedQty));
-
-                var allocLine = hubAlloc.Lines.First(l => l.SpeciesId == reqLine.SpeciesId);
-                allocLine.AcceptedQty = reqLine.AcceptedQty;
-            }
-
-            hubAlloc.HubAcceptanceStatus = "Accepted";
-            hubAlloc.HubAcceptedAt = DateTime.UtcNow;
-
-            await _repo.UpdateAsync(cr, ct);
+            var allocLine = hubAlloc.Lines.First(l => l.SpeciesId == reqLine.SpeciesId);
+            allocLine.AcceptedQty = reqLine.AcceptedQty;
         }
-        catch
-        {
-            // Compensating rollback
-            foreach (var (speciesId, qty) in bookedIn)
-            {
-                try
-                {
-                    await _speciesRepo.AdjustStockAsync(speciesId, -qty, 0, CancellationToken.None);
-                }
-                catch { /* swallow rollback errors */ }
-            }
-            throw;
-        }
+
+        hubAlloc.HubAcceptanceStatus = "Accepted";
+        hubAlloc.HubAcceptedAt = DateTime.UtcNow;
+
+        await _repo.UpdateAsync(cr, ct);
 
         return await MapToResponseAsync(cr, ct);
     }

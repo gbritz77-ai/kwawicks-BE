@@ -135,10 +135,12 @@ public class DeliveryOrderService : IDeliveryOrderService
 
         var orders = await _deliveryRepo.ListAsync(driverId, null, "Delivered", ct);
 
-        // Only include orders where the driver has NOT yet submitted a return
-        // Once ReturnSubmitted = true, those items are queued for hub check-in
+        // Only include orders where the driver has NOT yet submitted a return.
+        // Once ReturnSubmitted = true the stock has been queued for hub check-in and
+        // ReturnedNotWantedQty was already added back to QtyOnHandHub during invoice
+        // creation — exposing it here again would double-count it.
         var linesWithReturns = orders
-            .Where(o => !o.ReturnSubmitted)
+            .Where(o => !o.ReturnSubmitted && !o.ReturnCheckedIn)
             .SelectMany(o => o.Lines)
             .Where(l => l.ReturnedNotWantedQty > 0)
             .ToList();
@@ -213,9 +215,39 @@ public class DeliveryOrderService : IDeliveryOrderService
         if (order.ReturnCheckedIn)
             throw new InvalidOperationException("Return has already been checked in.");
 
-        order.ReturnCheckedIn = true;
-        order.UpdatedAt = DateTime.UtcNow;
-        await _deliveryRepo.UpdateAsync(order, ct);
+        // Add returned stock back to hub using the driver-reported ReturnedToHubQty.
+        // Reconcile against ReturnedNotWantedQty (set at invoice time) so only the delta
+        // between what the driver is actually handing back and what was already credited
+        // to inventory is adjusted — preventing double-counting.
+        var adjusted = new List<(string speciesId, int qty)>();
+        try
+        {
+            foreach (var line in order.Lines.Where(l => l.ReturnedToHubQty > 0))
+            {
+                ct.ThrowIfCancellationRequested();
+                // ReturnedNotWantedQty was already added to QtyOnHandHub during invoice creation.
+                // Only adjust for the difference (e.g. driver returns more than originally recorded).
+                int delta = line.ReturnedToHubQty - line.ReturnedNotWantedQty;
+                if (delta != 0)
+                {
+                    await _speciesRepo.AdjustStockAsync(line.SpeciesId, delta, 0, ct);
+                    adjusted.Add((line.SpeciesId, delta));
+                }
+            }
+
+            order.ReturnCheckedIn = true;
+            order.UpdatedAt = DateTime.UtcNow;
+            await _deliveryRepo.UpdateAsync(order, ct);
+        }
+        catch
+        {
+            foreach (var (speciesId, qty) in adjusted)
+            {
+                try { await _speciesRepo.AdjustStockAsync(speciesId, -qty, 0, CancellationToken.None); }
+                catch { /* swallow rollback errors */ }
+            }
+            throw;
+        }
     }
 
     public async Task EditLinesAsync(string deliveryOrderId, EditDeliveryOrderLinesRequest request, CancellationToken ct)
