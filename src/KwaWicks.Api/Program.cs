@@ -145,6 +145,9 @@ builder.Services.AddScoped<IStockLossRepository>(sp =>
 builder.Services.AddScoped<IVehicleTrackingRepository>(sp =>
     new VehicleTrackingRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IVehicleRepository>(sp =>
+    new VehicleRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 // Services
 builder.Services.AddScoped<SpeciesService>();
 builder.Services.AddScoped<IClientService, ClientService>();
@@ -161,6 +164,7 @@ builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 builder.Services.AddScoped<IDeliveryRunService, DeliveryRunService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
+builder.Services.AddScoped<VehicleService>();
 builder.Services.AddScoped<IClientCreditService>(sp =>
     new ClientCreditService(
         sp.GetRequiredService<IClientCreditRepository>(),
