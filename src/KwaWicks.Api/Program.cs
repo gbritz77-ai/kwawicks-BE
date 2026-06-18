@@ -176,7 +176,12 @@ builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
 builder.Services.AddScoped<VehicleService>();
 builder.Services.AddScoped<SiteService>();
 builder.Services.AddScoped<DipTankService>();
-builder.Services.AddScoped<FuelService>();
+builder.Services.AddScoped<FuelService>(sp => new FuelService(
+    sp.GetRequiredService<IFuelRepository>(),
+    sp.GetRequiredService<IVehicleRepository>(),
+    sp.GetRequiredService<IDipTankRepository>(),
+    sp.GetRequiredService<ISiteRepository>(),
+    sp.GetRequiredService<IS3Service>()));
 builder.Services.AddScoped<IClientCreditService>(sp =>
     new ClientCreditService(
         sp.GetRequiredService<IClientCreditRepository>(),

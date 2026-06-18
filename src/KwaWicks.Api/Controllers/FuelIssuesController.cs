@@ -32,4 +32,33 @@ public class FuelIssuesController : ControllerBase
         try { return Ok(await _service.CreateAsync(req, CallerName, ct)); }
         catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
     }
+
+    // GET /api/fuel/{id}/slip-upload-url?contentType=image/jpeg
+    [HttpGet("{id}/slip-upload-url")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSlipUploadUrl(
+        string id, [FromQuery] string contentType, CancellationToken ct)
+    {
+        var ct2 = string.IsNullOrWhiteSpace(contentType) ? "image/jpeg" : contentType;
+        var (url, key) = await _service.GetSlipUploadUrlAsync(id, ct2, ct);
+        return Ok(new { uploadUrl = url, s3Key = key });
+    }
+
+    // PUT /api/fuel/{id}/slip
+    [HttpPut("{id}/slip")]
+    [ProducesResponseType(typeof(FuelIssueDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ConfirmSlip(string id, [FromBody] ConfirmFuelSlipRequest req, CancellationToken ct)
+    {
+        var dto = await _service.ConfirmSlipUploadedAsync(id, req.S3Key, ct);
+        if (dto is null) return NotFound();
+        return Ok(dto);
+    }
+
+    // GET /api/fuel/report?from=2025-01-01&to=2025-12-31
+    [HttpGet("report")]
+    [ProducesResponseType(typeof(List<VehicleFuelReportDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Report(
+        [FromQuery] string? from, [FromQuery] string? to, CancellationToken ct) =>
+        Ok(await _service.GetReportAsync(from, to, ct));
 }

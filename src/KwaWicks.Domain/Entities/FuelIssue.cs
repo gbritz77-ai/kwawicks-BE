@@ -13,4 +13,5 @@ public class FuelIssue
     public string Reference { get; set; } = "";
     public string IssuedByName { get; set; } = "";
     public DateTime IssuedAt { get; set; } = DateTime.UtcNow;
+    public string? SlipS3Key { get; set; }
 }

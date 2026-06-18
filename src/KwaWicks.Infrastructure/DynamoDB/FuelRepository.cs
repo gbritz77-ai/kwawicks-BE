@@ -30,6 +30,26 @@ public class FuelRepository : IFuelRepository
         return issue;
     }
 
+    public async Task<FuelIssue?> GetAsync(string issueId, CancellationToken ct)
+    {
+        var res = await _ddb.GetItemAsync(new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new AttributeValue { S = Pk(issueId) },
+                ["SK"] = new AttributeValue { S = SkProfile }
+            }
+        }, ct);
+        return res.Item is null || res.Item.Count == 0 ? null : FromItem(res.Item);
+    }
+
+    public async Task<FuelIssue> UpdateAsync(FuelIssue issue, CancellationToken ct)
+    {
+        await _ddb.PutItemAsync(new PutItemRequest { TableName = _tableName, Item = ToItem(issue) }, ct);
+        return issue;
+    }
+
     public async Task<List<FuelIssue>> ListAsync(CancellationToken ct)
     {
         var req = new ScanRequest
@@ -74,6 +94,7 @@ public class FuelRepository : IFuelRepository
         if (f.OdometerKm.HasValue)    item["OdometerKm"]    = new AttributeValue { N = f.OdometerKm.Value.ToString(CultureInfo.InvariantCulture) };
         if (f.CostPerLitre.HasValue)  item["CostPerLitre"]  = new AttributeValue { N = f.CostPerLitre.Value.ToString(CultureInfo.InvariantCulture) };
         if (f.TotalCost.HasValue)     item["TotalCost"]     = new AttributeValue { N = f.TotalCost.Value.ToString(CultureInfo.InvariantCulture) };
+        if (f.SlipS3Key is not null)  item["SlipS3Key"]     = new AttributeValue { S = f.SlipS3Key };
         return item;
     }
 
@@ -90,5 +111,6 @@ public class FuelRepository : IFuelRepository
         Reference    = item.TryGetValue("Reference", out var ref_) ? ref_.S ?? "" : "",
         IssuedByName = item.TryGetValue("IssuedByName", out var ibn) ? ibn.S ?? "" : "",
         IssuedAt     = item.TryGetValue("IssuedAt", out var ia) ? DateTime.Parse(ia.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : DateTime.UtcNow,
+        SlipS3Key    = item.TryGetValue("SlipS3Key", out var sk) ? sk.S : null,
     };
 }
