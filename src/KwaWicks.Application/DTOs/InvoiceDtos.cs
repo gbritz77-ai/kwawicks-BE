@@ -103,6 +103,7 @@ public class ReconRequest
     public string? ReferenceNumber { get; set; }
     public string? Notes { get; set; }
     public DateTime? ReceivedAt { get; set; }
+    public decimal? Amount { get; set; }  // payment amount applied; defaults to GrandTotal if omitted
 }
 
 public class ReconInvoiceItem
@@ -115,6 +116,9 @@ public class ReconInvoiceItem
     public string PaymentType { get; set; } = "";
     public string PaymentStatus { get; set; } = "";
     public decimal GrandTotal { get; set; }
+    public decimal AmountPaid { get; set; }
+    public decimal AmountOutstanding { get; set; }
+    public bool IsPartiallyPaid { get; set; }
     public string ReceiptS3Key { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public string ReconReference { get; set; } = "";
@@ -142,6 +146,8 @@ public class InvoiceResponse
     public decimal SubTotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
+    public decimal AmountPaid { get; set; }
+    public decimal AmountOutstanding { get; set; }
     public List<InvoiceLineResponse> Lines { get; set; } = new();
     public List<SplitPaymentLineResponse> SplitPayments { get; set; } = new();
     public DateTime CreatedAt { get; set; }

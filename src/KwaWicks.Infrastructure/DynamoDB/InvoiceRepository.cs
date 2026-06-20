@@ -245,6 +245,7 @@ public class InvoiceRepository : IInvoiceRepository
 
             ["ReconReference"] = new AttributeValue { S = inv.ReconReference ?? "" },
             ["ReconNotes"] = new AttributeValue { S = inv.ReconNotes ?? "" },
+            ["AmountPaid"] = new AttributeValue { N = inv.AmountPaid.ToString(CultureInfo.InvariantCulture) },
             ["ReconciledAtUtc"] = new AttributeValue { S = inv.ReconciledAt?.ToString("O", CultureInfo.InvariantCulture) ?? "" }
         };
 
@@ -291,6 +292,8 @@ public class InvoiceRepository : IInvoiceRepository
 
             ReconReference = item.TryGetValue("ReconReference", out var rr) ? rr.S ?? "" : "",
             ReconNotes = item.TryGetValue("ReconNotes", out var rn) ? rn.S ?? "" : "",
+            AmountPaid = item.TryGetValue("AmountPaid", out var ap) && !string.IsNullOrEmpty(ap.N)
+                ? decimal.Parse(ap.N, CultureInfo.InvariantCulture) : 0m,
             ReconciledAt = item.TryGetValue("ReconciledAtUtc", out var rat) && !string.IsNullOrEmpty(rat.S)
                 ? DateTime.Parse(rat.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                 : (DateTime?)null

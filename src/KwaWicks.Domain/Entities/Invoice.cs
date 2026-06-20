@@ -1,4 +1,4 @@
-namespace KwaWicks.Domain.Entities;
+﻿namespace KwaWicks.Domain.Entities;
 
 public class Invoice
 {
@@ -35,6 +35,7 @@ public class Invoice
     // ── Reconciliation ─────────────────────────────────────────────────────
     public string ReconReference { get; set; } = "";
     public string ReconNotes { get; set; } = "";
+    public decimal AmountPaid { get; set; }
     public DateTime? ReconciledAt { get; set; }
 }
 
@@ -61,3 +62,4 @@ public class InvoiceLine
     public decimal VatRate { get; set; }
     public decimal LineTotal { get; set; }
 }
+

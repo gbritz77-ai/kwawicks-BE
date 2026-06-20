@@ -467,7 +467,10 @@ public class InvoiceService : IInvoiceService
                 SaleType        = i.SaleType,
                 PaymentType     = i.PaymentType,
                 PaymentStatus   = i.PaymentStatus,
-                GrandTotal      = i.GrandTotal,
+                GrandTotal       = i.GrandTotal,
+                AmountPaid       = i.AmountPaid,
+                AmountOutstanding = Math.Max(0m, i.GrandTotal - i.AmountPaid),
+                IsPartiallyPaid  = i.AmountPaid > 0m && i.AmountPaid < i.GrandTotal,
                 ReceiptS3Key    = i.ReceiptS3Key,
                 CreatedAt       = i.CreatedAt,
                 ReconReference  = i.ReconReference,
@@ -488,13 +491,18 @@ public class InvoiceService : IInvoiceService
         var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
             ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
 
-        invoice.ReconReference = request.ReferenceNumber ?? "";
-        invoice.ReconNotes     = request.Notes ?? "";
-        invoice.ReconciledAt   = request.ReceivedAt ?? DateTime.UtcNow;
+        var payment = request.Amount ?? invoice.GrandTotal;
+        invoice.AmountPaid = Math.Min(invoice.AmountPaid + payment, invoice.GrandTotal);
 
-        // Confirm payment when reconciling (if not already confirmed)
-        if (invoice.PaymentStatus != "Paid")
+        if (!string.IsNullOrWhiteSpace(request.ReferenceNumber))
+            invoice.ReconReference = request.ReferenceNumber;
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+            invoice.ReconNotes = request.Notes;
+
+        // Mark fully reconciled only when invoice is fully paid
+        if (invoice.AmountPaid >= invoice.GrandTotal)
         {
+            invoice.ReconciledAt  = request.ReceivedAt ?? DateTime.UtcNow;
             invoice.PaymentStatus = "Paid";
             invoice.Status        = "Paid";
         }
@@ -503,16 +511,21 @@ public class InvoiceService : IInvoiceService
         await _invoiceRepo.UpdateAsync(invoice, ct);
     }
 
-    public async Task UnreconAsync(string invoiceId, CancellationToken ct)
+    public async Task UnreconAsync(string invoiceId, decimal subtractAmount, CancellationToken ct)
     {
         var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
             ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
 
-        invoice.ReconReference = "";
-        invoice.ReconNotes     = "";
-        invoice.ReconciledAt   = null;
-        invoice.UpdatedAt      = DateTime.UtcNow;
+        invoice.AmountPaid = Math.Max(0m, invoice.AmountPaid - subtractAmount);
 
+        if (invoice.AmountPaid < invoice.GrandTotal)
+        {
+            invoice.ReconciledAt  = null;
+            invoice.PaymentStatus = "Pending";
+            invoice.Status        = invoice.Status == "Paid" ? "Confirmed" : invoice.Status;
+        }
+
+        invoice.UpdatedAt = DateTime.UtcNow;
         await _invoiceRepo.UpdateAsync(invoice, ct);
     }
 
@@ -530,14 +543,16 @@ public class InvoiceService : IInvoiceService
         PaymentType = invoice.PaymentType,
         PaymentStatus = invoice.PaymentStatus,
         ReceiptS3Key = invoice.ReceiptS3Key,
-        SubTotal = invoice.SubTotal,
-        VatTotal = invoice.VatTotal,
-        GrandTotal = invoice.GrandTotal,
-        CreatedAt = invoice.CreatedAt,
-        UpdatedAt = invoice.UpdatedAt,
-        ReconReference = invoice.ReconReference,
-        ReconNotes = invoice.ReconNotes,
-        ReconciledAt = invoice.ReconciledAt,
+        SubTotal          = invoice.SubTotal,
+        VatTotal          = invoice.VatTotal,
+        GrandTotal        = invoice.GrandTotal,
+        AmountPaid        = invoice.AmountPaid,
+        AmountOutstanding = Math.Max(0m, invoice.GrandTotal - invoice.AmountPaid),
+        CreatedAt         = invoice.CreatedAt,
+        UpdatedAt         = invoice.UpdatedAt,
+        ReconReference    = invoice.ReconReference,
+        ReconNotes        = invoice.ReconNotes,
+        ReconciledAt      = invoice.ReconciledAt,
         Lines = invoice.Lines.Select(l => new InvoiceLineResponse
         {
             SpeciesId = l.SpeciesId,

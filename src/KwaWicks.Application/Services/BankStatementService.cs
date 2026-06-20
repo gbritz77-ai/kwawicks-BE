@@ -114,12 +114,24 @@ public class BankStatementService : IBankStatementService
         {
             ReferenceNumber = !string.IsNullOrWhiteSpace(tx.Reference) ? tx.Reference : tx.Description,
             Notes           = $"Bank statement: {statement.FileName}",
-            ReceivedAt      = tx.Date
+            ReceivedAt      = tx.Date,
+            Amount          = tx.Amount
         }, ct);
 
         await _repo.UpdateAsync(statement, ct);
 
-        AllocationWarning? warning = BuildAmountWarning(tx.Amount, invoice.GrandTotal);
+        // Reload invoice to get updated AmountPaid
+        var updated = await _invoiceService.GetAsync(request.InvoiceId, ct);
+        AllocationWarning? warning = updated is not null && updated.AmountPaid < updated.GrandTotal
+            ? new AllocationWarning
+            {
+                Code             = "PARTIAL_PAYMENT",
+                Message          = $"Partial payment of {tx.Amount:N2} applied. Outstanding balance: {updated.AmountOutstanding:N2}.",
+                BankAmount       = tx.Amount,
+                AllocationAmount = updated.AmountPaid,
+                Difference       = updated.AmountOutstanding
+            }
+            : null;
 
         return new AllocateResponse
         {
@@ -281,7 +293,7 @@ public class BankStatementService : IBankStatementService
         tx.AllocatedAt            = null;
 
         if (!string.IsNullOrWhiteSpace(allocatedInvoiceId))
-            await _invoiceService.UnreconAsync(allocatedInvoiceId, ct);
+            await _invoiceService.UnreconAsync(allocatedInvoiceId, tx.Amount, ct);
 
         await _repo.UpdateAsync(statement, ct);
         return MapToResponse(statement);
