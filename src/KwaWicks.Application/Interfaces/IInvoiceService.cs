@@ -24,4 +24,8 @@ public interface IInvoiceService
 
     /// <summary>Finance: subtract a payment from AmountPaid and clear ReconciledAt if no longer fully paid.</summary>
     Task UnreconAsync(string invoiceId, decimal subtractAmount, CancellationToken ct);
+
+    /// <summary>Cancels a duplicate or mistaken invoice: restores booked stock, reverses any credit charge,
+    /// and marks the invoice Cancelled. Blocked if the invoice has bank-reconciled payments.</summary>
+    Task CancelInvoiceAsync(string invoiceId, string reason, string cancelledByUserId, CancellationToken ct);
 }

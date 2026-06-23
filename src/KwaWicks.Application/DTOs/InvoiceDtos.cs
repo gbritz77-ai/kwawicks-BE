@@ -106,6 +106,12 @@ public class ReconRequest
     public decimal? Amount { get; set; }  // payment amount applied; defaults to GrandTotal if omitted
 }
 
+// ── Cancellation ─────────────────────────────────────────────────────────────
+public class CancelInvoiceRequest
+{
+    public string Reason { get; set; } = "";
+}
+
 public class ReconInvoiceItem
 {
     public string InvoiceId { get; set; } = "";
@@ -126,6 +132,8 @@ public class ReconInvoiceItem
     public DateTime? ReconciledAt { get; set; }
     public int DaysOutstanding { get; set; }
     public List<SplitPaymentLineResponse> SplitPayments { get; set; } = new();
+    public DateTime? CancelledAt { get; set; }
+    public string CancelledReason { get; set; } = "";
 }
 
 // ── Response DTO ───────────────────────────────────────────────────────────
@@ -155,6 +163,9 @@ public class InvoiceResponse
     public string ReconReference { get; set; } = "";
     public string ReconNotes { get; set; } = "";
     public DateTime? ReconciledAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
+    public string CancelledReason { get; set; } = "";
+    public string CancelledByUserId { get; set; } = "";
 }
 
 public class SplitPaymentLineResponse

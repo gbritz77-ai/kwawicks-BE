@@ -249,6 +249,24 @@ public class InvoicesController : ControllerBase
         catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
     }
 
+    // PUT /api/invoices/{invoiceId}/cancel  (reverse a duplicate or mistaken invoice)
+    [HttpPut("{invoiceId}/cancel")]
+    [Authorize(Policy = "FinancialAccess")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Cancel(string invoiceId, [FromBody] CancelInvoiceRequest request, CancellationToken ct)
+    {
+        var callerName = User.Identity?.Name ?? User.FindFirst("cognito:username")?.Value ?? "unknown";
+        try
+        {
+            await _service.CancelInvoiceAsync(invoiceId, request.Reason, callerName, ct);
+            return NoContent();
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     // GET /api/invoices/{invoiceId}/receipt-upload-url
     [HttpGet("{invoiceId}/receipt-upload-url")]
     [Authorize(Policy = "DriverOnly")]

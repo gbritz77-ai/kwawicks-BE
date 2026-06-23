@@ -60,6 +60,24 @@ public class ClientCreditService : IClientCreditService
         return Map(entry);
     }
 
+    public async Task<ClientCreditEntryResponse> ReverseInvoiceChargeAsync(
+        string clientId, string invoiceId, decimal amount, CancellationToken ct = default)
+    {
+        var entry = new ClientCreditEntry
+        {
+            ClientId        = clientId,
+            Amount          = Math.Abs(amount), // positive — undoes the original debit
+            EntryType       = "InvoiceCancelled",
+            PaymentMethod   = "",
+            Reference       = invoiceId,
+            Notes           = $"Invoice {invoiceId.Substring(0, Math.Min(8, invoiceId.Length)).ToUpper()} cancelled — charge reversed",
+            CreatedByUserId = "system",
+        };
+
+        await _repo.AddEntryAsync(entry, ct);
+        return Map(entry);
+    }
+
     public async Task<ClientCreditEntryResponse> AddManualChargeAsync(
         string clientId, decimal amount, string notes, string createdByUserId, CancellationToken ct = default)
     {

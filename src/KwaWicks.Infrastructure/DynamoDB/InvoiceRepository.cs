@@ -246,7 +246,10 @@ public class InvoiceRepository : IInvoiceRepository
             ["ReconReference"] = new AttributeValue { S = inv.ReconReference ?? "" },
             ["ReconNotes"] = new AttributeValue { S = inv.ReconNotes ?? "" },
             ["AmountPaid"] = new AttributeValue { N = inv.AmountPaid.ToString(CultureInfo.InvariantCulture) },
-            ["ReconciledAtUtc"] = new AttributeValue { S = inv.ReconciledAt?.ToString("O", CultureInfo.InvariantCulture) ?? "" }
+            ["ReconciledAtUtc"] = new AttributeValue { S = inv.ReconciledAt?.ToString("O", CultureInfo.InvariantCulture) ?? "" },
+            ["CancelledAtUtc"] = new AttributeValue { S = inv.CancelledAt?.ToString("O", CultureInfo.InvariantCulture) ?? "" },
+            ["CancelledReason"] = new AttributeValue { S = inv.CancelledReason ?? "" },
+            ["CancelledByUserId"] = new AttributeValue { S = inv.CancelledByUserId ?? "" }
         };
 
     private static Invoice FromItem(Dictionary<string, AttributeValue> item)
@@ -296,7 +299,12 @@ public class InvoiceRepository : IInvoiceRepository
                 ? decimal.Parse(ap.N, CultureInfo.InvariantCulture) : 0m,
             ReconciledAt = item.TryGetValue("ReconciledAtUtc", out var rat) && !string.IsNullOrEmpty(rat.S)
                 ? DateTime.Parse(rat.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
-                : (DateTime?)null
+                : (DateTime?)null,
+            CancelledAt = item.TryGetValue("CancelledAtUtc", out var cat) && !string.IsNullOrEmpty(cat.S)
+                ? DateTime.Parse(cat.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+                : (DateTime?)null,
+            CancelledReason = item.TryGetValue("CancelledReason", out var cr) ? cr.S ?? "" : "",
+            CancelledByUserId = item.TryGetValue("CancelledByUserId", out var cb) ? cb.S ?? "" : ""
         };
     }
 

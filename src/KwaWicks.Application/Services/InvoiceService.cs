@@ -471,6 +471,8 @@ public class InvoiceService : IInvoiceService
                 AmountPaid       = i.AmountPaid,
                 AmountOutstanding = Math.Max(0m, i.GrandTotal - i.AmountPaid),
                 IsPartiallyPaid  = i.AmountPaid > 0m && i.AmountPaid < i.GrandTotal,
+                CancelledAt      = i.CancelledAt,
+                CancelledReason  = i.CancelledReason,
                 ReceiptS3Key    = i.ReceiptS3Key,
                 CreatedAt       = i.CreatedAt,
                 ReconReference  = i.ReconReference,
@@ -529,6 +531,50 @@ public class InvoiceService : IInvoiceService
         await _invoiceRepo.UpdateAsync(invoice, ct);
     }
 
+    // ── Cancellation ────────────────────────────────────────────────────────
+    public async Task CancelInvoiceAsync(string invoiceId, string reason, string cancelledByUserId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("A cancellation reason is required.");
+
+        var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
+            ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
+
+        if (invoice.Status == "Cancelled")
+            throw new InvalidOperationException("This invoice is already cancelled.");
+
+        if (invoice.AmountPaid > 0m)
+            throw new InvalidOperationException(
+                "This invoice has bank-reconciled payment(s). Remove the bank allocation(s) on the Reconciliation page before cancelling.");
+
+        // Restore stock booked out at creation time
+        foreach (var line in invoice.Lines)
+        {
+            try
+            {
+                await _speciesRepo.AdjustStockAsync(line.SpeciesId, +line.Quantity, -line.Quantity, ct);
+            }
+            catch
+            {
+                // Species may have been deleted; don't block cancellation on a stock restore failure.
+            }
+        }
+
+        // Reverse any credit charge already posted to the client's ledger
+        if (invoice.PaymentType == "Credit" && invoice.PaymentStatus == "Paid" && !string.IsNullOrWhiteSpace(invoice.CustomerId))
+        {
+            await _clientCreditService.ReverseInvoiceChargeAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+        }
+
+        invoice.Status            = "Cancelled";
+        invoice.CancelledAt       = DateTime.UtcNow;
+        invoice.CancelledReason   = reason.Trim();
+        invoice.CancelledByUserId = cancelledByUserId;
+        invoice.UpdatedAt         = DateTime.UtcNow;
+
+        await _invoiceRepo.UpdateAsync(invoice, ct);
+    }
+
     private static InvoiceResponse MapToResponse(Invoice invoice) => new()
     {
         InvoiceId = invoice.InvoiceId,
@@ -553,6 +599,9 @@ public class InvoiceService : IInvoiceService
         ReconReference    = invoice.ReconReference,
         ReconNotes        = invoice.ReconNotes,
         ReconciledAt      = invoice.ReconciledAt,
+        CancelledAt       = invoice.CancelledAt,
+        CancelledReason   = invoice.CancelledReason,
+        CancelledByUserId = invoice.CancelledByUserId,
         Lines = invoice.Lines.Select(l => new InvoiceLineResponse
         {
             SpeciesId = l.SpeciesId,

@@ -37,6 +37,11 @@ public class Invoice
     public string ReconNotes { get; set; } = "";
     public decimal AmountPaid { get; set; }
     public DateTime? ReconciledAt { get; set; }
+
+    // ── Cancellation ──────────────────────────────────────────────────────
+    public DateTime? CancelledAt { get; set; }
+    public string CancelledReason { get; set; } = "";
+    public string CancelledByUserId { get; set; } = "";
 }
 
 public class SplitPayment
