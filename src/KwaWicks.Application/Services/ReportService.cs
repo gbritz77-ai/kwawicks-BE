@@ -10,19 +10,91 @@ public class ReportService : IReportService
     private readonly IClientRepository _clients;
     private readonly ISpeciesRepository _species;
     private readonly IClientCreditService _clientCreditService;
+    private readonly IStaffMemberRepository _staffMembers;
 
     public ReportService(
         IInvoiceRepository invoices,
         IDeliveryOrderRepository deliveryOrders,
         IClientRepository clients,
         ISpeciesRepository species,
-        IClientCreditService clientCreditService)
+        IClientCreditService clientCreditService,
+        IStaffMemberRepository staffMembers)
     {
         _invoices = invoices;
         _deliveryOrders = deliveryOrders;
         _clients = clients;
         _species = species;
         _clientCreditService = clientCreditService;
+        _staffMembers = staffMembers;
+    }
+
+    public async Task<StaffStockDeductionsReportResponse> GetStaffStockDeductionsAsync(
+        string? staffMemberId, DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        var all = await _invoices.ListAsync(null, null, ct);
+
+        var filtered = all
+            .Where(i => i.SaleType == "HubDirect")
+            .Where(i => !string.IsNullOrWhiteSpace(i.StaffMemberId))
+            .Where(i => i.Status != "Cancelled")
+            .Where(i => staffMemberId == null || i.StaffMemberId == staffMemberId)
+            .Where(i => from == null || i.CreatedAt >= from.Value)
+            .Where(i => to == null || i.CreatedAt <= to.Value.AddDays(1))
+            .OrderByDescending(i => i.CreatedAt)
+            .ToList();
+
+        var staff = (await _staffMembers.ListAsync(ct)).ToDictionary(s => s.StaffMemberId);
+        var speciesList = await _species.ListAsync(ct);
+        var speciesMap = speciesList.ToDictionary(sp => sp.SpeciesId, sp => sp.Name);
+
+        var details = filtered.Select(i =>
+        {
+            staff.TryGetValue(i.StaffMemberId, out var sm);
+            return new StaffStockDeductionItem
+            {
+                InvoiceId = i.InvoiceId,
+                InvoiceNumber = i.InvoiceNumber,
+                StaffMemberId = i.StaffMemberId,
+                StaffName = sm?.Name ?? i.StaffMemberId,
+                Department = sm?.Department ?? "",
+                Date = i.CreatedAt,
+                PaymentType = i.PaymentType,
+                PaymentStatus = i.PaymentStatus,
+                SubTotal = i.SubTotal,
+                VatTotal = i.VatTotal,
+                GrandTotal = i.GrandTotal,
+                Lines = i.Lines.Select(l => new StaffStockDeductionLine
+                {
+                    SpeciesId = l.SpeciesId,
+                    SpeciesName = speciesMap.TryGetValue(l.SpeciesId, out var n) ? n : l.SpeciesId,
+                    Quantity = l.Quantity,
+                    UnitPrice = l.UnitPrice,
+                    LineTotal = l.LineTotal
+                }).ToList()
+            };
+        }).ToList();
+
+        var summary = details
+            .GroupBy(d => d.StaffMemberId)
+            .Select(g => new StaffStockDeductionSummaryItem
+            {
+                StaffMemberId = g.Key,
+                StaffName = g.First().StaffName,
+                Department = g.First().Department,
+                TransactionCount = g.Count(),
+                TotalAmount = g.Sum(d => d.GrandTotal)
+            })
+            .OrderByDescending(s => s.TotalAmount)
+            .ToList();
+
+        return new StaffStockDeductionsReportResponse
+        {
+            From = from,
+            To = to,
+            TotalAmount = details.Sum(d => d.GrandTotal),
+            Summary = summary,
+            Details = details
+        };
     }
 
     public async Task<RevenueSummaryResponse> GetRevenueSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default)

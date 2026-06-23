@@ -20,6 +20,50 @@ public class PaymentTypeBreakdown
     public decimal GrandTotal { get; set; }
 }
 
+// ── Admin/Finance: Staff Stock Deductions (cost taken from hub, deducted from salary) ───
+public class StaffStockDeductionsReportResponse
+{
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public decimal TotalAmount { get; set; }
+    public List<StaffStockDeductionSummaryItem> Summary { get; set; } = new();
+    public List<StaffStockDeductionItem> Details { get; set; } = new();
+}
+
+public class StaffStockDeductionSummaryItem
+{
+    public string StaffMemberId { get; set; } = "";
+    public string StaffName { get; set; } = "";
+    public string Department { get; set; } = "";
+    public int TransactionCount { get; set; }
+    public decimal TotalAmount { get; set; }
+}
+
+public class StaffStockDeductionItem
+{
+    public string InvoiceId { get; set; } = "";
+    public string InvoiceNumber { get; set; } = "";
+    public string StaffMemberId { get; set; } = "";
+    public string StaffName { get; set; } = "";
+    public string Department { get; set; } = "";
+    public DateTime Date { get; set; }
+    public string PaymentType { get; set; } = "";
+    public string PaymentStatus { get; set; } = "";
+    public decimal SubTotal { get; set; }
+    public decimal VatTotal { get; set; }
+    public decimal GrandTotal { get; set; } // amount to deduct from salary
+    public List<StaffStockDeductionLine> Lines { get; set; } = new();
+}
+
+public class StaffStockDeductionLine
+{
+    public string SpeciesId { get; set; } = "";
+    public string SpeciesName { get; set; } = "";
+    public int Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal LineTotal { get; set; }
+}
+
 // ── Admin: Outstanding Payments ──────────────────────────────────────────────
 public class OutstandingPaymentsResponse
 {

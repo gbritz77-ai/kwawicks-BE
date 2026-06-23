@@ -16,4 +16,8 @@ public interface IReportService
     Task<SpeciesRevenueResponse> GetSpeciesRevenueAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<ClientCreditStatementResponse> GetClientCreditStatementAsync(string clientId, DateTime? from, DateTime? to, CancellationToken ct = default);
     Task<SalesReportResponse> GetSalesReportAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
+
+    /// <summary>Admin/Finance: stock taken by staff on their hub account, for salary deduction.</summary>
+    Task<StaffStockDeductionsReportResponse> GetStaffStockDeductionsAsync(
+        string? staffMemberId, DateTime? from, DateTime? to, CancellationToken ct = default);
 }

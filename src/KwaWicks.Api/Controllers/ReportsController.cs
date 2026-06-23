@@ -133,6 +133,18 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("staff-stock-deductions")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> StaffStockDeductions(
+        [FromQuery] string? staffMemberId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var result = await _reports.GetStaffStockDeductionsAsync(staffMemberId, from, to, ct);
+        return Ok(result);
+    }
+
     // ── Driver ───────────────────────────────────────────────────────────────
 
     [HttpGet("my-deliveries")]
