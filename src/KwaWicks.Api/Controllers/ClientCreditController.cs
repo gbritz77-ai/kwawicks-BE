@@ -34,6 +34,7 @@ public class ClientCreditController : ControllerBase
 
     // GET /api/clients/{clientId}/credit/proof-upload-url?contentType=image/jpeg
     [HttpGet("proof-upload-url")]
+    [Authorize(Policy = "HubStaffOnly")]
     public async Task<IActionResult> GetProofUploadUrl(
         string clientId,
         [FromQuery] string contentType,
@@ -83,6 +84,7 @@ public class ClientCreditController : ControllerBase
 
     // POST /api/clients/{clientId}/credit — add a deposit (payment received from client)
     [HttpPost]
+    [Authorize(Policy = "HubStaffOnly")]
     public async Task<IActionResult> AddDeposit(
         string clientId,
         [FromBody] AddCreditDepositRequest request,
