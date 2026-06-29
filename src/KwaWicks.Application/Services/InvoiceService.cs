@@ -334,6 +334,11 @@ public class InvoiceService : IInvoiceService
         }
 
         await _invoiceRepo.UpdateAsync(invoice, ct);
+
+        // Credit sales settle against the client's account immediately — mark paid and
+        // charge the credit ledger now, instead of waiting for a separate confirm step.
+        if (request.PaymentType == "Credit")
+            await ConfirmPaymentAsync(invoiceId, ct);
     }
 
     public async Task ConfirmPaymentAsync(string invoiceId, CancellationToken ct)
