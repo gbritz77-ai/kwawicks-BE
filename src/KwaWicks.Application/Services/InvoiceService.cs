@@ -335,9 +335,14 @@ public class InvoiceService : IInvoiceService
 
         await _invoiceRepo.UpdateAsync(invoice, ct);
 
-        // Credit sales settle against the client's account immediately — mark paid and
-        // charge the credit ledger now, instead of waiting for a separate confirm step.
-        if (request.PaymentType == "Credit")
+        // Cash and card-machine payments are collected by the driver in person and need no
+        // further verification — confirm immediately so they don't sit as "Pending" forever.
+        // Credit sales settle against the client's account immediately too — mark paid and
+        // charge the credit ledger now instead of waiting for a separate confirm step.
+        // EFT and Split are left Pending: EFT needs proof-of-payment review/reconciliation,
+        // and Split may include an EFT leg that hasn't cleared yet.
+        var autoConfirmTypes = new[] { "Cash", "CardMachine", "Credit" };
+        if (autoConfirmTypes.Contains(request.PaymentType))
             await ConfirmPaymentAsync(invoiceId, ct);
     }
 
