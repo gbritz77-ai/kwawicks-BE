@@ -130,9 +130,10 @@ public class HubSalesController : ControllerBase
             }
 
             // 2. Build CreateInvoiceRequest
-            // Normalize "AccountCredit" to "Credit" — single canonical string for deferred-payment
-            // sales across the whole system (Hub, Driver, and delivery flows all use "Credit").
-            var normalizedPaymentType = request.PaymentType == "AccountCredit" ? "Credit" : request.PaymentType;
+            // Normalize "AccountCredit"/"OnAccount" to "Credit" — single canonical string for
+            // deferred-payment sales across the whole system (Hub, Driver, and delivery flows
+            // all use "Credit"). "OnAccount" is what staff purchases (mode=staff) send.
+            var normalizedPaymentType = request.PaymentType is "AccountCredit" or "OnAccount" ? "Credit" : request.PaymentType;
             var invoiceReq = new CreateInvoiceRequest
             {
                 CustomerId = customerId,

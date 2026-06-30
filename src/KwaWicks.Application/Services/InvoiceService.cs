@@ -367,9 +367,11 @@ public class InvoiceService : IInvoiceService
             // Debit: the sale itself.
             await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
 
-            // Credit: money actually received now, for every payment type except Credit
-            // (Credit means the client owes it — no payment received yet).
-            if (invoice.PaymentType != "Credit")
+            // Credit: money actually received now, for every payment type except deferred-payment
+            // types (Credit/AccountCredit/OnAccount — those mean the client/staff owes it, no
+            // payment received yet). The latter two are legacy strings from before normalization.
+            var isDeferred = invoice.PaymentType is "Credit" or "AccountCredit" or "OnAccount";
+            if (!isDeferred)
             {
                 await _clientCreditService.RecordInvoicePaymentAsync(
                     invoice.CustomerId, invoiceId, invoice.GrandTotal, invoice.PaymentType, ct);
@@ -605,7 +607,8 @@ public class InvoiceService : IInvoiceService
         if (invoice.LedgerCharged && !string.IsNullOrWhiteSpace(invoice.CustomerId))
         {
             await _clientCreditService.ReverseInvoiceChargeAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
-            if (invoice.PaymentType != "Credit")
+            var isDeferred = invoice.PaymentType is "Credit" or "AccountCredit" or "OnAccount";
+            if (!isDeferred)
                 await _clientCreditService.ReverseInvoicePaymentAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
         }
 
