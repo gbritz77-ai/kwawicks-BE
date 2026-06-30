@@ -289,6 +289,7 @@ public class ReportService : IReportService
                 InvoiceId = i.InvoiceId,
                 InvoiceNumber = i.InvoiceNumber,
                 SaleType = i.SaleType,
+                StaffMemberId = i.StaffMemberId,
                 CustomerId = i.CustomerId,
                 HubId = i.HubId,
                 DeliveryOrderId = i.DeliveryOrderId,
