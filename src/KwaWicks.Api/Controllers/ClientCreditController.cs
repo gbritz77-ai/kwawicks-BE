@@ -17,8 +17,10 @@ public class ClientCreditController : ControllerBase
 
     // GET /api/clients/{clientId}/credit — full ledger with balance
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> GetLedger(string clientId, CancellationToken ct)
     {
+        Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
         var ledger = await _service.GetLedgerAsync(clientId, ct);
         return Ok(ledger);
     }
