@@ -134,6 +134,8 @@ public class CollectionDeliveryAllocationResponse
     public string DeliveryStatus { get; set; } = "";
     /// <summary>Payment type from the linked invoice once the driver has invoiced (Cash / EFT / Credit / "").</summary>
     public string PaymentType { get; set; } = "";
+    /// <summary>Populated when PaymentType == "Split" — the per-method breakdown (e.g. Cash 4000, EFT 2000).</summary>
+    public List<SplitPaymentLineResponse> SplitPayments { get; set; } = new();
     /// <summary>For HUB allocations: "" or "Accepted" once hub staff physically verified the stock.</summary>
     public string HubAcceptanceStatus { get; set; } = "";
     public List<CollectionAllocationLineResponse> Lines { get; set; } = new();

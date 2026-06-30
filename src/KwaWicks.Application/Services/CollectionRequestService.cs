@@ -1037,6 +1037,7 @@ public class CollectionRequestService : ICollectionRequestService
 
             Domain.Entities.DeliveryOrder? doOrder = null;
             string paymentType = "";
+            List<SplitPaymentLineResponse> splitPayments = new();
             try
             {
                 doOrder = await _deliveryRepo.GetAsync(a.DeliveryOrderId, ct);
@@ -1045,6 +1046,11 @@ public class CollectionRequestService : ICollectionRequestService
                 {
                     var invoice = await _invoiceRepo.GetAsync(doOrder.InvoiceId, ct);
                     paymentType = invoice?.PaymentType ?? "";
+                    splitPayments = invoice?.SplitPayments.Select(sp => new SplitPaymentLineResponse
+                    {
+                        Method = sp.Method,
+                        Amount = sp.Amount
+                    }).ToList() ?? new();
                 }
             }
             catch { /* non-fatal — degrade gracefully if delivery order is unavailable */ }
@@ -1056,6 +1062,7 @@ public class CollectionRequestService : ICollectionRequestService
                 ClientName      = a.ClientName,
                 DeliveryStatus  = doOrder?.Status ?? "",
                 PaymentType     = paymentType,
+                SplitPayments   = splitPayments,
                 Lines = a.Lines.Select(l => new CollectionAllocationLineResponse
                 {
                     SpeciesId    = l.SpeciesId,
