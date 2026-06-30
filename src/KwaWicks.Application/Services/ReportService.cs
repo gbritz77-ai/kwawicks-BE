@@ -301,6 +301,10 @@ public class ReportService : IReportService
                 SubTotal = i.SubTotal,
                 VatTotal = i.VatTotal,
                 GrandTotal = i.GrandTotal,
+                AmountPaid = i.AmountPaid,
+                AmountOutstanding = Math.Max(0m, i.GrandTotal - i.AmountPaid),
+                CancelledAt = i.CancelledAt,
+                CancelledReason = i.CancelledReason,
                 CreatedAt = i.CreatedAt,
                 UpdatedAt = i.UpdatedAt,
                 Lines = i.Lines.Select(l => new InvoiceLineResponse
