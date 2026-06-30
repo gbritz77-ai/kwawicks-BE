@@ -79,7 +79,7 @@ public class ClientCreditService : IClientCreditService
     }
 
     public async Task<ClientCreditEntryResponse> RecordInvoicePaymentAsync(
-        string clientId, string invoiceId, decimal amount, string paymentMethod, CancellationToken ct = default)
+        string clientId, string invoiceId, decimal amount, string paymentMethod, CancellationToken ct = default, DateTime? occurredAt = null)
     {
         var entry = new ClientCreditEntry
         {
@@ -90,6 +90,7 @@ public class ClientCreditService : IClientCreditService
             Reference       = invoiceId,
             Notes           = $"Payment received ({paymentMethod}) for invoice {invoiceId.Substring(0, Math.Min(8, invoiceId.Length)).ToUpper()}",
             CreatedByUserId = "system",
+            CreatedAt       = occurredAt ?? DateTime.UtcNow, // bank-reconciled payments use the statement's transaction date
         };
 
         await _repo.AddEntryAsync(entry, ct);

@@ -543,7 +543,8 @@ public class InvoiceService : IInvoiceService
                 await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
 
             if (payment > 0m)
-                await _clientCreditService.RecordInvoicePaymentAsync(invoice.CustomerId, invoiceId, payment, "EFT", ct);
+                await _clientCreditService.RecordInvoicePaymentAsync(
+                    invoice.CustomerId, invoiceId, payment, "EFT", ct, occurredAt: request.ReceivedAt);
         }
     }
 
