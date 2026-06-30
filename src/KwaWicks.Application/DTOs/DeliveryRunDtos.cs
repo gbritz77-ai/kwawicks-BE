@@ -23,6 +23,22 @@ public class DeliveryRunAllocationLineRequest
     public decimal UnitPrice { get; set; }
 }
 
+// ── Reallocate surplus stock from one active delivery to another ──────────────
+public class ReallocateDeliveryRunStockRequest
+{
+    public string SpeciesId { get; set; } = "";
+    public int Qty { get; set; }
+
+    /// <summary>Set this to move stock onto an existing, not-yet-delivered allocation in the same run.</summary>
+    public string? ToDeliveryOrderId { get; set; }
+
+    /// <summary>Set this (instead of ToDeliveryOrderId) to spin up a brand-new delivery for a client not yet on this run.</summary>
+    public string? ToClientId { get; set; }
+
+    /// <summary>Unit price for the new line. Falls back to the source line's price if 0.</summary>
+    public decimal UnitPrice { get; set; }
+}
+
 public class ConfirmDeliveryRunDeliveryRequest
 {
     public List<DeliveryRunConfirmLine> Lines { get; set; } = new();

@@ -70,6 +70,24 @@ public class DeliveryRunsController : ControllerBase
         catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
     }
 
+    [HttpPost("{id}/allocations/{fromDeliveryOrderId}/reallocate")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> ReallocateStock(
+        string id,
+        string fromDeliveryOrderId,
+        [FromBody] ReallocateDeliveryRunStockRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.ReallocateStockAsync(id, fromDeliveryOrderId, request, ct);
+            return Ok(result);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (Exception ex) { return StatusCode(500, new { error = ex.Message }); }
+    }
+
     [HttpPut("{id}/dispatch")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Dispatch(string id, CancellationToken ct)

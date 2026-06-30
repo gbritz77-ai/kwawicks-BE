@@ -209,6 +209,134 @@ public class DeliveryRunService : IDeliveryRunService
         return MapToResponse(run);
     }
 
+    public async Task<DeliveryRunResponse> ReallocateStockAsync(
+        string id, string fromDeliveryOrderId, ReallocateDeliveryRunStockRequest request, CancellationToken ct)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+        if (string.IsNullOrWhiteSpace(request.SpeciesId)) throw new ArgumentException("SpeciesId is required.");
+        if (request.Qty <= 0) throw new ArgumentException("Qty must be greater than zero.");
+        if (string.IsNullOrWhiteSpace(request.ToDeliveryOrderId) && string.IsNullOrWhiteSpace(request.ToClientId))
+            throw new ArgumentException("Either ToDeliveryOrderId or ToClientId must be provided.");
+        if (!string.IsNullOrWhiteSpace(request.ToDeliveryOrderId) && request.ToDeliveryOrderId == fromDeliveryOrderId)
+            throw new ArgumentException("Cannot reallocate stock to the same delivery it came from.");
+
+        var run = await _repo.GetAsync(id, ct)
+            ?? throw new InvalidOperationException($"Delivery run not found: {id}");
+
+        if (run.Status != "OutForDelivery")
+            throw new InvalidOperationException("Stock can only be reallocated while the run is out for delivery.");
+
+        var fromAlloc = run.Allocations.FirstOrDefault(a => a.DeliveryOrderId == fromDeliveryOrderId)
+            ?? throw new InvalidOperationException($"Allocation '{fromDeliveryOrderId}' not found on this delivery run.");
+
+        if (fromAlloc.DeliveryStatus == "Delivered")
+            throw new InvalidOperationException("Cannot reallocate stock from a delivery that has already been completed.");
+
+        var fromAllocLine = fromAlloc.Lines.FirstOrDefault(l => l.SpeciesId == request.SpeciesId)
+            ?? throw new InvalidOperationException($"Species {request.SpeciesId} is not on this delivery.");
+
+        if (request.Qty > fromAllocLine.Qty)
+            throw new InvalidOperationException(
+                $"Cannot move {request.Qty} — only {fromAllocLine.Qty} of this species is on the source delivery.");
+
+        var fromDoOrder = await _deliveryRepo.GetAsync(fromDeliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {fromDeliveryOrderId}");
+
+        var fromDoLine = fromDoOrder.Lines.FirstOrDefault(l => l.SpeciesId == request.SpeciesId)
+            ?? throw new InvalidOperationException($"Species {request.SpeciesId} is not on delivery order {fromDeliveryOrderId}.");
+
+        var sourceUnitPrice = request.UnitPrice > 0 ? request.UnitPrice : fromDoLine.UnitPrice;
+
+        if (fromDoOrder.Lines.Count == 1 && request.Qty >= fromDoLine.Quantity)
+            throw new InvalidOperationException("Cannot move the last item off a delivery — remove the allocation entirely instead.");
+
+        // ── Deduct from source ──────────────────────────────────────────────
+        fromDoLine.Quantity -= request.Qty;
+        if (fromDoLine.Quantity <= 0) fromDoOrder.Lines.Remove(fromDoLine);
+
+        fromAllocLine.Qty -= request.Qty;
+        if (fromAllocLine.Qty <= 0) fromAlloc.Lines.Remove(fromAllocLine);
+
+        // ── Add to destination ──────────────────────────────────────────────
+        if (!string.IsNullOrWhiteSpace(request.ToDeliveryOrderId))
+        {
+            var toAlloc = run.Allocations.FirstOrDefault(a => a.DeliveryOrderId == request.ToDeliveryOrderId)
+                ?? throw new InvalidOperationException($"Destination allocation '{request.ToDeliveryOrderId}' not found on this delivery run.");
+
+            if (toAlloc.DeliveryStatus == "Delivered")
+                throw new InvalidOperationException("Cannot reallocate stock onto a delivery that has already been completed.");
+
+            var toDoOrder = await _deliveryRepo.GetAsync(request.ToDeliveryOrderId, ct)
+                ?? throw new InvalidOperationException($"Delivery order not found: {request.ToDeliveryOrderId}");
+
+            var toDoLine = toDoOrder.Lines.FirstOrDefault(l => l.SpeciesId == request.SpeciesId);
+            if (toDoLine != null) toDoLine.Quantity += request.Qty;
+            else toDoOrder.Lines.Add(new DeliveryOrderLine { SpeciesId = request.SpeciesId, Quantity = request.Qty, UnitPrice = sourceUnitPrice });
+
+            var toAllocLine = toAlloc.Lines.FirstOrDefault(l => l.SpeciesId == request.SpeciesId);
+            if (toAllocLine != null) toAllocLine.Qty += request.Qty;
+            else
+            {
+                var species = await _speciesRepo.GetAsync(request.SpeciesId, ct);
+                toAlloc.Lines.Add(new DeliveryRunAllocationLine
+                {
+                    SpeciesId = request.SpeciesId,
+                    SpeciesName = species?.Name ?? request.SpeciesId,
+                    Qty = request.Qty,
+                    UnitPrice = sourceUnitPrice,
+                });
+            }
+
+            await _deliveryRepo.UpdateAsync(toDoOrder, ct);
+        }
+        else
+        {
+            var client = await _clientRepo.GetAsync(request.ToClientId!, ct)
+                ?? throw new InvalidOperationException($"Client not found: {request.ToClientId}");
+            var species = await _speciesRepo.GetAsync(request.SpeciesId, ct);
+
+            var newDoOrder = new DeliveryOrder
+            {
+                AssignedDriverId = run.AssignedDriverId,
+                AssignedDriverName = run.AssignedDriverName,
+                CustomerId = client.ClientId,
+                HubId = run.HubId,
+                Status = "OutForDelivery",
+                DeliveryAddressLine1 = client.ClientAddress,
+                City = client.ClientCity,
+                Province = client.ClientProvince,
+                PostalCode = client.ClientPostalCode,
+                Lines = new List<DeliveryOrderLine>
+                {
+                    new() { SpeciesId = request.SpeciesId, Quantity = request.Qty, UnitPrice = sourceUnitPrice }
+                },
+            };
+            await _deliveryRepo.CreateAsync(newDoOrder, ct);
+
+            run.Allocations.Add(new DeliveryRunAllocation
+            {
+                DeliveryOrderId = newDoOrder.DeliveryOrderId,
+                ClientId = client.ClientId,
+                ClientName = client.ClientName,
+                DeliveryStatus = "OutForDelivery",
+                Lines = new List<DeliveryRunAllocationLine>
+                {
+                    new()
+                    {
+                        SpeciesId = request.SpeciesId,
+                        SpeciesName = species?.Name ?? request.SpeciesId,
+                        Qty = request.Qty,
+                        UnitPrice = sourceUnitPrice,
+                    }
+                },
+            });
+        }
+
+        await _deliveryRepo.UpdateAsync(fromDoOrder, ct);
+        await _repo.UpdateAsync(run, ct);
+        return MapToResponse(run);
+    }
+
     public async Task<DeliveryRunResponse> DispatchAsync(string id, CancellationToken ct)
     {
         var run = await _repo.GetAsync(id, ct)
