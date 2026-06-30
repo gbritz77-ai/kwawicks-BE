@@ -62,6 +62,12 @@ public class BankTransactionResponse
     public string AllocatedClientId { get; set; } = "";
     public string AllocatedClientName { get; set; } = "";
     public string? AllocatedAt { get; set; }
+
+    // ── Cross-statement duplicate detection ──────────────────────────────
+    public bool IsPossibleDuplicate { get; set; }
+    public string DuplicateOfStatementFileName { get; set; } = "";
+    public string DuplicateOfAllocationSummary { get; set; } = "";
+    public string? DuplicateOfAllocatedAt { get; set; }
 }
 
 public class BankStatementResponse
@@ -77,6 +83,9 @@ public class BankStatementResponse
     public decimal UnallocatedAmount { get; set; }
     public string UploadedAt { get; set; } = "";
     public List<BankTransactionResponse> Transactions { get; set; } = new();
+    /// <summary>Unallocated transactions that match (same date + amount) a transaction already
+    /// allocated in a different statement — hidden from the main list, shown separately with a warning.</summary>
+    public List<BankTransactionResponse> PossibleDuplicates { get; set; } = new();
 }
 
 public class BankStatementSummaryResponse

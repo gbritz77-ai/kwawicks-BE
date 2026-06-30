@@ -31,4 +31,14 @@ public class BankTransaction
     public string AllocatedClientId { get; set; } = "";
     public string AllocatedClientName { get; set; } = "";
     public DateTime? AllocatedAt { get; set; }
+
+    // ── Cross-statement duplicate detection ──────────────────────────────
+    /// <summary>True when this transaction matches (same date + amount) a transaction that
+    /// was already allocated in a different, previously-imported statement — almost always
+    /// caused by overlapping date ranges between two bank statement exports.</summary>
+    public bool IsPossibleDuplicate { get; set; }
+    public string DuplicateOfStatementFileName { get; set; } = "";
+    public string DuplicateOfTransactionId { get; set; } = "";
+    public string DuplicateOfAllocationSummary { get; set; } = ""; // e.g. "Invoice INV000123" / "Supplier ABC"
+    public DateTime? DuplicateOfAllocatedAt { get; set; }
 }

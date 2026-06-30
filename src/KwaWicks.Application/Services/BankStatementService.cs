@@ -51,6 +51,11 @@ public class BankStatementService : IBankStatementService
 
         var credits = transactions.Where(t => t.Type == "Credit").ToList();
 
+        // Flag any credit that matches (same date + amount) a transaction already allocated in a
+        // different, previously-imported statement — almost always caused by overlapping date
+        // ranges between two bank statement exports (e.g. re-downloading "last 30 days").
+        await FlagCrossStatementDuplicatesAsync(transactions, ct);
+
         var statement = new BankStatement
         {
             FileName         = request.FileName,
@@ -64,6 +69,44 @@ public class BankStatementService : IBankStatementService
 
         await _repo.CreateAsync(statement, ct);
         return MapToResponse(statement);
+    }
+
+    private async Task FlagCrossStatementDuplicatesAsync(List<BankTransaction> newTransactions, CancellationToken ct)
+    {
+        var newCredits = newTransactions.Where(t => t.Type == "Credit").ToList();
+        if (newCredits.Count == 0) return;
+
+        var allStatements = await _repo.ListAsync(ct);
+        if (allStatements.Count == 0) return;
+
+        foreach (var prior in allStatements)
+        {
+            // ListAsync returns summaries only — load the full statement to inspect transactions.
+            var full = await _repo.GetAsync(prior.StatementId, ct);
+            if (full is null) continue;
+
+            foreach (var priorTx in full.Transactions.Where(t => t.IsAllocated))
+            {
+                foreach (var newTx in newCredits.Where(t => !t.IsPossibleDuplicate))
+                {
+                    if (newTx.Date.Date != priorTx.Date.Date) continue;
+                    if (Math.Round(newTx.Amount, 2) != Math.Round(priorTx.Amount, 2)) continue;
+
+                    newTx.IsPossibleDuplicate = true;
+                    newTx.DuplicateOfStatementFileName = full.FileName;
+                    newTx.DuplicateOfTransactionId = priorTx.TransactionId;
+                    newTx.DuplicateOfAllocatedAt = priorTx.AllocatedAt;
+                    newTx.DuplicateOfAllocationSummary = priorTx.AllocationType switch
+                    {
+                        "Invoice" => $"Invoice {(string.IsNullOrWhiteSpace(priorTx.AllocatedInvoiceNumber) ? priorTx.AllocatedInvoiceId : priorTx.AllocatedInvoiceNumber)}",
+                        "Supplier" => $"Supplier {priorTx.AllocatedSupplierName}",
+                        "ClientCredit" => $"Client Credit — {priorTx.AllocatedClientName}",
+                        "NonClient" => $"Non-Client — {priorTx.NonClientDescription}",
+                        _ => priorTx.AllocationType
+                    };
+                }
+            }
+        }
     }
 
     // ── CRUD ───────────────────────────────────────────────────────────────
@@ -626,8 +669,15 @@ public class BankStatementService : IBankStatementService
         string? search = null,
         decimal? amount = null)
     {
+        // Possible duplicates are hidden from the main working list — they're surfaced
+        // separately so staff don't accidentally re-allocate a payment already reconciled
+        // under a different (overlapping) statement upload.
+        var possibleDuplicates = s.Transactions
+            .Where(t => !t.IsAllocated && t.IsPossibleDuplicate)
+            .ToList();
+
         var unallocated = s.Transactions
-            .Where(t => !t.IsAllocated)
+            .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate)
             .ToList();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -652,12 +702,13 @@ public class BankStatementService : IBankStatementService
             CreditCount      = s.CreditCount,
             TotalCredits     = s.TotalCredits,
             AllocatedCount   = s.Transactions.Count(t => t.IsAllocated && t.Type == "Credit"),
-            UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && t.Type == "Credit"),
+            UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit"),
             UnallocatedAmount = s.Transactions
-                .Where(t => !t.IsAllocated && t.Type == "Credit")
+                .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit")
                 .Sum(t => t.Amount),
             UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
-            Transactions     = unallocated.Select(MapTx).ToList()
+            Transactions     = unallocated.Select(MapTx).ToList(),
+            PossibleDuplicates = possibleDuplicates.Select(MapTx).ToList()
         };
     }
 
@@ -670,9 +721,9 @@ public class BankStatementService : IBankStatementService
         TotalCredits     = s.TotalCredits,
         UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
         AllocatedCount   = s.Transactions.Count(t => t.IsAllocated && t.Type == "Credit"),
-        UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && t.Type == "Credit"),
+        UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit"),
         UnallocatedAmount = s.Transactions
-            .Where(t => !t.IsAllocated && t.Type == "Credit")
+            .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit")
             .Sum(t => t.Amount)
     };
 
@@ -693,6 +744,12 @@ public class BankStatementService : IBankStatementService
         AllocatedSupplierName  = t.AllocatedSupplierName,
         AllocatedClientId      = t.AllocatedClientId,
         AllocatedClientName    = t.AllocatedClientName,
+        IsPossibleDuplicate           = t.IsPossibleDuplicate,
+        DuplicateOfStatementFileName  = t.DuplicateOfStatementFileName,
+        DuplicateOfAllocationSummary  = t.DuplicateOfAllocationSummary,
+        DuplicateOfAllocatedAt        = t.DuplicateOfAllocatedAt.HasValue
+            ? t.DuplicateOfAllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
+            : null,
         AllocatedAt            = t.AllocatedAt.HasValue
             ? t.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
             : null

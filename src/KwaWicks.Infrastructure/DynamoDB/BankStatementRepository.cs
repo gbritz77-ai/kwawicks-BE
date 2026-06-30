@@ -109,7 +109,10 @@ public class BankStatementRepository : IBankStatementRepository
     private static BankStatement FromItem(Dictionary<string, AttributeValue> item)
     {
         var txJson = item.TryGetValue("TransactionsJson", out var txj) ? txj.S : "[]";
-        var transactions = JsonSerializer.Deserialize<List<BankTransactionRecord>>(txJson ?? "[]") ?? new();
+        // Deserialize directly into BankTransaction — using a separate partial "record" type here
+        // previously silently dropped any field not explicitly listed (AllocationType, supplier/
+        // client allocation details, NonClientDescription, etc.) on every reload from the DB.
+        var transactions = JsonSerializer.Deserialize<List<BankTransaction>>(txJson ?? "[]") ?? new();
 
         return new BankStatement
         {
@@ -122,19 +125,7 @@ public class BankStatementRepository : IBankStatementRepository
             UploadedAt       = item.TryGetValue("UploadedAtUtc",    out var ua)
                                  ? DateTime.Parse(ua.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                                  : DateTime.UtcNow,
-            Transactions = transactions.Select(t => new BankTransaction
-            {
-                TransactionId         = t.TransactionId,
-                Date                  = t.Date,
-                Description           = t.Description,
-                Reference             = t.Reference,
-                Amount                = t.Amount,
-                Type                  = t.Type,
-                IsAllocated           = t.IsAllocated,
-                AllocatedInvoiceId    = t.AllocatedInvoiceId,
-                AllocatedInvoiceNumber = t.AllocatedInvoiceNumber,
-                AllocatedAt           = t.AllocatedAt
-            }).ToList()
+            Transactions = transactions
         };
     }
 
@@ -153,10 +144,4 @@ public class BankStatementRepository : IBankStatementRepository
                                  : DateTime.UtcNow,
             Transactions = new List<BankTransaction>() // not loaded on list
         };
-
-    // Internal record matching the JSON shape stored in TransactionsJson
-    private record BankTransactionRecord(
-        string TransactionId, DateTime Date, string Description, string Reference,
-        decimal Amount, string Type, bool IsAllocated, string AllocatedInvoiceId,
-        string AllocatedInvoiceNumber, DateTime? AllocatedAt);
 }
