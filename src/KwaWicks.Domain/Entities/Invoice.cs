@@ -38,6 +38,10 @@ public class Invoice
     public decimal AmountPaid { get; set; }
     public DateTime? ReconciledAt { get; set; }
 
+    /// <summary>True once the sale (debit) has been posted to the client's credit ledger.
+    /// Guards against double-charging across ConfirmPaymentAsync / ReconAsync.</summary>
+    public bool LedgerCharged { get; set; }
+
     // ── Cancellation ──────────────────────────────────────────────────────
     public DateTime? CancelledAt { get; set; }
     public string CancelledReason { get; set; } = "";

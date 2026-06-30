@@ -8,6 +8,11 @@ public interface IClientCreditService
     Task<ClientCreditEntryResponse> ChargeInvoiceAsync(string clientId, string invoiceId, decimal amount, CancellationToken ct = default);
     /// <summary>Reverses a prior InvoiceCharge (e.g. when a Credit invoice is cancelled). Posts a positive ledger entry.</summary>
     Task<ClientCreditEntryResponse> ReverseInvoiceChargeAsync(string clientId, string invoiceId, decimal amount, CancellationToken ct = default);
+    /// <summary>Records money actually received against an invoice (Cash/EFT/Card/etc). Posts a positive ledger entry
+    /// distinct from a manual Deposit, so the client's statement shows the payment tied to that specific invoice.</summary>
+    Task<ClientCreditEntryResponse> RecordInvoicePaymentAsync(string clientId, string invoiceId, decimal amount, string paymentMethod, CancellationToken ct = default);
+    /// <summary>Reverses a previously recorded InvoicePayment (e.g. a bank allocation is undone). Posts a negative ledger entry.</summary>
+    Task<ClientCreditEntryResponse> ReverseInvoicePaymentAsync(string clientId, string invoiceId, decimal amount, CancellationToken ct = default);
     Task<ClientCreditEntryResponse> AddManualChargeAsync(string clientId, decimal amount, string notes, string createdByUserId, CancellationToken ct = default);
     Task DeleteEntryAsync(string clientId, string entryId, CancellationToken ct = default);
     Task<ClientCreditLedgerResponse> GetLedgerAsync(string clientId, CancellationToken ct = default);

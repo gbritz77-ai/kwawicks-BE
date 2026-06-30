@@ -116,11 +116,14 @@ public class DriverSalesController : ControllerBase
             }
 
             // 2. Build invoice request
+            // Normalize "AccountCredit" to "Credit" — single canonical string for deferred-payment
+            // sales across the whole system (Hub, Driver, and delivery flows all use "Credit").
+            var normalizedPaymentType = request.PaymentType == "AccountCredit" ? "Credit" : request.PaymentType;
             var invoiceReq = new CreateInvoiceRequest
             {
                 CustomerId = customerId,
                 HubId = request.HubId,
-                PaymentType = request.PaymentType,
+                PaymentType = normalizedPaymentType,
                 SaleType = "DriverDirect",
                 StaffMemberId = "",
                 Lines = request.Lines.Select(l => new CreateInvoiceLine
@@ -139,22 +142,16 @@ public class DriverSalesController : ControllerBase
 
             var invoiceId = await _invoiceService.CreateInvoiceAsync(invoiceReq, ct);
 
-            // 3a. Immediately confirm Cash / EFT / Card / Split payments — no Finance sign-off needed
-            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine", "Split" };
-            if (immediatePayTypes.Contains(request.PaymentType))
-            {
-                await _invoiceService.ConfirmPaymentAsync(invoiceId, ct);
-            }
-
-            // 3b. Auto-debit client credit if chosen
+            // 3. Confirm payment immediately for every type — ConfirmPaymentAsync posts the sale
+            // (debit) and, for everything except Credit, the matching payment (credit) too.
+            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine", "Split", "Credit" };
             bool creditCharged = false;
             decimal newCreditBalance = 0m;
-            if (request.PaymentType == "AccountCredit" && !string.IsNullOrWhiteSpace(customerId))
+            if (immediatePayTypes.Contains(normalizedPaymentType))
             {
-                var invoice = await _invoiceService.GetAsync(invoiceId, ct);
-                if (invoice != null)
+                await _invoiceService.ConfirmPaymentAsync(invoiceId, ct);
+                if (normalizedPaymentType == "Credit" && !string.IsNullOrWhiteSpace(customerId))
                 {
-                    await _creditService.ChargeInvoiceAsync(customerId, invoiceId, invoice.GrandTotal, ct);
                     newCreditBalance = await _creditService.GetBalanceAsync(customerId, ct);
                     creditCharged = true;
                 }

@@ -78,6 +78,42 @@ public class ClientCreditService : IClientCreditService
         return Map(entry);
     }
 
+    public async Task<ClientCreditEntryResponse> RecordInvoicePaymentAsync(
+        string clientId, string invoiceId, decimal amount, string paymentMethod, CancellationToken ct = default)
+    {
+        var entry = new ClientCreditEntry
+        {
+            ClientId        = clientId,
+            Amount          = Math.Abs(amount), // positive — money received against this invoice
+            EntryType       = "InvoicePayment",
+            PaymentMethod   = paymentMethod,
+            Reference       = invoiceId,
+            Notes           = $"Payment received ({paymentMethod}) for invoice {invoiceId.Substring(0, Math.Min(8, invoiceId.Length)).ToUpper()}",
+            CreatedByUserId = "system",
+        };
+
+        await _repo.AddEntryAsync(entry, ct);
+        return Map(entry);
+    }
+
+    public async Task<ClientCreditEntryResponse> ReverseInvoicePaymentAsync(
+        string clientId, string invoiceId, decimal amount, CancellationToken ct = default)
+    {
+        var entry = new ClientCreditEntry
+        {
+            ClientId        = clientId,
+            Amount          = -Math.Abs(amount), // negative — undoes a previously recorded InvoicePayment
+            EntryType       = "InvoicePaymentReversed",
+            PaymentMethod   = "",
+            Reference       = invoiceId,
+            Notes           = $"Payment reversed for invoice {invoiceId.Substring(0, Math.Min(8, invoiceId.Length)).ToUpper()} — bank allocation removed",
+            CreatedByUserId = "system",
+        };
+
+        await _repo.AddEntryAsync(entry, ct);
+        return Map(entry);
+    }
+
     public async Task<ClientCreditEntryResponse> AddManualChargeAsync(
         string clientId, decimal amount, string notes, string createdByUserId, CancellationToken ct = default)
     {

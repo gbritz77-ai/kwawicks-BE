@@ -351,19 +351,29 @@ public class InvoiceService : IInvoiceService
         var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
             ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
 
-        // Guard: only increment credit balance on the very first confirmation.
-        // Re-running confirm during a recon must not double-count.
-        var alreadyConfirmed = invoice.PaymentStatus == "Paid";
-
         invoice.PaymentStatus = "Paid";
         invoice.Status = "Paid";
         invoice.UpdatedAt = DateTime.UtcNow;
+
+        // Every invoice posts to the client's credit ledger exactly once (guarded by LedgerCharged,
+        // not PaymentStatus, so this can't double-fire if ConfirmPaymentAsync runs more than once).
+        var needsLedgerPost = !invoice.LedgerCharged && !string.IsNullOrWhiteSpace(invoice.CustomerId);
+        if (needsLedgerPost) invoice.LedgerCharged = true;
+
         await _invoiceRepo.UpdateAsync(invoice, ct);
 
-        // Credit invoices: post an InvoiceCharge to the client's credit ledger (once only).
-        if (!alreadyConfirmed && invoice.PaymentType == "Credit" && !string.IsNullOrWhiteSpace(invoice.CustomerId))
+        if (needsLedgerPost)
         {
+            // Debit: the sale itself.
             await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+
+            // Credit: money actually received now, for every payment type except Credit
+            // (Credit means the client owes it — no payment received yet).
+            if (invoice.PaymentType != "Credit")
+            {
+                await _clientCreditService.RecordInvoicePaymentAsync(
+                    invoice.CustomerId, invoiceId, invoice.GrandTotal, invoice.PaymentType, ct);
+            }
         }
     }
 
@@ -519,8 +529,22 @@ public class InvoiceService : IInvoiceService
             invoice.Status        = "Paid";
         }
 
+        // First touch posts the sale (debit) once; every recon call posts the incremental
+        // payment (credit) actually allocated this time — bank-matched, so tagged "EFT".
+        var needsCharge = !invoice.LedgerCharged && !string.IsNullOrWhiteSpace(invoice.CustomerId);
+        if (needsCharge) invoice.LedgerCharged = true;
+
         invoice.UpdatedAt = DateTime.UtcNow;
         await _invoiceRepo.UpdateAsync(invoice, ct);
+
+        if (!string.IsNullOrWhiteSpace(invoice.CustomerId))
+        {
+            if (needsCharge)
+                await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+
+            if (payment > 0m)
+                await _clientCreditService.RecordInvoicePaymentAsync(invoice.CustomerId, invoiceId, payment, "EFT", ct);
+        }
     }
 
     public async Task UnreconAsync(string invoiceId, decimal subtractAmount, CancellationToken ct)
@@ -539,6 +563,11 @@ public class InvoiceService : IInvoiceService
 
         invoice.UpdatedAt = DateTime.UtcNow;
         await _invoiceRepo.UpdateAsync(invoice, ct);
+
+        // Undo the matching payment (credit) entry — the sale/charge itself still stands,
+        // since the goods were still delivered; only the "money received" record is reversed.
+        if (subtractAmount > 0m && !string.IsNullOrWhiteSpace(invoice.CustomerId))
+            await _clientCreditService.ReverseInvoicePaymentAsync(invoice.CustomerId, invoiceId, subtractAmount, ct);
     }
 
     // ── Cancellation ────────────────────────────────────────────────────────
@@ -570,10 +599,13 @@ public class InvoiceService : IInvoiceService
             }
         }
 
-        // Reverse any credit charge already posted to the client's ledger
-        if (invoice.PaymentType == "Credit" && invoice.PaymentStatus == "Paid" && !string.IsNullOrWhiteSpace(invoice.CustomerId))
+        // Reverse the sale (debit) and, if money was actually received, the matching payment
+        // (credit) too — both were posted together by ConfirmPaymentAsync/ReconAsync.
+        if (invoice.LedgerCharged && !string.IsNullOrWhiteSpace(invoice.CustomerId))
         {
             await _clientCreditService.ReverseInvoiceChargeAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+            if (invoice.PaymentType != "Credit")
+                await _clientCreditService.ReverseInvoicePaymentAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
         }
 
         invoice.Status            = "Cancelled";
