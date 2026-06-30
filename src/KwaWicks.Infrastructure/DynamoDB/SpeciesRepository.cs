@@ -52,8 +52,17 @@ public class SpeciesRepository : ISpeciesRepository
             }
         };
 
-        var res = await _ddb.ScanAsync(req, ct);
-        return res.Items.Select(FromItem).OrderBy(s => s.Name).ToList();
+        var items = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? res;
+        do
+        {
+            res = await _ddb.ScanAsync(req, ct);
+            items.AddRange(res.Items);
+            req.ExclusiveStartKey = res.LastEvaluatedKey;
+        }
+        while (res.LastEvaluatedKey is { Count: > 0 });
+
+        return items.Select(FromItem).OrderBy(s => s.Name).ToList();
     }
 
     public async Task<Species?> GetAsync(string speciesId, CancellationToken ct)

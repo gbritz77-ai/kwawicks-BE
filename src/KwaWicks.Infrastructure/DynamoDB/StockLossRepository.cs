@@ -56,14 +56,24 @@ public class StockLossRepository : IStockLossRepository
             values[":to"] = new() { S = to.Value.AddDays(1).ToString("O", CultureInfo.InvariantCulture) };
         }
 
-        var resp = await _ddb.ScanAsync(new ScanRequest
+        var req = new ScanRequest
         {
             TableName = _tableName,
             FilterExpression = string.Join(" AND ", filterParts),
             ExpressionAttributeValues = values,
-        }, ct);
+        };
 
-        return resp.Items
+        var items = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? resp;
+        do
+        {
+            resp = await _ddb.ScanAsync(req, ct);
+            items.AddRange(resp.Items);
+            req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        }
+        while (resp.LastEvaluatedKey is { Count: > 0 });
+
+        return items
             .Select(FromItem)
             .OrderByDescending(l => l.CreatedAt)
             .ToList();

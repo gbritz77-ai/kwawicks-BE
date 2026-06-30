@@ -46,7 +46,7 @@ public class OtpRepository : IOtpRepository
 
     public async Task<List<OtpRecord>> ListByClientAsync(string clientId, CancellationToken ct)
     {
-        var res = await _ddb.ScanAsync(new ScanRequest
+        var req = new ScanRequest
         {
             TableName = _tableName,
             FilterExpression = "begins_with(PK, :p) AND SK = :sk AND ClientId = :cid",
@@ -56,14 +56,15 @@ public class OtpRepository : IOtpRepository
                 [":sk"]  = new AttributeValue { S = SkMeta },
                 [":cid"] = new AttributeValue { S = clientId }
             }
-        }, ct);
+        };
 
-        return res.Items.Select(FromItem).OrderByDescending(r => r.SentAt).ToList();
+        var items = await ScanAllAsync(req, ct);
+        return items.Select(FromItem).OrderByDescending(r => r.SentAt).ToList();
     }
 
     public async Task<List<OtpRecord>> ListAllAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var res = await _ddb.ScanAsync(new ScanRequest
+        var req = new ScanRequest
         {
             TableName = _tableName,
             FilterExpression = "begins_with(PK, :p) AND SK = :sk",
@@ -72,14 +73,29 @@ public class OtpRepository : IOtpRepository
                 [":p"]  = new AttributeValue { S = "OTP#" },
                 [":sk"] = new AttributeValue { S = SkMeta }
             }
-        }, ct);
+        };
 
-        var records = res.Items.Select(FromItem);
+        var items = await ScanAllAsync(req, ct);
+        var records = items.Select(FromItem);
 
         if (from.HasValue) records = records.Where(r => r.SentAt >= from.Value);
         if (to.HasValue)   records = records.Where(r => r.SentAt <= to.Value);
 
         return records.OrderByDescending(r => r.SentAt).ToList();
+    }
+
+    private async Task<List<Dictionary<string, AttributeValue>>> ScanAllAsync(ScanRequest req, CancellationToken ct)
+    {
+        var items = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? res;
+        do
+        {
+            res = await _ddb.ScanAsync(req, ct);
+            items.AddRange(res.Items);
+            req.ExclusiveStartKey = res.LastEvaluatedKey;
+        }
+        while (res.LastEvaluatedKey is { Count: > 0 });
+        return items;
     }
 
     // ── Mapping ───────────────────────────────────────────────────────────────

@@ -48,7 +48,7 @@ public class CostAverageRepository : ICostAverageRepository
 
     public async Task<List<CostAverageRecord>> ListByMonthAsync(string month, CancellationToken ct)
     {
-        var res = await _ddb.ScanAsync(new ScanRequest
+        var req = new ScanRequest
         {
             TableName = _tableName,
             FilterExpression = "begins_with(PK, :p) AND SK = :sk",
@@ -57,14 +57,15 @@ public class CostAverageRepository : ICostAverageRepository
                 [":p"]  = new AttributeValue { S = "COSTAVG#" },
                 [":sk"] = new AttributeValue { S = Sk(month) }
             }
-        }, ct);
+        };
 
-        return res.Items.Select(FromItem).OrderBy(r => r.SpeciesName).ToList();
+        var items = await ScanAllAsync(req, ct);
+        return items.Select(FromItem).OrderBy(r => r.SpeciesName).ToList();
     }
 
     public async Task<List<CostAverageRecord>> ListAllAsync(CancellationToken ct)
     {
-        var res = await _ddb.ScanAsync(new ScanRequest
+        var req = new ScanRequest
         {
             TableName = _tableName,
             FilterExpression = "begins_with(PK, :p)",
@@ -72,13 +73,28 @@ public class CostAverageRepository : ICostAverageRepository
             {
                 [":p"] = new AttributeValue { S = "COSTAVG#" }
             }
-        }, ct);
+        };
 
-        return res.Items
+        var items = await ScanAllAsync(req, ct);
+        return items
             .Select(FromItem)
             .OrderBy(r => r.SpeciesName)
             .ThenBy(r => r.Month)
             .ToList();
+    }
+
+    private async Task<List<Dictionary<string, AttributeValue>>> ScanAllAsync(ScanRequest req, CancellationToken ct)
+    {
+        var items = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? res;
+        do
+        {
+            res = await _ddb.ScanAsync(req, ct);
+            items.AddRange(res.Items);
+            req.ExclusiveStartKey = res.LastEvaluatedKey;
+        }
+        while (res.LastEvaluatedKey is { Count: > 0 });
+        return items;
     }
 
     // ── Mapping ───────────────────────────────────────────────────────────────

@@ -33,7 +33,7 @@ public class ClientCreditRepository : IClientCreditRepository
 
     public async Task<List<ClientCreditEntry>> ListByClientAsync(string clientId, CancellationToken ct = default)
     {
-        var resp = await _ddb.ScanAsync(new ScanRequest
+        var req = new ScanRequest
         {
             TableName = _tableName,
             FilterExpression = "EntityType = :et AND ClientId = :cid",
@@ -42,9 +42,19 @@ public class ClientCreditRepository : IClientCreditRepository
                 [":et"]  = new() { S = "ClientCreditEntry" },
                 [":cid"] = new() { S = clientId }
             }
-        }, ct);
+        };
 
-        return resp.Items
+        var items = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? resp;
+        do
+        {
+            resp = await _ddb.ScanAsync(req, ct);
+            items.AddRange(resp.Items);
+            req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        }
+        while (resp.LastEvaluatedKey is { Count: > 0 });
+
+        return items
             .Select(FromItem)
             .OrderByDescending(e => e.CreatedAt)
             .ToList();
@@ -73,15 +83,25 @@ public class ClientCreditRepository : IClientCreditRepository
             values[":since"] = new() { S = since.Value.ToString("O", CultureInfo.InvariantCulture) };
         }
 
-        var resp = await _ddb.ScanAsync(new ScanRequest
+        var req = new ScanRequest
         {
             TableName = _tableName,
             FilterExpression = string.Join(" AND ", filterParts),
             ExpressionAttributeValues = values,
             ProjectionExpression = "Amount"
-        }, ct);
+        };
 
-        return resp.Items
+        var items = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? resp;
+        do
+        {
+            resp = await _ddb.ScanAsync(req, ct);
+            items.AddRange(resp.Items);
+            req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        }
+        while (resp.LastEvaluatedKey is { Count: > 0 });
+
+        return items
             .Where(i => i.TryGetValue("Amount", out var a) && a.N is not null)
             .Sum(i => decimal.Parse(i["Amount"].N!, NumberStyles.Any, CultureInfo.InvariantCulture));
     }
