@@ -204,9 +204,23 @@ public class CollectionRequestService : ICollectionRequestService
             foreach (var line in cr.Lines.Where(l => l.ReceivedQty > 0))
             {
                 ct.ThrowIfCancellationRequested();
+
+                // Stock already allocated to specific client/hub deliveries for this species was
+                // booked (not on-hand) when those allocations were created — it bypasses general
+                // availability and goes straight to fulfilling those commitments. Adding the full
+                // ReceivedQty here would double-count that portion as both "booked" AND "on-hand".
+                // Only the leftover/unallocated portion of what was physically received becomes
+                // genuinely available hub stock.
+                var alreadyAllocated = cr.DeliveryAllocations
+                    .SelectMany(a => a.Lines)
+                    .Where(l => l.SpeciesId == line.SpeciesId)
+                    .Sum(l => l.Qty);
+                var unallocatedReceived = Math.Max(0, line.ReceivedQty - alreadyAllocated);
+                if (unallocatedReceived == 0) continue;
+
                 // Atomic ADD — eliminates stale-write races with concurrent deliveries
-                await _speciesRepo.AdjustStockAsync(line.SpeciesId, +line.ReceivedQty, 0, ct);
-                bookedIn.Add((line.SpeciesId, line.ReceivedQty));
+                await _speciesRepo.AdjustStockAsync(line.SpeciesId, +unallocatedReceived, 0, ct);
+                bookedIn.Add((line.SpeciesId, unallocatedReceived));
             }
 
             await _repo.UpdateAsync(cr, ct);
@@ -407,17 +421,28 @@ public class CollectionRequestService : ICollectionRequestService
                 UnitPrice = unitPrice
             });
 
+            // Hub Internal: stock leaves hub now — deduct on-hand like a standard delivery order.
+            // External supplier, not yet hub-confirmed: stock hasn't arrived/entered on-hand yet —
+            // only mark as booked; HubConfirmAsync will add the unallocated remainder to on-hand
+            // once it arrives.
+            // External supplier, already hub-confirmed: the stock is already sitting in on-hand
+            // (HubConfirmAsync added the full received qty before this allocation existed) — this
+            // allocation must now carve its quantity out of on-hand too, the same way a
+            // hub-internal allocation does, or it stays double-counted as both available and booked.
+            bool isHubInternal = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase);
+            bool alreadyHubConfirmed = cr.Status is "HubConfirmed" or "FinanceAcknowledged";
+            bool deductOnHand = isHubInternal || alreadyHubConfirmed;
+            int onHandDelta = deductOnHand ? -reqLine.Qty : 0;
+
             allocationLines.Add(new CollectionAllocationLine
             {
                 SpeciesId = reqLine.SpeciesId,
                 SpeciesName = speciesName,
                 Qty = reqLine.Qty,
-                UnitPrice = unitPrice
+                UnitPrice = unitPrice,
+                OnHandDeducted = deductOnHand
             });
 
-            // Hub Internal: stock leaves hub now — deduct on-hand like a standard delivery order.
-            // External supplier: stock comes from supplier, not hub — only mark as booked.
-            int onHandDelta = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase) ? -reqLine.Qty : 0;
             await _speciesRepo.AdjustStockAsync(reqLine.SpeciesId, onHandDelta, +reqLine.Qty, ct,
                 minOnHandRequired: onHandDelta < 0 ? reqLine.Qty : 0);
         }
@@ -499,12 +524,10 @@ public class CollectionRequestService : ICollectionRequestService
                 int delta = edit.Qty - hubLine.Qty;
                 if (delta != 0)
                 {
-                    // For hub-internal CRs the original allocation deducted QtyOnHandHub; adjust
-                    // for the delta so on-hand stays accurate. Booked must always track the
-                    // committed-but-not-yet-accepted quantity regardless of supplier type —
-                    // the original creation step booked +hubLine.Qty, so edits must keep it in sync.
-                    bool isHubInternal = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase);
-                    int onHandDelta = isHubInternal ? -delta : 0;
+                    // Use the flag stored at creation time — not the CR's current supplier/status —
+                    // to know whether this specific line ever deducted on-hand. Booked must always
+                    // track the committed-but-not-yet-accepted quantity regardless of supplier type.
+                    int onHandDelta = hubLine.OnHandDeducted ? -delta : 0;
                     await _speciesRepo.AdjustStockAsync(
                         edit.SpeciesId, onHandDelta, +delta, ct,
                         minOnHandRequired: onHandDelta < 0 ? delta : 0);
@@ -552,10 +575,9 @@ public class CollectionRequestService : ICollectionRequestService
                     $"exceeds the {(crLine.LoadedQty > 0 ? "loaded" : "ordered")} qty ({effectiveEditQty}).");
         }
 
-        // Adjust stock for each changed line.
-        // Hub Internal: also adjust on-hand (delta > 0 = more stock leaves hub; delta < 0 = some returns).
-        bool isHubInternalEdit = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase);
-        var adjustedSpecies = new List<(string speciesId, int delta)>();
+        // Adjust stock for each changed line. Use the flag stored on the line at creation time —
+        // not the CR's current supplier — to know whether this specific line ever deducted on-hand.
+        var adjustedSpecies = new List<(string speciesId, int delta, bool onHandTouched)>();
         try
         {
             foreach (var edit in request.Lines)
@@ -568,10 +590,11 @@ public class CollectionRequestService : ICollectionRequestService
                 int delta = edit.Qty - allocationLine.Qty;
                 if (delta != 0)
                 {
-                    int onHandDelta = isHubInternalEdit ? -delta : 0;
-                    int minRequired = (isHubInternalEdit && delta > 0) ? delta : 0;
+                    bool onHandTouched = allocationLine.OnHandDeducted;
+                    int onHandDelta = onHandTouched ? -delta : 0;
+                    int minRequired = (onHandTouched && delta > 0) ? delta : 0;
                     await _speciesRepo.AdjustStockAsync(edit.SpeciesId, onHandDelta, +delta, ct, minOnHandRequired: minRequired);
-                    adjustedSpecies.Add((edit.SpeciesId, delta));
+                    adjustedSpecies.Add((edit.SpeciesId, delta, onHandTouched));
                 }
 
                 // Update the delivery order line
@@ -596,11 +619,11 @@ public class CollectionRequestService : ICollectionRequestService
         catch
         {
             // Rollback adjustments
-            foreach (var (speciesId, delta) in adjustedSpecies)
+            foreach (var (speciesId, delta, onHandTouched) in adjustedSpecies)
             {
                 try
                 {
-                    int onHandRollback = isHubInternalEdit ? +delta : 0;
+                    int onHandRollback = onHandTouched ? +delta : 0;
                     await _speciesRepo.AdjustStockAsync(speciesId, onHandRollback, -delta, CancellationToken.None);
                 }
                 catch { /* swallow rollback errors */ }
@@ -819,13 +842,12 @@ public class CollectionRequestService : ICollectionRequestService
                 throw new InvalidOperationException(
                     "Cannot remove a HUB allocation that has already been accepted — stock has been added to hub inventory.");
 
-            // Release the booked commitment made when this allocation was created. Hub-internal
-            // CRs also deducted on-hand at creation time, so restore that too.
-            bool isHubInternalRemove = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase);
+            // Release the booked commitment made when this allocation was created. Use the
+            // per-line flag set at creation time to know whether on-hand was also deducted then.
             foreach (var line in allocation.Lines)
             {
                 ct.ThrowIfCancellationRequested();
-                int onHandRestore = isHubInternalRemove ? +line.Qty : 0;
+                int onHandRestore = line.OnHandDeducted ? +line.Qty : 0;
                 await _speciesRepo.AdjustStockAsync(line.SpeciesId, onHandRestore, -line.Qty, ct);
             }
 
@@ -848,18 +870,17 @@ public class CollectionRequestService : ICollectionRequestService
             throw new InvalidOperationException(
                 $"Cannot remove this allocation — the delivery order has status '{deliveryOrder.Status}'.");
 
-        // Reverse the stock adjustment that was made when the allocation was added.
-        // Hub Internal: restore on-hand (was deducted at allocation time). External: only un-book.
-        bool isHubInternal = cr.SupplierId.Equals("HUB", StringComparison.OrdinalIgnoreCase);
-        var reversed = new List<(string speciesId, int qty)>();
+        // Reverse the stock adjustment that was made when the allocation was added. Use the
+        // per-line flag set at creation time to know whether on-hand was deducted then.
+        var reversed = new List<(string speciesId, int qty, bool onHandTouched)>();
         try
         {
             foreach (var line in allocation.Lines)
             {
                 ct.ThrowIfCancellationRequested();
-                int onHandRestore = isHubInternal ? +line.Qty : 0;
+                int onHandRestore = line.OnHandDeducted ? +line.Qty : 0;
                 await _speciesRepo.AdjustStockAsync(line.SpeciesId, onHandRestore, -line.Qty, ct);
-                reversed.Add((line.SpeciesId, line.Qty));
+                reversed.Add((line.SpeciesId, line.Qty, line.OnHandDeducted));
             }
 
             // Delete the delivery order — it was created solely for this allocation
@@ -873,11 +894,11 @@ public class CollectionRequestService : ICollectionRequestService
         catch
         {
             // Compensating rollback
-            foreach (var (speciesId, qty) in reversed)
+            foreach (var (speciesId, qty, onHandTouched) in reversed)
             {
                 try
                 {
-                    int onHandRollback = isHubInternal ? -qty : 0;
+                    int onHandRollback = onHandTouched ? -qty : 0;
                     await _speciesRepo.AdjustStockAsync(speciesId, onHandRollback, +qty, CancellationToken.None);
                 }
                 catch { /* swallow rollback errors */ }

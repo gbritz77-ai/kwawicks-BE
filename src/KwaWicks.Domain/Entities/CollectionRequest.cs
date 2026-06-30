@@ -43,6 +43,12 @@ public class CollectionAllocationLine
 
     /// <summary>For HUB allocations: qty hub staff physically counted and accepted. 0 = not yet accepted.</summary>
     public int AcceptedQty { get; set; }
+
+    /// <summary>True if this allocation deducted QtyOnHandHub at creation time (hub-internal supplier,
+    /// or an external-supplier allocation added after the collection was already hub-confirmed).
+    /// Edit/remove logic must check this flag rather than re-deriving it, since the collection's
+    /// current status/supplier can't be relied on to reflect what was true when this line was made.</summary>
+    public bool OnHandDeducted { get; set; }
 }
 
 public class CollectionRoadsaleLine
