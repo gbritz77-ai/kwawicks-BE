@@ -165,6 +165,26 @@ public class ClientCreditService : IClientCreditService
     public Task<decimal> GetBalanceAsync(string clientId, CancellationToken ct = default)
         => _repo.GetBalanceAsync(clientId, ct);
 
+    public async Task<decimal> SettleSalaryDeductionAsync(string staffMemberId, string settledByUserId, CancellationToken ct = default)
+    {
+        var balance = await _repo.GetBalanceAsync(staffMemberId, ct);
+        if (balance >= 0) return 0m; // nothing owed
+
+        var settlement = Math.Abs(balance);
+        var entry = new ClientCreditEntry
+        {
+            ClientId        = staffMemberId,
+            Amount          = settlement,
+            EntryType       = "SalaryDeduction",
+            PaymentMethod   = "Salary",
+            Reference       = "",
+            Notes           = "Salary deduction processed — account settled to R0",
+            CreatedByUserId = settledByUserId,
+        };
+        await _repo.AddEntryAsync(entry, ct);
+        return settlement;
+    }
+
     public async Task<CreditProofUploadUrlResponse> GetProofUploadUrlAsync(
         string clientId, string contentType, CancellationToken ct = default)
     {

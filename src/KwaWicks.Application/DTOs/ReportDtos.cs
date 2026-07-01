@@ -37,6 +37,8 @@ public class StaffStockDeductionSummaryItem
     public string Department { get; set; } = "";
     public int TransactionCount { get; set; }
     public decimal TotalAmount { get; set; }
+    /// <summary>Current credit balance for this staff member (negative = they owe money).</summary>
+    public decimal CurrentBalance { get; set; }
 }
 
 public class StaffStockDeductionItem

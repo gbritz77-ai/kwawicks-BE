@@ -74,6 +74,14 @@ public class ReportService : IReportService
             };
         }).ToList();
 
+        // Fetch balances in parallel for all staff who appear in the report
+        var staffIds = details.Select(d => d.StaffMemberId).Distinct().ToList();
+        var balanceTasks = staffIds.ToDictionary(
+            id => id,
+            id => _clientCreditService.GetBalanceAsync(id, ct));
+        await Task.WhenAll(balanceTasks.Values);
+        var balances = balanceTasks.ToDictionary(kv => kv.Key, kv => kv.Value.Result);
+
         var summary = details
             .GroupBy(d => d.StaffMemberId)
             .Select(g => new StaffStockDeductionSummaryItem
@@ -82,7 +90,8 @@ public class ReportService : IReportService
                 StaffName = g.First().StaffName,
                 Department = g.First().Department,
                 TransactionCount = g.Count(),
-                TotalAmount = g.Sum(d => d.GrandTotal)
+                TotalAmount = g.Sum(d => d.GrandTotal),
+                CurrentBalance = balances.TryGetValue(g.Key, out var bal) ? bal : 0m
             })
             .OrderByDescending(s => s.TotalAmount)
             .ToList();
