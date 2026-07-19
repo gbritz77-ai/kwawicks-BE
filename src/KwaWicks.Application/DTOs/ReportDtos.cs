@@ -204,6 +204,7 @@ public class CustomerStatementResponse
 public class CustomerStatementLine
 {
     public string InvoiceId { get; set; } = "";
+    public string InvoiceNumber { get; set; } = "";
     public DateTime Date { get; set; }
     public string PaymentType { get; set; } = "";
     public string PaymentStatus { get; set; } = "";

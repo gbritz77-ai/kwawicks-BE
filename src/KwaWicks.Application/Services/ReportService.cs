@@ -344,6 +344,7 @@ public class ReportService : IReportService
         var lines = filtered.Select(i => new CustomerStatementLine
         {
             InvoiceId = i.InvoiceId,
+            InvoiceNumber = i.InvoiceNumber,
             Date = i.CreatedAt,
             PaymentType = i.PaymentType,
             PaymentStatus = i.PaymentStatus,
