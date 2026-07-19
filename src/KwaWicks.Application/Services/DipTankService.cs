@@ -87,6 +87,40 @@ public class DipTankService
         return ReadingToDto(reading);
     }
 
+    public async Task<DipReadingDto> LoadTankAsync(string tankId, LoadTankRequest req, string recordedBy, CancellationToken ct)
+    {
+        if (req.Litres <= 0) throw new ArgumentException("Litres must be > 0.");
+
+        var tank = await _repo.GetTankAsync(tankId, ct)
+            ?? throw new KeyNotFoundException($"Tank {tankId} not found.");
+
+        // Get current level from last reading
+        var readings = await _repo.ListReadingsAsync(ct);
+        var currentLitres = readings
+            .Where(r => r.TankId == tankId)
+            .OrderByDescending(r => r.RecordedAt)
+            .FirstOrDefault()?.ReadingLitres ?? 0m;
+
+        var newLevel = Math.Min(currentLitres + req.Litres, tank.CapacityLitres);
+        var pct = tank.CapacityLitres > 0 ? Math.Round(newLevel / tank.CapacityLitres * 100, 1) : (decimal?)null;
+
+        var notes = req.Notes?.Trim() ?? "";
+        var costNote = req.CostPerLitre.HasValue ? $" @ R{req.CostPerLitre:N4}/L" : "";
+        var autoNote = $"Fuel delivery: +{req.Litres:N0}L{costNote}";
+        if (!string.IsNullOrEmpty(notes)) autoNote += $". {notes}";
+
+        var reading = new DipReading
+        {
+            TankId        = tankId,
+            ReadingLitres = newLevel,
+            PctFull       = pct,
+            Notes         = autoNote,
+            RecordedBy    = recordedBy,
+        };
+        await _repo.CreateReadingAsync(reading, ct);
+        return ReadingToDto(reading);
+    }
+
     public async Task<List<DipReadingDto>> ListReadingsAsync(CancellationToken ct)
     {
         var all = await _repo.ListReadingsAsync(ct);

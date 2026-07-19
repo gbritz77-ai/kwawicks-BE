@@ -21,6 +21,16 @@ public class VehicleDto
     public bool IsActive { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
+    public List<LicenceHistoryEntryDto> LicenceHistory { get; set; } = new();
+}
+
+public class LicenceHistoryEntryDto
+{
+    public string? PreviousExpiry { get; set; }
+    public string NewExpiry { get; set; } = "";
+    public decimal? Cost { get; set; }
+    public DateTime RenewedAt { get; set; }
+    public string RenewedBy { get; set; } = "";
 }
 
 public class CreateVehicleRequest
@@ -35,6 +45,7 @@ public class CreateVehicleRequest
     public decimal? OdometerKm { get; set; }
     public decimal? ExpectedConsumption { get; set; }
     public string? LicenceExpiry { get; set; }
+    public decimal? LicenceCost { get; set; }
     public int? LicenceRemindDays { get; set; }
     public decimal? LastServiceOdo { get; set; }
     public decimal? ServiceInterval { get; set; }
@@ -54,6 +65,7 @@ public class UpdateVehicleRequest
     public decimal? OdometerKm { get; set; }
     public decimal? ExpectedConsumption { get; set; }
     public string? LicenceExpiry { get; set; }
+    public decimal? LicenceCost { get; set; }
     public int? LicenceRemindDays { get; set; }
     public decimal? LastServiceOdo { get; set; }
     public decimal? ServiceInterval { get; set; }

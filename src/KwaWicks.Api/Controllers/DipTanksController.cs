@@ -46,6 +46,18 @@ public class DipTanksController : ControllerBase
     public async Task<IActionResult> ListReadings(CancellationToken ct) =>
         Ok(await _service.ListReadingsAsync(ct));
 
+    // POST /api/dip-tanks/{tankId}/load
+    [HttpPost("{tankId}/load")]
+    [ProducesResponseType(typeof(DipReadingDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> LoadTank(string tankId, [FromBody] LoadTankRequest req, CancellationToken ct)
+    {
+        try { return Ok(await _service.LoadTankAsync(tankId, req, CallerName, ct)); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
+    }
+
     // POST /api/dip-tanks/readings
     [HttpPost("readings")]
     [ProducesResponseType(typeof(DipReadingDto), StatusCodes.Status200OK)]

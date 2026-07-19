@@ -32,6 +32,12 @@ public class VehicleService
             ServiceInterval      = req.ServiceInterval,
             ServiceNotifyBefore  = req.ServiceNotifyBefore,
             Notes                = req.Notes?.Trim() ?? "",
+            LicenceHistory       = req.LicenceExpiry is not null
+                ? new List<LicenceHistoryEntry>
+                {
+                    new() { PreviousExpiry = null, NewExpiry = req.LicenceExpiry, Cost = req.LicenceCost, RenewedBy = "Initial" }
+                }
+                : new List<LicenceHistoryEntry>(),
         };
 
         await _repo.CreateAsync(vehicle, ct);
@@ -76,7 +82,17 @@ public class VehicleService
         if (req.OdoType is not null) v.OdoType = req.OdoType;
         if (req.OdometerKm.HasValue) v.OdometerKm = req.OdometerKm;
         if (req.ExpectedConsumption.HasValue) v.ExpectedConsumption = req.ExpectedConsumption;
-        if (req.LicenceExpiry is not null) v.LicenceExpiry = req.LicenceExpiry;
+        if (req.LicenceExpiry is not null && req.LicenceExpiry != v.LicenceExpiry)
+        {
+            v.LicenceHistory.Add(new LicenceHistoryEntry
+            {
+                PreviousExpiry = v.LicenceExpiry,
+                NewExpiry      = req.LicenceExpiry,
+                Cost           = req.LicenceCost,
+                RenewedBy      = "updated",
+            });
+            v.LicenceExpiry = req.LicenceExpiry;
+        }
         if (req.LicenceRemindDays.HasValue) v.LicenceRemindDays = req.LicenceRemindDays;
         if (req.LastServiceOdo.HasValue) v.LastServiceOdo = req.LastServiceOdo;
         if (req.ServiceInterval.HasValue) v.ServiceInterval = req.ServiceInterval;
@@ -120,5 +136,13 @@ public class VehicleService
         IsActive            = v.IsActive,
         CreatedAtUtc        = v.CreatedAtUtc,
         UpdatedAtUtc        = v.UpdatedAtUtc,
+        LicenceHistory      = v.LicenceHistory.Select(h => new LicenceHistoryEntryDto
+        {
+            PreviousExpiry = h.PreviousExpiry,
+            NewExpiry      = h.NewExpiry,
+            Cost           = h.Cost,
+            RenewedAt      = h.RenewedAt,
+            RenewedBy      = h.RenewedBy,
+        }).ToList(),
     };
 }

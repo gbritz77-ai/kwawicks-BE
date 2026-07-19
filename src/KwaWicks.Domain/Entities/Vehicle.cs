@@ -26,4 +26,15 @@ public class Vehicle
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public List<LicenceHistoryEntry> LicenceHistory { get; set; } = new();
+}
+
+public class LicenceHistoryEntry
+{
+    public string? PreviousExpiry { get; set; }
+    public string NewExpiry { get; set; } = "";
+    public decimal? Cost { get; set; }
+    public DateTime RenewedAt { get; set; } = DateTime.UtcNow;
+    public string RenewedBy { get; set; } = "";
 }

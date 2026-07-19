@@ -42,6 +42,13 @@ public class CreateDipReadingRequest
     public string? Notes { get; set; }
 }
 
+public class LoadTankRequest
+{
+    public decimal Litres { get; set; }
+    public decimal? CostPerLitre { get; set; }
+    public string? Notes { get; set; }
+}
+
 public class TankSummaryDto
 {
     public string TankId { get; set; } = "";
