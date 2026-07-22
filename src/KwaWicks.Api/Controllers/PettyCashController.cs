@@ -106,6 +106,16 @@ public class PettyCashController : ControllerBase
         return Ok(cashups);
     }
 
+    // DELETE /api/petty-cash/clear
+    [HttpDelete("clear")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ClearAll(CancellationToken ct)
+    {
+        await _service.ClearAllAsync(ct);
+        return NoContent();
+    }
+
     // POST /api/petty-cash/cashups
     [HttpPost("cashups")]
     [ProducesResponseType(typeof(PettyCashupDto), StatusCodes.Status201Created)]

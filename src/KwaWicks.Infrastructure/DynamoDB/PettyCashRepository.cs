@@ -190,6 +190,52 @@ public class PettyCashRepository : IPettyCashRepository
         return result.OrderByDescending(c => c.CashupDate).ToList();
     }
 
+    public async Task ClearAllAsync(CancellationToken ct)
+    {
+        // Scan for all PettyCashEntry and PettyCashup items
+        var scanReq = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = "EntityType = :e OR EntityType = :c",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":e"] = new() { S = "PettyCashEntry" },
+                [":c"] = new() { S = "PettyCashup" }
+            },
+            ProjectionExpression = "PK, SK"
+        };
+
+        var keys = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? resp;
+        do
+        {
+            resp = await _ddb.ScanAsync(scanReq, ct);
+            keys.AddRange(resp.Items.Select(i => new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = i["PK"],
+                ["SK"] = i["SK"]
+            }));
+            scanReq.ExclusiveStartKey = resp.LastEvaluatedKey;
+        } while (resp.LastEvaluatedKey is { Count: > 0 });
+
+        // Batch delete in chunks of 25 (DynamoDB limit)
+        for (int i = 0; i < keys.Count; i += 25)
+        {
+            var batch = keys.Skip(i).Take(25).Select(k => new WriteRequest
+            {
+                DeleteRequest = new DeleteRequest { Key = k }
+            }).ToList();
+
+            await _ddb.BatchWriteItemAsync(new BatchWriteItemRequest
+            {
+                RequestItems = new Dictionary<string, List<WriteRequest>>
+                {
+                    [_tableName] = batch
+                }
+            }, ct);
+        }
+    }
+
     // ── Serialisation ──────────────────────────────────────────────────────
 
     private static Dictionary<string, AttributeValue> EntryToItem(PettyCashEntry e) => new()

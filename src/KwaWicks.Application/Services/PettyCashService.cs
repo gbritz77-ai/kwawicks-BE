@@ -170,6 +170,8 @@ public class PettyCashService : IPettyCashService
         return MapEntry(entry);
     }
 
+    public Task ClearAllAsync(CancellationToken ct) => _repo.ClearAllAsync(ct);
+
     private static PettyCashEntryDto MapEntry(PettyCashEntry e) => new()
     {
         EntryId = e.EntryId,
