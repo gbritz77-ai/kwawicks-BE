@@ -97,9 +97,10 @@ public class CostAverageService : ICostAverageService
             if (species is null) continue;
 
             var totalQty    = lines.Sum(l => l.Qty);
+            // UnitCostExVat field stores the user-entered cost which is inc-VAT (procurement UI says "Enter prices inc. VAT")
             var weightedSum = lines.Sum(l => l.Qty * l.UnitCostExVat);
-            var avgExVat    = totalQty > 0 ? weightedSum / totalQty : 0m;
-            var avgIncVat   = avgExVat * (1 + species.Vat);
+            var avgIncVat   = totalQty > 0 ? weightedSum / totalQty : 0m;
+            var avgExVat    = species.Vat > 0 ? Math.Round(avgIncVat / (1 + species.Vat), 4) : avgIncVat;
             var priorCost   = species.UnitCost;
 
             var record = new CostAverageRecord
@@ -122,7 +123,7 @@ public class CostAverageService : ICostAverageService
             // Optionally push the average back to the species
             if (request.ApplyToSpecies)
             {
-                species.UnitCost = record.AvgCostExVat;
+                species.UnitCost = record.AvgCostIncVat;
                 await _speciesRepo.UpdateAsync(species, ct);
             }
 
