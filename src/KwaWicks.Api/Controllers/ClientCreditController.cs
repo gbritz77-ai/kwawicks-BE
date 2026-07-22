@@ -86,7 +86,7 @@ public class ClientCreditController : ControllerBase
 
     // POST /api/clients/{clientId}/credit — add a deposit (payment received from client)
     [HttpPost]
-    [Authorize(Policy = "HubStaffOnly")]
+    [Authorize(Policy = "OperationalAccess")]
     public async Task<IActionResult> AddDeposit(
         string clientId,
         [FromBody] AddCreditDepositRequest request,
