@@ -144,6 +144,7 @@ public class InvoiceResponse
     public string SaleType { get; set; } = "Delivery";
     public string StaffMemberId { get; set; } = "";
     public string CustomerId { get; set; } = "";
+    public string CustomerName { get; set; } = "";
     public string HubId { get; set; } = "";
     public string DeliveryOrderId { get; set; } = "";
     public string CreatedByDriverId { get; set; } = "";

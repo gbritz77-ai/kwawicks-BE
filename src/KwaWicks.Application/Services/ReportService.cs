@@ -288,6 +288,9 @@ public class ReportService : IReportService
     {
         var all = await _invoices.ListAsync(null, customerId, ct);
 
+        var clients = await _clients.ListAsync(1000, ct);
+        var clientMap = clients.ToDictionary(c => c.ClientId, c => c.ClientName);
+
         return all
             .Where(i => string.IsNullOrEmpty(paymentStatus) || i.PaymentStatus == paymentStatus)
             .Where(i => from == null || i.CreatedAt >= from.Value)
@@ -300,6 +303,7 @@ public class ReportService : IReportService
                 SaleType = i.SaleType,
                 StaffMemberId = i.StaffMemberId,
                 CustomerId = i.CustomerId,
+                CustomerName = clientMap.TryGetValue(i.CustomerId, out var name) ? name : "",
                 HubId = i.HubId,
                 DeliveryOrderId = i.DeliveryOrderId,
                 CreatedByDriverId = i.CreatedByDriverId,
@@ -323,6 +327,11 @@ public class ReportService : IReportService
                     UnitPrice = l.UnitPrice,
                     VatRate = l.VatRate,
                     LineTotal = l.LineTotal
+                }).ToList(),
+                SplitPayments = i.SplitPayments.Select(s => new SplitPaymentLineResponse
+                {
+                    Method = s.Method,
+                    Amount = s.Amount
                 }).ToList()
             })
             .ToList();
