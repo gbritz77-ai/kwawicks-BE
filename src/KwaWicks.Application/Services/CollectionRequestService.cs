@@ -741,9 +741,7 @@ public class CollectionRequestService : ICollectionRequestService
             {
                 SpeciesId              = doLine.SpeciesId,
                 DeliveredQty           = deliveredQty,
-                ReturnedNotWantedQty   = doLine.Quantity - deliveredQty,
-                ReturnedDeadQty        = 0,
-                ReturnedMutilatedQty   = 0,
+                TotalReturnedQty       = doLine.Quantity - deliveredQty,
                 UnitPrice              = unitPrice,
                 VatRate                = 0m, // admin confirmations use VAT-inclusive prices
             };

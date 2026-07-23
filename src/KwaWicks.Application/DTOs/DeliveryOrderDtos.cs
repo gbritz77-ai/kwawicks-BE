@@ -53,10 +53,23 @@ public class DeliveryOrderLineResponse
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public int DeliveredQty { get; set; }
-    public int ReturnedDeadQty { get; set; }
-    public int ReturnedMutilatedQty { get; set; }
-    public int ReturnedNotWantedQty { get; set; }
+    public int TotalReturnedQty { get; set; }
     public int ReturnedToHubQty { get; set; }
+    public bool ReturnsInspected { get; set; }
+    public int InspectedDeadQty { get; set; }
+    public int InspectedMutilatedQty { get; set; }
+}
+
+public class RecordReturnsInspectionRequest
+{
+    public List<RecordReturnsInspectionLine> Lines { get; set; } = new();
+}
+
+public class RecordReturnsInspectionLine
+{
+    public string SpeciesId { get; set; } = "";
+    public int DeadQty { get; set; }
+    public int MutilatedQty { get; set; }
 }
 
 public class SubmitReturnRequest

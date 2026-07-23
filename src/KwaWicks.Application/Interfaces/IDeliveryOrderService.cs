@@ -12,5 +12,6 @@ public interface IDeliveryOrderService
     Task SubmitReturnAsync(string deliveryOrderId, SubmitReturnRequest request, CancellationToken ct);
     Task CheckInReturnAsync(string deliveryOrderId, CancellationToken ct);
     Task EditLinesAsync(string deliveryOrderId, EditDeliveryOrderLinesRequest request, CancellationToken ct);
+    Task RecordReturnsInspectionAsync(string deliveryOrderId, RecordReturnsInspectionRequest request, CancellationToken ct);
     Task DeleteAsync(string deliveryOrderId, CancellationToken ct);
 }

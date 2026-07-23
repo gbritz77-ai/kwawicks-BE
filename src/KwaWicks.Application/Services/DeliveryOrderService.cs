@@ -142,7 +142,7 @@ public class DeliveryOrderService : IDeliveryOrderService
         var linesWithReturns = orders
             .Where(o => !o.ReturnSubmitted && !o.ReturnCheckedIn)
             .SelectMany(o => o.Lines)
-            .Where(l => l.ReturnedNotWantedQty > 0)
+            .Where(l => l.TotalReturnedQty > 0)
             .ToList();
 
         if (linesWithReturns.Count == 0)
@@ -158,7 +158,7 @@ public class DeliveryOrderService : IDeliveryOrderService
             {
                 SpeciesId = g.Key,
                 SpeciesName = speciesById.TryGetValue(g.Key, out var name) ? name : g.Key,
-                AvailableQty = g.Sum(l => l.ReturnedNotWantedQty),
+                AvailableQty = g.Sum(l => l.TotalReturnedQty),
                 UnitPrice = g.Max(l => l.UnitPrice)
             })
             .Where(i => i.AvailableQty > 0)
@@ -181,7 +181,7 @@ public class DeliveryOrderService : IDeliveryOrderService
         foreach (var line in order.Lines)
         {
             var submitted = request.Lines.FirstOrDefault(l => l.SpeciesId == line.SpeciesId);
-            line.ReturnedToHubQty = submitted?.Qty ?? line.ReturnedNotWantedQty; // default: return all not-wanted
+            line.ReturnedToHubQty = submitted?.Qty ?? line.TotalReturnedQty; // default: return all returned qty
         }
 
         order.ReturnSubmitted = true;
@@ -227,7 +227,7 @@ public class DeliveryOrderService : IDeliveryOrderService
                 ct.ThrowIfCancellationRequested();
                 // ReturnedNotWantedQty was already added to QtyOnHandHub during invoice creation.
                 // Only adjust for the difference (e.g. driver returns more than originally recorded).
-                int delta = line.ReturnedToHubQty - line.ReturnedNotWantedQty;
+                int delta = line.ReturnedToHubQty - line.TotalReturnedQty;
                 if (delta != 0)
                 {
                     await _speciesRepo.AdjustStockAsync(line.SpeciesId, delta, 0, ct);
@@ -312,6 +312,51 @@ public class DeliveryOrderService : IDeliveryOrderService
         }
     }
 
+    public async Task RecordReturnsInspectionAsync(string deliveryOrderId, RecordReturnsInspectionRequest request, CancellationToken ct)
+    {
+        var order = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (order.Status != "Delivered" && order.Status != "MarkedAtHub")
+            throw new InvalidOperationException("Returns inspection can only be recorded for Delivered orders.");
+
+        var adjusted = new List<(string speciesId, int qty)>();
+        try
+        {
+            foreach (var insp in request.Lines)
+            {
+                var line = order.Lines.FirstOrDefault(l => l.SpeciesId == insp.SpeciesId)
+                    ?? throw new InvalidOperationException($"Species {insp.SpeciesId} not on this order.");
+
+                int totalDamaged = insp.DeadQty + insp.MutilatedQty;
+                int previousDamaged = line.InspectedDeadQty + line.InspectedMutilatedQty;
+                int delta = totalDamaged - previousDamaged; // net stock deduction vs prior inspection
+
+                if (delta != 0)
+                {
+                    await _speciesRepo.AdjustStockAsync(line.SpeciesId, -delta, 0, ct);
+                    adjusted.Add((line.SpeciesId, delta));
+                }
+
+                line.InspectedDeadQty = insp.DeadQty;
+                line.InspectedMutilatedQty = insp.MutilatedQty;
+                line.ReturnsInspected = true;
+            }
+
+            order.UpdatedAt = DateTime.UtcNow;
+            await _deliveryRepo.UpdateAsync(order, ct);
+        }
+        catch
+        {
+            foreach (var (speciesId, qty) in adjusted)
+            {
+                try { await _speciesRepo.AdjustStockAsync(speciesId, +qty, 0, CancellationToken.None); }
+                catch { /* swallow rollback errors */ }
+            }
+            throw;
+        }
+    }
+
     public async Task DeleteAsync(string deliveryOrderId, CancellationToken ct)
     {
         var order = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
@@ -353,10 +398,11 @@ public class DeliveryOrderService : IDeliveryOrderService
             Quantity = l.Quantity,
             UnitPrice = l.UnitPrice,
             DeliveredQty = l.DeliveredQty,
-            ReturnedDeadQty = l.ReturnedDeadQty,
-            ReturnedMutilatedQty = l.ReturnedMutilatedQty,
-            ReturnedNotWantedQty = l.ReturnedNotWantedQty,
-            ReturnedToHubQty = l.ReturnedToHubQty
+            TotalReturnedQty = l.TotalReturnedQty,
+            ReturnedToHubQty = l.ReturnedToHubQty,
+            ReturnsInspected = l.ReturnsInspected,
+            InspectedDeadQty = l.InspectedDeadQty,
+            InspectedMutilatedQty = l.InspectedMutilatedQty
         }).ToList()
     };
 }

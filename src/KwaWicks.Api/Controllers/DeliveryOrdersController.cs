@@ -255,6 +255,26 @@ public class DeliveryOrdersController : ControllerBase
         }
     }
 
+    // PUT /api/delivery-orders/{deliveryOrderId}/returns-inspection  (Admin/Owner: record dead/mutilated after delivery)
+    [HttpPut("{deliveryOrderId}/returns-inspection")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RecordReturnsInspection(
+        string deliveryOrderId,
+        [FromBody] RecordReturnsInspectionRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _service.RecordReturnsInspectionAsync(deliveryOrderId, request, ct);
+            return NoContent();
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     // DELETE /api/delivery-orders/{deliveryOrderId}  (Admin only — Open orders only, restores stock)
     [HttpDelete("{deliveryOrderId}")]
     [Authorize(Policy = "AdminOnly")]

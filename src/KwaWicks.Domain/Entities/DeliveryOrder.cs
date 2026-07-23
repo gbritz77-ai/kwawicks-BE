@@ -38,10 +38,13 @@ public class DeliveryOrderLine
 
     // Populated when driver completes delivery
     public int DeliveredQty { get; set; }
-    public int ReturnedDeadQty { get; set; }
-    public int ReturnedMutilatedQty { get; set; }
-    public int ReturnedNotWantedQty { get; set; }
+    public int TotalReturnedQty { get; set; }
 
     /// <summary>How many the driver physically returned to hub (submitted for check-in).</summary>
     public int ReturnedToHubQty { get; set; }
+
+    // Populated by admin after delivery (returns inspection)
+    public bool ReturnsInspected { get; set; }
+    public int InspectedDeadQty { get; set; }
+    public int InspectedMutilatedQty { get; set; }
 }

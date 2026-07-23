@@ -52,9 +52,7 @@ public class CreateInvoiceFromDeliveryLine
 {
     public string SpeciesId { get; set; } = "";
     public int DeliveredQty { get; set; }
-    public int ReturnedDeadQty { get; set; }
-    public int ReturnedMutilatedQty { get; set; }
-    public int ReturnedNotWantedQty { get; set; }
+    public int TotalReturnedQty { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal VatRate { get; set; }
 }

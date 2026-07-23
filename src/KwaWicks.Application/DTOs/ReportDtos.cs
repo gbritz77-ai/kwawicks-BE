@@ -101,7 +101,8 @@ public class DriverPerformanceItem
     public decimal TotalValue { get; set; }
     public int TotalDeadReturns { get; set; }
     public int TotalMutilatedReturns { get; set; }
-    public int TotalNotWantedReturns { get; set; }
+    public int TotalShortQty { get; set; }
+    public int TotalOverQty { get; set; }
 }
 
 // ── Admin: Returns Summary ───────────────────────────────────────────────────
@@ -115,10 +116,11 @@ public class ReturnsSummaryResponse
 public class ReturnsSummaryItem
 {
     public string SpeciesId { get; set; } = "";
+    public int TotalReturnedQty { get; set; }
     public int DeadQty { get; set; }
     public int MutilatedQty { get; set; }
-    public int NotWantedQty { get; set; }
-    public int TotalReturns { get; set; }
+    public int ShortQty { get; set; }
+    public int OverQty { get; set; }
 }
 
 // ── Admin: Delivery Status Summary ───────────────────────────────────────────

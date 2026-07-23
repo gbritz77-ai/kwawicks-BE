@@ -195,9 +195,10 @@ public class ReportService : IReportService
                     DriverName = g.First().AssignedDriverName,
                     DeliveriesCompleted = g.Count(),
                     TotalValue = totalValue,
-                    TotalDeadReturns = g.SelectMany(o => o.Lines).Sum(l => l.ReturnedDeadQty),
-                    TotalMutilatedReturns = g.SelectMany(o => o.Lines).Sum(l => l.ReturnedMutilatedQty),
-                    TotalNotWantedReturns = g.SelectMany(o => o.Lines).Sum(l => l.ReturnedNotWantedQty)
+                    TotalDeadReturns = g.SelectMany(o => o.Lines).Sum(l => l.InspectedDeadQty),
+                    TotalMutilatedReturns = g.SelectMany(o => o.Lines).Sum(l => l.InspectedMutilatedQty),
+                    TotalShortQty = g.SelectMany(o => o.Lines).Sum(l => Math.Max(0, l.Quantity - l.DeliveredQty - l.TotalReturnedQty)),
+                    TotalOverQty = g.SelectMany(o => o.Lines).Sum(l => Math.Max(0, l.DeliveredQty + l.TotalReturnedQty - l.Quantity))
                 };
             })
             .OrderByDescending(d => d.TotalValue)
@@ -217,17 +218,19 @@ public class ReportService : IReportService
 
         var items = filtered
             .SelectMany(o => o.Lines)
-            .Where(l => l.ReturnedDeadQty > 0 || l.ReturnedMutilatedQty > 0 || l.ReturnedNotWantedQty > 0)
+            .Where(l => l.TotalReturnedQty > 0 || l.InspectedDeadQty > 0 || l.InspectedMutilatedQty > 0
+                     || l.DeliveredQty + l.TotalReturnedQty != l.Quantity)
             .GroupBy(l => l.SpeciesId)
             .Select(g => new ReturnsSummaryItem
             {
                 SpeciesId = g.Key,
-                DeadQty = g.Sum(l => l.ReturnedDeadQty),
-                MutilatedQty = g.Sum(l => l.ReturnedMutilatedQty),
-                NotWantedQty = g.Sum(l => l.ReturnedNotWantedQty),
-                TotalReturns = g.Sum(l => l.ReturnedDeadQty + l.ReturnedMutilatedQty + l.ReturnedNotWantedQty)
+                TotalReturnedQty = g.Sum(l => l.TotalReturnedQty),
+                DeadQty = g.Sum(l => l.InspectedDeadQty),
+                MutilatedQty = g.Sum(l => l.InspectedMutilatedQty),
+                ShortQty = g.Sum(l => Math.Max(0, l.Quantity - l.DeliveredQty - l.TotalReturnedQty)),
+                OverQty = g.Sum(l => Math.Max(0, l.DeliveredQty + l.TotalReturnedQty - l.Quantity))
             })
-            .OrderByDescending(i => i.TotalReturns)
+            .OrderByDescending(i => i.TotalReturnedQty)
             .ToList();
 
         return new ReturnsSummaryResponse { From = from, To = to, Items = items };

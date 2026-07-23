@@ -202,10 +202,11 @@ public class InvoiceService : IInvoiceService
             var doLine = deliveryOrder.Lines.FirstOrDefault(l => l.SpeciesId == rl.SpeciesId)
                 ?? throw new InvalidOperationException($"Species {rl.SpeciesId} is not on the delivery order.");
 
-            var totalAccounted = rl.DeliveredQty + rl.ReturnedDeadQty + rl.ReturnedMutilatedQty + rl.ReturnedNotWantedQty;
-            if (totalAccounted != doLine.Quantity)
+            if (rl.DeliveredQty < 0 || rl.TotalReturnedQty < 0)
+                throw new InvalidOperationException($"For species {rl.SpeciesId}: quantities cannot be negative.");
+            if (rl.DeliveredQty + rl.TotalReturnedQty > doLine.Quantity)
                 throw new InvalidOperationException(
-                    $"For species {rl.SpeciesId}: delivered + returns ({totalAccounted}) must equal ordered quantity ({doLine.Quantity}).");
+                    $"For species {rl.SpeciesId}: delivered + returned ({rl.DeliveredQty + rl.TotalReturnedQty}) cannot exceed ordered quantity ({doLine.Quantity}).");
         }
 
         var invoiceNumber = await _invoiceRepo.GetNextInvoiceNumberAsync(ct);
@@ -257,15 +258,13 @@ public class InvoiceService : IInvoiceService
             // Deduct from booked (negative delta) and add returns to on-hand
             await _speciesRepo.AdjustStockAsync(
                 line.SpeciesId,
-                onHandDelta: +line.ReturnedNotWantedQty,
+                onHandDelta: +line.TotalReturnedQty,
                 bookedDelta: -doLine.Quantity,
                 ct);
 
             // Record return details on the delivery order line
             doLine.DeliveredQty = line.DeliveredQty;
-            doLine.ReturnedDeadQty = line.ReturnedDeadQty;
-            doLine.ReturnedMutilatedQty = line.ReturnedMutilatedQty;
-            doLine.ReturnedNotWantedQty = line.ReturnedNotWantedQty;
+            doLine.TotalReturnedQty = line.TotalReturnedQty;
         }
 
         // Link delivery order to invoice and mark as delivered
