@@ -303,7 +303,9 @@ public class ReportService : IReportService
                 SaleType = i.SaleType,
                 StaffMemberId = i.StaffMemberId,
                 CustomerId = i.CustomerId,
-                CustomerName = clientMap.TryGetValue(i.CustomerId, out var name) ? name : "",
+                CustomerName = clientMap.TryGetValue(i.CustomerId, out var name)
+                    ? name
+                    : i.SaleType == "HubDirect" ? "Walk-in" : "—",
                 HubId = i.HubId,
                 DeliveryOrderId = i.DeliveryOrderId,
                 CreatedByDriverId = i.CreatedByDriverId,

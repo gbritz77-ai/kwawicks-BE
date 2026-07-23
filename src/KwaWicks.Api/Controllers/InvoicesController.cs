@@ -218,7 +218,9 @@ public class InvoicesController : ControllerBase
         var clients = await _clientService.ListAsync(1000, ct);
         var clientMap = clients.ToDictionary(c => c.ClientId, c => c.ClientName);
         foreach (var item in items)
-            item.CustomerName = clientMap.TryGetValue(item.CustomerId, out var name) ? name : item.CustomerId;
+            item.CustomerName = clientMap.TryGetValue(item.CustomerId, out var name)
+                ? name
+                : item.SaleType == "HubDirect" ? "Walk-in" : item.CustomerId;
 
         if (!string.IsNullOrWhiteSpace(search))
         {
