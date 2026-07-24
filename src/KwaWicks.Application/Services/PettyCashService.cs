@@ -181,10 +181,11 @@ public class PettyCashService : IPettyCashService
         }
         else
         {
-            // No cashup yet — create one so the opening balance is set correctly
+            // No cashup exists yet — create one, but use MinValue so the hub-sales/deposits
+            // "since" filter includes ALL historical records (same behaviour as no cashup at all).
             var cashup = new PettyCashup
             {
-                CashupDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+                CashupDate = "1970-01-01",
                 OpeningBalance = 0,
                 TotalIn = 0,
                 TotalOut = 0,
@@ -193,7 +194,7 @@ public class PettyCashService : IPettyCashService
                 Variance = 0,
                 Notes = "Float initialised",
                 ClosedBy = "system",
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = DateTime.MinValue
             };
             await _repo.CreateCashupAsync(cashup, ct);
         }
