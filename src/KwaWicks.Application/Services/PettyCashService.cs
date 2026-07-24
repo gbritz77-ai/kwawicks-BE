@@ -71,7 +71,6 @@ public class PettyCashService : IPettyCashService
         var cashFromCreditDeposits = await _creditRepo.SumCashDepositsAsync(since, ct);
 
         var (hubOverride, depositOverride) = await _repo.GetCashOverridesAsync(ct);
-
         var effectiveHub = hubOverride ?? cashFromHubSales;
         var effectiveDeposits = depositOverride ?? cashFromCreditDeposits;
 

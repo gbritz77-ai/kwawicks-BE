@@ -246,11 +246,7 @@ public class PettyCashRepository : IPettyCashRepository
                 : new() { NULL = true }
         };
 
-        await _ddb.PutItemAsync(new PutItemRequest
-        {
-            TableName = _tableName,
-            Item = item
-        }, ct);
+        await _ddb.PutItemAsync(new PutItemRequest { TableName = _tableName, Item = item }, ct);
     }
 
     public async Task ClearAllAsync(CancellationToken ct)
