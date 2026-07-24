@@ -126,6 +126,16 @@ public class PettyCashController : ControllerBase
         return NoContent();
     }
 
+    // PUT /api/petty-cash/cash-overrides
+    [HttpPut("cash-overrides")]
+    [Authorize(Policy = "OwnerOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SetCashOverrides([FromBody] SetCashOverridesRequest req, CancellationToken ct)
+    {
+        await _service.SetCashOverridesAsync(req.HubSalesCash, req.ClientDepositsCash, ct);
+        return NoContent();
+    }
+
     // POST /api/petty-cash/cashups
     [HttpPost("cashups")]
     [ProducesResponseType(typeof(PettyCashupDto), StatusCodes.Status201Created)]

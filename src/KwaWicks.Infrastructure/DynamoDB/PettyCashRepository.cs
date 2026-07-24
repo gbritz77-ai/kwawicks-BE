@@ -208,6 +208,51 @@ public class PettyCashRepository : IPettyCashRepository
         return result.OrderByDescending(c => c.CashupDate).ToList();
     }
 
+    public async Task<(decimal? hubSales, decimal? clientDeposits)> GetCashOverridesAsync(CancellationToken ct)
+    {
+        var resp = await _ddb.GetItemAsync(new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = "PETTY_CASH_OVERRIDE" },
+                ["SK"] = new() { S = "OVERRIDE" }
+            }
+        }, ct);
+
+        if (!resp.IsItemSet || resp.Item.Count == 0)
+            return (null, null);
+
+        decimal? hub = resp.Item.TryGetValue("HubSalesCash", out var h) && h.NULL != true
+            ? decimal.Parse(h.N, System.Globalization.CultureInfo.InvariantCulture) : null;
+        decimal? dep = resp.Item.TryGetValue("ClientDepositsCash", out var d) && d.NULL != true
+            ? decimal.Parse(d.N, System.Globalization.CultureInfo.InvariantCulture) : null;
+
+        return (hub, dep);
+    }
+
+    public async Task SetCashOverridesAsync(decimal? hubSales, decimal? clientDeposits, CancellationToken ct)
+    {
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["PK"] = new() { S = "PETTY_CASH_OVERRIDE" },
+            ["SK"] = new() { S = "OVERRIDE" },
+            ["EntityType"] = new() { S = "PettyCashOverride" },
+            ["HubSalesCash"] = hubSales.HasValue
+                ? new() { N = hubSales.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+                : new() { NULL = true },
+            ["ClientDepositsCash"] = clientDeposits.HasValue
+                ? new() { N = clientDeposits.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) }
+                : new() { NULL = true }
+        };
+
+        await _ddb.PutItemAsync(new PutItemRequest
+        {
+            TableName = _tableName,
+            Item = item
+        }, ct);
+    }
+
     public async Task ClearAllAsync(CancellationToken ct)
     {
         // Scan for all PettyCashEntry and PettyCashup items

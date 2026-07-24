@@ -42,6 +42,12 @@ public class SetFloatRequest
     public decimal FloatAmount { get; set; }
 }
 
+public class SetCashOverridesRequest
+{
+    public decimal? HubSalesCash { get; set; }
+    public decimal? ClientDepositsCash { get; set; }
+}
+
 public class CreateCashupRequest
 {
     public decimal ActualBalance { get; set; }
@@ -80,4 +86,8 @@ public class PettyCashSummaryDto
     public decimal CashFromHubSales { get; set; }
     public decimal CashFromCreditDeposits { get; set; }
     public decimal TotalCashInCustody { get; set; }   // CurrentBalance + CashFromHubSales + CashFromCreditDeposits
+
+    // Manual overrides (null = using auto-calculated value)
+    public decimal? HubSalesCashOverride { get; set; }
+    public decimal? ClientDepositsCashOverride { get; set; }
 }

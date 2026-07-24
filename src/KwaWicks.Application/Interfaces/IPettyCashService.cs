@@ -14,4 +14,5 @@ public interface IPettyCashService
     Task<PettyCashEntryDto> ConfirmSlipUploadedAsync(string entryId, string s3Key, CancellationToken ct);
     Task ClearAllAsync(CancellationToken ct);
     Task SetFloatAsync(decimal floatAmount, CancellationToken ct);
+    Task SetCashOverridesAsync(decimal? hubSales, decimal? clientDeposits, CancellationToken ct);
 }

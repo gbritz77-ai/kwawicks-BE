@@ -70,6 +70,11 @@ public class PettyCashService : IPettyCashService
         var cashFromHubSales = await _invoiceRepo.SumCashSalesAsync(since, ct);
         var cashFromCreditDeposits = await _creditRepo.SumCashDepositsAsync(since, ct);
 
+        var (hubOverride, depositOverride) = await _repo.GetCashOverridesAsync(ct);
+
+        var effectiveHub = hubOverride ?? cashFromHubSales;
+        var effectiveDeposits = depositOverride ?? cashFromCreditDeposits;
+
         return new PettyCashSummaryDto
         {
             CurrentBalance = currentBalance,
@@ -78,9 +83,11 @@ public class PettyCashService : IPettyCashService
             OpenEntryCount = openEntries.Count,
             LastCashupDate = lastCashup?.CashupDate,
             OpenEntries = openEntries.Select(MapEntry).ToList(),
-            CashFromHubSales = cashFromHubSales,
-            CashFromCreditDeposits = cashFromCreditDeposits,
-            TotalCashInCustody = currentBalance + cashFromHubSales + cashFromCreditDeposits
+            CashFromHubSales = effectiveHub,
+            CashFromCreditDeposits = effectiveDeposits,
+            TotalCashInCustody = currentBalance + effectiveHub + effectiveDeposits,
+            HubSalesCashOverride = hubOverride,
+            ClientDepositsCashOverride = depositOverride
         };
     }
 
@@ -171,6 +178,9 @@ public class PettyCashService : IPettyCashService
     }
 
     public Task ClearAllAsync(CancellationToken ct) => _repo.ClearAllAsync(ct);
+
+    public Task SetCashOverridesAsync(decimal? hubSales, decimal? clientDeposits, CancellationToken ct)
+        => _repo.SetCashOverridesAsync(hubSales, clientDeposits, ct);
 
     public async Task SetFloatAsync(decimal floatAmount, CancellationToken ct)
     {
