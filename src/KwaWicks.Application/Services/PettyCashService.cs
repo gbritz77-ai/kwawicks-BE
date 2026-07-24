@@ -172,6 +172,33 @@ public class PettyCashService : IPettyCashService
 
     public Task ClearAllAsync(CancellationToken ct) => _repo.ClearAllAsync(ct);
 
+    public async Task SetFloatAsync(decimal floatAmount, CancellationToken ct)
+    {
+        var latest = await _repo.GetLatestCashupAsync(ct);
+        if (latest != null)
+        {
+            await _repo.UpdateCashupActualBalanceAsync(latest.CashupId, floatAmount, ct);
+        }
+        else
+        {
+            // No cashup yet — create one so the opening balance is set correctly
+            var cashup = new PettyCashup
+            {
+                CashupDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+                OpeningBalance = 0,
+                TotalIn = 0,
+                TotalOut = 0,
+                ExpectedBalance = 0,
+                ActualBalance = floatAmount,
+                Variance = 0,
+                Notes = "Float initialised",
+                ClosedBy = "system",
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            await _repo.CreateCashupAsync(cashup, ct);
+        }
+    }
+
     private static PettyCashEntryDto MapEntry(PettyCashEntry e) => new()
     {
         EntryId = e.EntryId,

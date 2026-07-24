@@ -37,6 +37,11 @@ public class ConfirmSlipUploadRequest
 
 // ── Cashup ─────────────────────────────────────────────────────────────────
 
+public class SetFloatRequest
+{
+    public decimal FloatAmount { get; set; }
+}
+
 public class CreateCashupRequest
 {
     public decimal ActualBalance { get; set; }

@@ -168,6 +168,24 @@ public class PettyCashRepository : IPettyCashRepository
         return all.MaxBy(c => c.CashupDate);
     }
 
+    public async Task UpdateCashupActualBalanceAsync(string cashupId, decimal actualBalance, CancellationToken ct)
+    {
+        await _ddb.UpdateItemAsync(new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = CashupPk(cashupId) },
+                ["SK"] = new() { S = "CASHUP" }
+            },
+            UpdateExpression = "SET ActualBalance = :ab",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":ab"] = new() { N = actualBalance.ToString(CultureInfo.InvariantCulture) }
+            }
+        }, ct);
+    }
+
     public async Task<List<PettyCashup>> ListCashupsAsync(CancellationToken ct)
     {
         var req = new ScanRequest

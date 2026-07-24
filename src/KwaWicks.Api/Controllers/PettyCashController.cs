@@ -116,6 +116,16 @@ public class PettyCashController : ControllerBase
         return NoContent();
     }
 
+    // POST /api/petty-cash/set-float
+    [HttpPost("set-float")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SetFloat([FromBody] SetFloatRequest req, CancellationToken ct)
+    {
+        await _service.SetFloatAsync(req.FloatAmount, ct);
+        return NoContent();
+    }
+
     // POST /api/petty-cash/cashups
     [HttpPost("cashups")]
     [ProducesResponseType(typeof(PettyCashupDto), StatusCodes.Status201Created)]

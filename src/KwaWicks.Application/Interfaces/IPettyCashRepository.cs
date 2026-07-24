@@ -15,5 +15,6 @@ public interface IPettyCashRepository
     Task<PettyCashup> CreateCashupAsync(PettyCashup cashup, CancellationToken ct);
     Task<PettyCashup?> GetLatestCashupAsync(CancellationToken ct);
     Task<List<PettyCashup>> ListCashupsAsync(CancellationToken ct);
+    Task UpdateCashupActualBalanceAsync(string cashupId, decimal actualBalance, CancellationToken ct);
     Task ClearAllAsync(CancellationToken ct);
 }
