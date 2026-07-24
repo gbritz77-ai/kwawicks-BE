@@ -69,4 +69,5 @@ public class CollectionRequestLine
     public string LoadingNotes { get; set; } = "";
     public int ReceivedQty { get; set; }
     public string DiscrepancyNotes { get; set; } = "";
+    public int DeadQty { get; set; }
 }

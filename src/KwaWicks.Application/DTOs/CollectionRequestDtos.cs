@@ -32,6 +32,7 @@ public class CollectionLineReceiveUpdate
     public string SpeciesId { get; set; } = "";
     public int ReceivedQty { get; set; }
     public string DiscrepancyNotes { get; set; } = "";
+    public int DeadQty { get; set; }
 }
 
 public class FinanceAcknowledgeRequest
@@ -92,6 +93,9 @@ public class CollectionRequestLineResponse
     public string LoadingNotes { get; set; } = "";
     public int ReceivedQty { get; set; }
     public string DiscrepancyNotes { get; set; } = "";
+    public int DeadQty { get; set; }
+    public int ShortQty => Math.Max(0, OrderedQty - LoadedQty);
+    public int OverQty => Math.Max(0, LoadedQty - OrderedQty);
 }
 
 public class CollectionInvoiceUploadUrlResponse

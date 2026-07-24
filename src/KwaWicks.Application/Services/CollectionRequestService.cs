@@ -192,6 +192,7 @@ public class CollectionRequestService : ICollectionRequestService
             {
                 line.ReceivedQty = update.ReceivedQty;
                 line.DiscrepancyNotes = update.DiscrepancyNotes ?? "";
+                line.DeadQty = update.DeadQty;
             }
         }
 
@@ -1030,7 +1031,8 @@ public class CollectionRequestService : ICollectionRequestService
                 LoadedQty        = l.LoadedQty,
                 LoadingNotes     = l.LoadingNotes,
                 ReceivedQty      = l.ReceivedQty,
-                DiscrepancyNotes = l.DiscrepancyNotes
+                DiscrepancyNotes = l.DiscrepancyNotes,
+                DeadQty          = l.DeadQty
             }).ToList(),
             RoadsideSales = cr.RoadsideSales.Select(r => new RoadsaleLineResponse
             {
