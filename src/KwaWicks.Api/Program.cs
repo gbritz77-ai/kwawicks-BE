@@ -208,6 +208,23 @@ builder.Services.AddScoped<IPettyCashService>(sp =>
         sp.GetRequiredService<IInvoiceRepository>(),
         sp.GetRequiredService<IClientCreditRepository>()));
 
+// AI Reports
+var anthropicApiKey = builder.Configuration["Anthropic:ApiKey"] ?? "";
+builder.Services.AddHttpClient("anthropic", client =>
+{
+    client.DefaultRequestHeaders.Add("x-api-key", anthropicApiKey);
+    client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+    client.Timeout = TimeSpan.FromSeconds(120);
+});
+builder.Services.AddScoped<IAiReportService>(sp => new AiReportService(
+    sp.GetRequiredService<IHttpClientFactory>().CreateClient("anthropic"),
+    sp.GetRequiredService<IInvoiceRepository>(),
+    sp.GetRequiredService<IClientRepository>(),
+    sp.GetRequiredService<IClientCreditRepository>(),
+    sp.GetRequiredService<ICollectionRequestRepository>(),
+    sp.GetRequiredService<IStaffMemberRepository>(),
+    sp.GetRequiredService<IPettyCashService>()));
+
 // PDF + WhatsApp + Invoice notifications
 builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddHttpClient<IWhatsAppService, WhatsAppService>();
