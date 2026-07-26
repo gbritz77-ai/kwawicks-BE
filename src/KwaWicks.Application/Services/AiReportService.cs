@@ -39,15 +39,11 @@ public class AiReportService : IAiReportService
 
     public async Task<AiReportResult> RunReportAsync(string prompt, CancellationToken ct)
     {
-        var tools = BuildTools();
-        var messages = new JsonArray
+        var toolsJson    = BuildTools().ToJsonString();
+        var messagesJson = new System.Text.Json.Nodes.JsonArray
         {
-            new JsonObject
-            {
-                ["role"] = "user",
-                ["content"] = prompt
-            }
-        };
+            new JsonObject { ["role"] = "user", ["content"] = prompt }
+        }.ToJsonString();
 
         const string systemPrompt =
             "You are a business intelligence assistant for KwaWicks, a poultry distribution company in South Africa. " +
@@ -64,13 +60,14 @@ public class AiReportService : IAiReportService
         // Agentic loop — max 5 rounds to avoid runaway
         for (var round = 0; round < 5; round++)
         {
+            // Re-parse each iteration — JsonNode children can only have one parent
             var requestBody = new JsonObject
             {
                 ["model"]      = "claude-haiku-4-5-20251001",
                 ["max_tokens"] = 4096,
                 ["system"]     = systemPrompt,
-                ["tools"]      = tools,
-                ["messages"]   = messages
+                ["tools"]      = JsonNode.Parse(toolsJson),
+                ["messages"]   = JsonNode.Parse(messagesJson)
             };
 
             var response = await _http.PostAsync(
@@ -82,8 +79,9 @@ public class AiReportService : IAiReportService
             var body = await response.Content.ReadFromJsonAsync<JsonObject>(ct)
                        ?? throw new InvalidOperationException("Empty response from Anthropic API");
 
-            var stopReason = body["stop_reason"]?.GetValue<string>();
-            var content    = body["content"]?.AsArray() ?? new JsonArray();
+            var stopReason  = body["stop_reason"]?.GetValue<string>();
+            var contentJson = body["content"]?.ToJsonString() ?? "[]";
+            var content     = JsonNode.Parse(contentJson)!.AsArray();
 
             // Collect tool_use blocks
             var toolUseBlocks = content
@@ -91,16 +89,17 @@ public class AiReportService : IAiReportService
                 .Where(b => b["type"]?.GetValue<string>() == "tool_use")
                 .ToList();
 
-            // Add assistant turn to conversation
-            messages.Add(new JsonObject
+            // Append assistant turn to messages JSON string
+            var assistantTurn = new JsonObject
             {
                 ["role"]    = "assistant",
-                ["content"] = JsonNode.Parse(content.ToJsonString())
-            });
+                ["content"] = JsonNode.Parse(contentJson)
+            };
+            var msgArray = JsonNode.Parse(messagesJson)!.AsArray();
+            msgArray.Add(assistantTurn);
 
             if (stopReason == "end_turn" || toolUseBlocks.Count == 0)
             {
-                // Extract the final text response
                 var text = content
                     .OfType<JsonObject>()
                     .Where(b => b["type"]?.GetValue<string>() == "text")
@@ -110,7 +109,7 @@ public class AiReportService : IAiReportService
                 return ParseFinalResponse(text);
             }
 
-            // Execute each tool call and collect results
+            // Execute tool calls
             var toolResults = new JsonArray();
             foreach (var block in toolUseBlocks)
             {
@@ -118,21 +117,23 @@ public class AiReportService : IAiReportService
                 var toolUseId = block["id"]?.GetValue<string>()   ?? "";
                 var input     = block["input"]?.AsObject()         ?? new JsonObject();
 
-                var resultJson = await ExecuteToolAsync(toolName, input, ct);
+                var result = await ExecuteToolAsync(toolName, input, ct);
 
                 toolResults.Add(new JsonObject
                 {
                     ["type"]        = "tool_result",
                     ["tool_use_id"] = toolUseId,
-                    ["content"]     = resultJson
+                    ["content"]     = result
                 });
             }
 
-            messages.Add(new JsonObject
+            msgArray.Add(new JsonObject
             {
                 ["role"]    = "user",
-                ["content"] = toolResults
+                ["content"] = JsonNode.Parse(toolResults.ToJsonString())
             });
+
+            messagesJson = msgArray.ToJsonString();
         }
 
         return new AiReportResult { Narrative = "Unable to generate report — maximum tool call rounds reached." };
