@@ -47,15 +47,12 @@ public class AiReportService : IAiReportService
 
         const string systemPrompt =
             "You are a business intelligence assistant for KwaWicks, a poultry distribution company in South Africa. " +
-            "Use the available tools to fetch live data and answer the user's report request. " +
-            "After gathering all necessary data, respond ONLY with a valid JSON object (no markdown, no extra text) in this exact format:\n" +
-            "{\n" +
-            "  \"narrative\": \"A clear one-paragraph summary of the findings\",\n" +
-            "  \"columns\": [\"Column 1\", \"Column 2\"],\n" +
-            "  \"rows\": [[\"val1\", \"val2\"], ...]\n" +
-            "}\n" +
-            "Amounts must be formatted as South African Rand (e.g. 'R 1 234,56'). Dates in YYYY-MM-DD. " +
-            "If no tabular data applies, set columns and rows to empty arrays.";
+            "Use the available tools to fetch live data, then respond with ONLY a raw JSON object — no markdown fences, no preamble, no explanation outside the JSON. " +
+            "The JSON must have exactly these three keys:\n" +
+            "{ \"narrative\": \"<one paragraph summary>\", \"columns\": [\"Col1\", \"Col2\"], \"rows\": [[\"v1\",\"v2\"], ...] }\n" +
+            "Amounts: South African Rand format e.g. 'R 1 234,56'. Dates: YYYY-MM-DD. " +
+            "If no tabular data applies leave columns and rows as empty arrays. " +
+            "IMPORTANT: Your entire response must be parseable JSON starting with { and ending with }.";
 
         // Agentic loop — max 5 rounds to avoid runaway
         for (var round = 0; round < 5; round++)
@@ -426,13 +423,12 @@ public class AiReportService : IAiReportService
 
     private static AiReportResult ParseFinalResponse(string text)
     {
-        // Strip any accidental markdown fences
+        // Find the outermost JSON object anywhere in the response
         var clean = text.Trim();
-        if (clean.StartsWith("```"))
-        {
-            clean = clean[(clean.IndexOf('\n') + 1)..];
-            if (clean.EndsWith("```")) clean = clean[..^3].TrimEnd();
-        }
+        var start = clean.IndexOf('{');
+        var end   = clean.LastIndexOf('}');
+        if (start >= 0 && end > start)
+            clean = clean[start..(end + 1)];
 
         try
         {
