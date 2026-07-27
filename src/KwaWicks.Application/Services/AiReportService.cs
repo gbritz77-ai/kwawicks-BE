@@ -45,8 +45,11 @@ public class AiReportService : IAiReportService
             new JsonObject { ["role"] = "user", ["content"] = prompt }
         }.ToJsonString();
 
-        const string systemPrompt =
+        var today = DateTime.UtcNow.AddHours(2); // SAST = UTC+2
+        var systemPrompt =
+            $"Today's date is {today:yyyy-MM-dd} (South Africa Standard Time). " +
             "You are a business intelligence assistant for KwaWicks, a poultry distribution company in South Africa. " +
+            "When the user refers to 'this month', 'today', 'this week', etc., use today's date to calculate the correct date range. " +
             "Use the available tools to fetch live data, then respond with ONLY a raw JSON object — no markdown fences, no preamble, no explanation outside the JSON. " +
             "The JSON must have exactly these three keys:\n" +
             "{ \"narrative\": \"<one paragraph summary>\", \"columns\": [\"Col1\", \"Col2\"], \"rows\": [[\"v1\",\"v2\"], ...] }\n" +
