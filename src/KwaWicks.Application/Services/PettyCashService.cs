@@ -65,8 +65,11 @@ public class PettyCashService : IPettyCashService
         var openingBalance = lastCashup?.ActualBalance ?? 0m;
         var currentBalance = openingBalance + totalIn - totalOut;
 
-        // Cash received from hub sales and client credit deposits since last cashup
-        DateTime? since = lastCashup?.CreatedAtUtc;
+        // Cash received since the start of the last cashup day (not the exact cashup timestamp),
+        // so deposits made earlier on the cashup day are still counted in the current period.
+        DateTime? since = lastCashup is null
+            ? null
+            : DateTime.SpecifyKind(lastCashup.CreatedAtUtc.Date, DateTimeKind.Utc);
         var cashFromHubSales = await _invoiceRepo.SumCashSalesAsync(since, ct);
         var cashFromCreditDeposits = await _creditRepo.SumCashDepositsAsync(since, ct);
 
