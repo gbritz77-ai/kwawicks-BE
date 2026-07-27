@@ -102,4 +102,5 @@ public class DriverStockItem
     public string SpeciesName { get; set; } = "";
     public int AvailableQty { get; set; }
     public decimal UnitPrice { get; set; }
+    public decimal Vat { get; set; }
 }

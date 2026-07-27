@@ -150,16 +150,21 @@ public class DeliveryOrderService : IDeliveryOrderService
 
         // Fetch species names for lookup
         var allSpecies = await _speciesRepo.ListAsync(ct);
-        var speciesById = allSpecies.ToDictionary(s => s.SpeciesId, s => s.Name);
+        var speciesById = allSpecies.ToDictionary(s => s.SpeciesId, s => s);
 
         return linesWithReturns
             .GroupBy(l => l.SpeciesId)
-            .Select(g => new DriverStockItem
+            .Select(g =>
             {
-                SpeciesId = g.Key,
-                SpeciesName = speciesById.TryGetValue(g.Key, out var name) ? name : g.Key,
-                AvailableQty = g.Sum(l => l.TotalReturnedQty),
-                UnitPrice = g.Max(l => l.UnitPrice)
+                speciesById.TryGetValue(g.Key, out var sp);
+                return new DriverStockItem
+                {
+                    SpeciesId = g.Key,
+                    SpeciesName = sp?.Name ?? g.Key,
+                    AvailableQty = g.Sum(l => l.TotalReturnedQty),
+                    UnitPrice = g.Max(l => l.UnitPrice),
+                    Vat = sp?.Vat ?? 0.15m
+                };
             })
             .Where(i => i.AvailableQty > 0)
             .OrderBy(i => i.SpeciesName)
