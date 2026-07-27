@@ -51,6 +51,30 @@ public class FuelService
         };
         await _repo.CreateAsync(issue, ct);
 
+        // Deduct issued litres from the dip tank by creating a new reading
+        if (issue.FuelSource == "tank" && tank is not null)
+        {
+            var readings = await _tankRepo.ListReadingsAsync(ct);
+            var currentLitres = readings
+                .Where(r => r.TankId == tank.TankId)
+                .OrderByDescending(r => r.RecordedAt)
+                .FirstOrDefault()?.ReadingLitres ?? 0m;
+
+            var newLevel = Math.Max(0m, currentLitres - req.Litres);
+            var pct = tank.CapacityLitres > 0
+                ? Math.Round(newLevel / tank.CapacityLitres * 100, 1)
+                : (decimal?)null;
+
+            await _tankRepo.CreateReadingAsync(new DipReading
+            {
+                TankId        = tank.TankId,
+                ReadingLitres = newLevel,
+                PctFull       = pct,
+                Notes         = $"Fuel issued: -{req.Litres:N0}L to {vehicle?.FleetNumber ?? req.VehicleId} ({issuedByName})",
+                RecordedBy    = issuedByName,
+            }, ct);
+        }
+
         return ToDto(issue, vehicle?.FleetNumber ?? "", tank?.Name ?? "", site?.Name ?? "");
     }
 
