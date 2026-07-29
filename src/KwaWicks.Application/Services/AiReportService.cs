@@ -84,9 +84,11 @@ public class AiReportService : IAiReportService
             "Use the available tools to fetch live data, then respond with ONLY a raw JSON object — no markdown fences, no preamble, no explanation outside the JSON. " +
             "The JSON must have exactly these three keys:\n" +
             "{ \"narrative\": \"<one paragraph summary>\", \"columns\": [\"Col1\", \"Col2\"], \"rows\": [[\"v1\",\"v2\"], ...] }\n" +
-            "Rules for the narrative: write plain English only — no JSON, no brackets, no raw data structures. " +
-            "Rules for rows: include ALL matching records up to a maximum of 300 rows. If there are more than 300 records, include the top 300 and mention the total count in the narrative. " +
-            "Amounts: South African Rand format e.g. 'R 1 234,56'. Dates: YYYY-MM-DD. " +
+            "Rules for the narrative: write plain English only — absolutely no JSON, no brackets, no raw data values. " +
+            "Rules for rows: MAXIMUM 100 rows in the response. ALWAYS aggregate and group data — never return one row per transaction or per invoice line. " +
+            "For example: group by customer+species+payment to show totals; group by date to show daily summaries; group by species to show per-product totals. " +
+            "If the raw data has more records than can fit in 100 grouped rows, summarise further (e.g. top 100 by value) and mention the total count in the narrative. " +
+            "Amounts: South African Rand format e.g. 'R 1 234.56'. Dates: YYYY-MM-DD. " +
             "If no tabular data applies leave columns and rows as empty arrays. " +
             "CRITICAL: Your entire response must be valid JSON starting with { and ending with }. Do NOT wrap in markdown code fences.";
 
@@ -96,7 +98,7 @@ public class AiReportService : IAiReportService
             var requestBody = new JsonObject
             {
                 ["model"]      = "claude-haiku-4-5-20251001",
-                ["max_tokens"] = 16000,
+                ["max_tokens"] = 8192,
                 ["system"]     = systemPrompt,
                 ["tools"]      = JsonNode.Parse(toolsJson),
                 ["messages"]   = JsonNode.Parse(messagesJson)
@@ -302,16 +304,31 @@ public class AiReportService : IAiReportService
         if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f)) q = q.Where(i => i.CreatedAt >= f);
         if (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) q = q.Where(i => i.CreatedAt <= t.AddDays(1));
 
-        return JsonSerializer.Serialize(q.OrderByDescending(i => i.CreatedAt).Take(500)
+        // Group by (customer, species, payment) so the AI receives aggregated rows, not raw line items
+        var lines = q.OrderByDescending(i => i.CreatedAt).Take(200)
             .SelectMany(i => i.Lines.Select(l => new
             {
-                i.InvoiceNumber,
-                Date         = i.CreatedAt.ToString("yyyy-MM-dd"),
                 CustomerName = clientMap.TryGetValue(i.CustomerId, out var cn) ? cn : i.CustomerId,
                 i.PaymentType,
                 SpeciesName  = speciesMap.TryGetValue(l.SpeciesId, out var sn) ? sn : l.SpeciesId,
-                l.Quantity, l.UnitPrice, l.LineTotal
-            })));
+                l.Quantity,
+                l.UnitPrice,
+                l.LineTotal
+            }))
+            .GroupBy(l => new { l.CustomerName, l.SpeciesName, l.PaymentType, l.UnitPrice })
+            .Select(g => new
+            {
+                g.Key.CustomerName,
+                g.Key.SpeciesName,
+                g.Key.PaymentType,
+                g.Key.UnitPrice,
+                TotalQty       = g.Sum(x => x.Quantity),
+                TotalLineTotal = g.Sum(x => x.LineTotal)
+            })
+            .OrderBy(r => r.CustomerName).ThenBy(r => r.SpeciesName)
+            .ToList();
+
+        return JsonSerializer.Serialize(lines);
     }
 
     private async Task<string> GetPettyCashSummaryAsync(CancellationToken ct)
