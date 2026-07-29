@@ -122,6 +122,8 @@ public class PettyCashService : IPettyCashService
 
         await _repo.CreateCashupAsync(cashup, ct);
         await _repo.MarkEntriesCashedUpAsync(openEntries.Select(e => e.EntryId), cashup.CashupId, ct);
+        // Clear manual overrides so the new period calculates fresh from real data
+        await _repo.SetCashOverridesAsync(null, null, ct);
 
         return new PettyCashupDto
         {
