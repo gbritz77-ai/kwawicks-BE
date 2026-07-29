@@ -8,7 +8,6 @@ namespace KwaWicks.Api.Controllers;
 [ApiController]
 [Route("api/sites")]
 [Produces("application/json")]
-[Authorize(Policy = "HubStaffOnly")]
 public class SitesController : ControllerBase
 {
     private readonly SiteService _service;
@@ -16,6 +15,7 @@ public class SitesController : ControllerBase
 
     // GET /api/sites
     [HttpGet]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(List<SiteDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct) =>
         Ok(await _service.ListAsync(ct));

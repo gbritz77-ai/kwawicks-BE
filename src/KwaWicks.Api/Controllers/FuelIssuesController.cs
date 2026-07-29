@@ -8,7 +8,6 @@ namespace KwaWicks.Api.Controllers;
 [ApiController]
 [Route("api/fuel")]
 [Produces("application/json")]
-[Authorize(Policy = "HubStaffOnly")]
 public class FuelIssuesController : ControllerBase
 {
     private readonly FuelService _service;
@@ -19,12 +18,14 @@ public class FuelIssuesController : ControllerBase
 
     // GET /api/fuel
     [HttpGet]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(List<FuelIssueDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct) =>
         Ok(await _service.ListAsync(ct));
 
     // POST /api/fuel
     [HttpPost]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(FuelIssueDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] CreateFuelIssueRequest req, CancellationToken ct)
@@ -35,6 +36,7 @@ public class FuelIssuesController : ControllerBase
 
     // GET /api/fuel/{id}/slip-upload-url?contentType=image/jpeg
     [HttpGet("{id}/slip-upload-url")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSlipUploadUrl(
         string id, [FromQuery] string contentType, CancellationToken ct)
@@ -46,6 +48,7 @@ public class FuelIssuesController : ControllerBase
 
     // PUT /api/fuel/{id}/slip
     [HttpPut("{id}/slip")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(FuelIssueDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ConfirmSlip(string id, [FromBody] ConfirmFuelSlipRequest req, CancellationToken ct)
@@ -57,6 +60,7 @@ public class FuelIssuesController : ControllerBase
 
     // GET /api/fuel/report?vehicleId=&from=2025-01-01&to=2025-12-31
     [HttpGet("report")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(List<VehicleFuelReportDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Report(
         [FromQuery] string? vehicleId,

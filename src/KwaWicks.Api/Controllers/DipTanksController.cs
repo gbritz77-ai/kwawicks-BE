@@ -8,7 +8,6 @@ namespace KwaWicks.Api.Controllers;
 [ApiController]
 [Route("api/dip-tanks")]
 [Produces("application/json")]
-[Authorize(Policy = "HubStaffOnly")]
 public class DipTanksController : ControllerBase
 {
     private readonly DipTankService _service;
@@ -19,6 +18,7 @@ public class DipTanksController : ControllerBase
 
     // GET /api/dip-tanks
     [HttpGet]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(List<DipTankDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListTanks(CancellationToken ct) =>
         Ok(await _service.ListTanksAsync(ct));
@@ -36,18 +36,21 @@ public class DipTanksController : ControllerBase
 
     // GET /api/dip-tanks/summary
     [HttpGet("summary")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(List<TankSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Summary(CancellationToken ct) =>
         Ok(await _service.GetSummaryAsync(ct));
 
     // GET /api/dip-tanks/readings
     [HttpGet("readings")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(List<DipReadingDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ListReadings(CancellationToken ct) =>
         Ok(await _service.ListReadingsAsync(ct));
 
     // POST /api/dip-tanks/{tankId}/load
     [HttpPost("{tankId}/load")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(DipReadingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -60,6 +63,7 @@ public class DipTanksController : ControllerBase
 
     // POST /api/dip-tanks/readings
     [HttpPost("readings")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(DipReadingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateReading([FromBody] CreateDipReadingRequest req, CancellationToken ct)
