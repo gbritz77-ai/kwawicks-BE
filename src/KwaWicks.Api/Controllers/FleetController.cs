@@ -8,7 +8,6 @@ namespace KwaWicks.Api.Controllers;
 [ApiController]
 [Route("api/fleet")]
 [Produces("application/json")]
-[Authorize(Policy = "HubStaffOnly")]
 public class FleetController : ControllerBase
 {
     private readonly VehicleService _service;
@@ -45,6 +44,7 @@ public class FleetController : ControllerBase
 
     // GET /api/fleet/{vehicleId}
     [HttpGet("{vehicleId}")]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(VehicleDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(string vehicleId, CancellationToken ct)
