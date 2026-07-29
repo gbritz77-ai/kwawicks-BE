@@ -214,7 +214,7 @@ builder.Services.AddHttpClient("anthropic", client =>
 {
     client.DefaultRequestHeaders.Add("x-api-key", anthropicApiKey);
     client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
-    client.Timeout = TimeSpan.FromSeconds(120);
+    client.Timeout = TimeSpan.FromSeconds(300);
 });
 builder.Services.AddScoped<IAiReportService>(sp => new AiReportService(
     sp.GetRequiredService<IHttpClientFactory>().CreateClient("anthropic"),

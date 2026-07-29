@@ -84,9 +84,11 @@ public class AiReportService : IAiReportService
             "Use the available tools to fetch live data, then respond with ONLY a raw JSON object — no markdown fences, no preamble, no explanation outside the JSON. " +
             "The JSON must have exactly these three keys:\n" +
             "{ \"narrative\": \"<one paragraph summary>\", \"columns\": [\"Col1\", \"Col2\"], \"rows\": [[\"v1\",\"v2\"], ...] }\n" +
+            "Rules for the narrative: write plain English only — no JSON, no brackets, no raw data structures. " +
+            "Rules for rows: include ALL matching records up to a maximum of 300 rows. If there are more than 300 records, include the top 300 and mention the total count in the narrative. " +
             "Amounts: South African Rand format e.g. 'R 1 234,56'. Dates: YYYY-MM-DD. " +
             "If no tabular data applies leave columns and rows as empty arrays. " +
-            "IMPORTANT: Your entire response must be parseable JSON starting with { and ending with }.";
+            "CRITICAL: Your entire response must be valid JSON starting with { and ending with }. Do NOT wrap in markdown code fences.";
 
         // Agentic loop — max 8 rounds to allow multi-tool queries
         for (var round = 0; round < 8; round++)
@@ -94,7 +96,7 @@ public class AiReportService : IAiReportService
             var requestBody = new JsonObject
             {
                 ["model"]      = "claude-haiku-4-5-20251001",
-                ["max_tokens"] = 4096,
+                ["max_tokens"] = 16000,
                 ["system"]     = systemPrompt,
                 ["tools"]      = JsonNode.Parse(toolsJson),
                 ["messages"]   = JsonNode.Parse(messagesJson)
