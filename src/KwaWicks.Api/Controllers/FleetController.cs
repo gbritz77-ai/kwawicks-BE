@@ -35,6 +35,7 @@ public class FleetController : ControllerBase
 
     // GET /api/fleet
     [HttpGet]
+    [Authorize(Policy = "OperationalAccess")]
     [ProducesResponseType(typeof(List<VehicleDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromQuery] string? search, CancellationToken ct)
     {
