@@ -183,6 +183,8 @@ public class ClientCreditStatementLine
     /// <summary>Positive = credit/deposit; negative = charge.</summary>
     public decimal Amount { get; set; }
     public decimal RunningBalance { get; set; }
+    /// <summary>Species line items — populated for InvoiceCharge entries.</summary>
+    public List<StatementInvoiceLine> Items { get; set; } = new();
 }
 
 // ── Admin: Customer Statement (invoice-based — kept for existing reports) ────

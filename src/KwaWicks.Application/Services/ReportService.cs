@@ -516,11 +516,35 @@ public class ReportService : IReportService
             .Where(e => to == null   || e.CreatedAt <= to.Value)
             .ToList();
 
+        // Load invoices and species names for InvoiceCharge entries
+        var invoiceIds = inRange
+            .Where(e => e.EntryType == "InvoiceCharge" && !string.IsNullOrWhiteSpace(e.Reference))
+            .Select(e => e.Reference)
+            .Distinct()
+            .ToList();
+
+        var invoiceMap  = new Dictionary<string, List<StatementInvoiceLine>>();
+        var allSpeciesMap = (await _species.ListAsync(ct)).ToDictionary(s => s.SpeciesId, s => s.Name);
+
+        foreach (var invoiceId in invoiceIds)
+        {
+            var invoice = await _invoices.GetAsync(invoiceId, ct);
+            if (invoice is null) continue;
+            invoiceMap[invoiceId] = invoice.Lines.Select(l => new StatementInvoiceLine
+            {
+                SpeciesName = allSpeciesMap.TryGetValue(l.SpeciesId, out var n) ? n : l.SpeciesId,
+                Qty         = l.Quantity,
+                UnitPrice   = l.UnitPrice,
+                LineTotal   = l.LineTotal,
+            }).ToList();
+        }
+
         // Build statement lines with a running balance
         var running = openingBalance;
         var lines = inRange.Select(e =>
         {
             running += e.Amount;
+            invoiceMap.TryGetValue(e.Reference ?? "", out var items);
             return new ClientCreditStatementLine
             {
                 Date            = e.CreatedAt,
@@ -531,7 +555,8 @@ public class ReportService : IReportService
                                       : e.Reference,
                 CreatedByUserId = e.CreatedByUserId,
                 Amount          = e.Amount,
-                RunningBalance  = running
+                RunningBalance  = running,
+                Items           = items ?? new(),
             };
         }).ToList();
 

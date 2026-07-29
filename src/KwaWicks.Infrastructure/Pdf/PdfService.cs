@@ -393,6 +393,9 @@ public class PdfService : IPdfService
                             IContainer Cell(IContainer c) =>
                                 c.Background(bg).Padding(6).BorderBottom(1).BorderColor("#f1f5f9");
 
+                            IContainer ItemCell(IContainer c) =>
+                                c.Background(bg).PaddingLeft(8).PaddingRight(6).PaddingBottom(6).BorderBottom(1).BorderColor("#f1f5f9");
+
                             // Amount: green for deposits, red for charges
                             var amtColor = line.Amount >= 0 ? "#166534" : "#dc2626";
                             var amtText  = line.Amount >= 0
@@ -418,10 +421,30 @@ public class PdfService : IPdfService
                             if (line.CreatedByUserId == "BankRecon" && !desc.Contains("Bank statement"))
                                 desc = "[Bank Recon] " + desc;
 
+                            // Description cell: show description + species items for invoice charges
                             table.Cell().Element(Cell).Text(line.Date.ToString("dd/MM/yy"));
                             table.Cell().Element(Cell).Text(typeLabel);
                             table.Cell().Element(Cell).Text(line.PaymentMethod);
-                            table.Cell().Element(Cell).Text(desc).FontColor("#374151");
+
+                            if (line.Items.Count > 0)
+                            {
+                                table.Cell().Element(Cell).Column(col =>
+                                {
+                                    if (!string.IsNullOrWhiteSpace(desc))
+                                        col.Item().Text(desc).FontColor("#374151");
+                                    foreach (var item in line.Items)
+                                    {
+                                        col.Item().Text(
+                                            $"  • {item.SpeciesName}  ×{item.Qty}  @  R {item.UnitPrice:N2}  =  R {item.LineTotal:N2}"
+                                        ).FontSize(8.5f).FontColor("#475569");
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                table.Cell().Element(Cell).Text(desc).FontColor("#374151");
+                            }
+
                             table.Cell().Element(Cell).AlignRight().Text(amtText).FontColor(amtColor).Bold();
                             table.Cell().Element(Cell).AlignRight().Text("R " + line.RunningBalance.ToString("N2")).FontColor(balColor).Bold();
                         }
