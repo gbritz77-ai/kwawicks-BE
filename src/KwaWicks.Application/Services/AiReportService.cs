@@ -16,6 +16,7 @@ public class AiReportService : IAiReportService
     private readonly ICollectionRequestRepository _collections;
     private readonly IStaffMemberRepository _staff;
     private readonly IPettyCashService _pettyCash;
+    private readonly ISpeciesRepository _species;
 
     private static readonly JsonSerializerOptions _json = new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
@@ -26,7 +27,8 @@ public class AiReportService : IAiReportService
         IClientCreditRepository credits,
         ICollectionRequestRepository collections,
         IStaffMemberRepository staff,
-        IPettyCashService pettyCash)
+        IPettyCashService pettyCash,
+        ISpeciesRepository species)
     {
         _http = http;
         _invoices = invoices;
@@ -35,6 +37,7 @@ public class AiReportService : IAiReportService
         _collections = collections;
         _staff = staff;
         _pettyCash = pettyCash;
+        _species = species;
     }
 
     public async Task<AiReportResult> RunReportAsync(string prompt, CancellationToken ct)
@@ -151,6 +154,7 @@ public class AiReportService : IAiReportService
                 "get_outstanding_balances"   => await GetOutstandingBalancesAsync(ct),
                 "get_sales_summary"          => await GetSalesSummaryAsync(input, ct),
                 "list_invoices"              => await ListInvoicesAsync(input, ct),
+                "get_invoice_line_items"     => await GetInvoiceLineItemsAsync(input, ct),
                 "get_petty_cash_summary"     => await GetPettyCashSummaryAsync(ct),
                 "list_collections"           => await ListCollectionsAsync(input, ct),
                 "list_staff_members"         => await ListStaffMembersAsync(ct),
@@ -334,6 +338,46 @@ public class AiReportService : IAiReportService
         return JsonSerializer.Serialize(rows);
     }
 
+    private async Task<string> GetInvoiceLineItemsAsync(JsonObject input, CancellationToken ct)
+    {
+        var from       = input["from_date"]?.GetValue<string>();
+        var to         = input["to_date"]?.GetValue<string>();
+        var customerId = input["customer_id"]?.GetValue<string>();
+
+        var allInvoices = await _invoices.ListAsync(null, null, ct);
+        var allSpecies  = await _species.ListAsync(ct);
+        var allClients  = await _clients.ListAsync(200, ct);
+
+        var speciesMap = allSpecies.ToDictionary(s => s.SpeciesId, s => s.Name);
+        var clientMap  = allClients.ToDictionary(c => c.ClientId, c => c.ClientName);
+
+        var filtered = allInvoices.Where(i => i.Status != "Cancelled");
+        if (!string.IsNullOrEmpty(customerId))
+            filtered = filtered.Where(i => i.CustomerId == customerId);
+        if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var fromDt))
+            filtered = filtered.Where(i => i.CreatedAt >= fromDt);
+        if (!string.IsNullOrEmpty(to) && DateTime.TryParse(to, out var toDt))
+            filtered = filtered.Where(i => i.CreatedAt <= toDt.AddDays(1));
+
+        var rows = filtered
+            .OrderByDescending(i => i.CreatedAt)
+            .Take(500)
+            .SelectMany(i => i.Lines.Select(l => new
+            {
+                InvoiceNumber = i.InvoiceNumber,
+                Date          = i.CreatedAt.ToString("yyyy-MM-dd"),
+                CustomerName  = clientMap.TryGetValue(i.CustomerId, out var cn) ? cn : i.CustomerId,
+                PaymentType   = i.PaymentType,
+                SpeciesName   = speciesMap.TryGetValue(l.SpeciesId, out var sn) ? sn : l.SpeciesId,
+                Quantity      = l.Quantity,
+                UnitPrice     = l.UnitPrice,
+                LineTotal     = l.LineTotal
+            }))
+            .ToList();
+
+        return JsonSerializer.Serialize(rows);
+    }
+
     // ── Tool definitions ────────────────────────────────────────────────────
 
     private static JsonArray BuildTools() => new()
@@ -359,6 +403,27 @@ public class AiReportService : IAiReportService
                 {
                     ["type"]        = "string",
                     ["description"] = "End date in YYYY-MM-DD format (optional)"
+                }
+            }),
+
+        BuildTool("get_invoice_line_items",
+            "Returns individual invoice line items with species name, quantity, unit price, and line total. Use this when the user asks about which species were purchased, quantities per species, or species-level breakdowns by customer or payment method. Returns up to 500 lines across all matching invoices.",
+            new JsonObject
+            {
+                ["from_date"] = new JsonObject
+                {
+                    ["type"]        = "string",
+                    ["description"] = "Start date in YYYY-MM-DD format (optional)"
+                },
+                ["to_date"] = new JsonObject
+                {
+                    ["type"]        = "string",
+                    ["description"] = "End date in YYYY-MM-DD format (optional)"
+                },
+                ["customer_id"] = new JsonObject
+                {
+                    ["type"]        = "string",
+                    ["description"] = "Filter to a specific customer by their ClientId (optional)"
                 }
             }),
 
