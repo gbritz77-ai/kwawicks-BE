@@ -213,6 +213,15 @@ public class CustomerStatementLine
     public decimal SubTotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }
+    public List<StatementInvoiceLine> Items { get; set; } = new();
+}
+
+public class StatementInvoiceLine
+{
+    public string SpeciesName { get; set; } = "";
+    public int Qty { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal LineTotal { get; set; }
 }
 
 // ── Driver: My Delivery History ──────────────────────────────────────────────

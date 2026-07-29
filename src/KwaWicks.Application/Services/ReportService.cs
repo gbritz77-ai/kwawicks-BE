@@ -355,6 +355,8 @@ public class ReportService : IReportService
             .OrderBy(i => i.CreatedAt)
             .ToList();
 
+        var allSpecies = (await _species.ListAsync(ct)).ToDictionary(s => s.SpeciesId, s => s.Name);
+
         var lines = filtered.Select(i => new CustomerStatementLine
         {
             InvoiceId = i.InvoiceId,
@@ -364,7 +366,14 @@ public class ReportService : IReportService
             PaymentStatus = i.PaymentStatus,
             SubTotal = i.SubTotal,
             VatTotal = i.VatTotal,
-            GrandTotal = i.GrandTotal
+            GrandTotal = i.GrandTotal,
+            Items = i.Lines.Select(l => new StatementInvoiceLine
+            {
+                SpeciesName = allSpecies.TryGetValue(l.SpeciesId, out var n) ? n : l.SpeciesId,
+                Qty         = l.Quantity,
+                UnitPrice   = l.UnitPrice,
+                LineTotal   = l.LineTotal,
+            }).ToList(),
         }).ToList();
 
         var totalGrand = lines.Sum(l => l.GrandTotal);
