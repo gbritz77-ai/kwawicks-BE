@@ -224,7 +224,17 @@ builder.Services.AddScoped<IAiReportService>(sp => new AiReportService(
     sp.GetRequiredService<ICollectionRequestRepository>(),
     sp.GetRequiredService<IStaffMemberRepository>(),
     sp.GetRequiredService<IPettyCashService>(),
-    sp.GetRequiredService<ISpeciesRepository>()));
+    sp.GetRequiredService<ISpeciesRepository>(),
+    sp.GetRequiredService<IDeliveryOrderRepository>(),
+    sp.GetRequiredService<IDeliveryRunRepository>(),
+    sp.GetRequiredService<IFuelRepository>(),
+    sp.GetRequiredService<ISlaughterRepository>(),
+    sp.GetRequiredService<IStockLossRepository>(),
+    sp.GetRequiredService<IVehicleRepository>(),
+    sp.GetRequiredService<IProcurementOrderRepository>(),
+    sp.GetRequiredService<IDriverStockAllocationRepository>(),
+    sp.GetRequiredService<IDipTankRepository>(),
+    sp.GetRequiredService<ISupplierRepository>()));
 
 // PDF + WhatsApp + Invoice notifications
 builder.Services.AddScoped<IPdfService, PdfService>();
