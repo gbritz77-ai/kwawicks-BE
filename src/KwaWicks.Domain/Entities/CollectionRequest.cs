@@ -70,4 +70,6 @@ public class CollectionRequestLine
     public int ReceivedQty { get; set; }
     public string DiscrepancyNotes { get; set; } = "";
     public int DeadQty { get; set; }
+    public int ShortQty { get; set; }
+    public int OverQty { get; set; }
 }

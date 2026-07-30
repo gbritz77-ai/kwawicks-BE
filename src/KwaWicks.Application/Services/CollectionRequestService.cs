@@ -190,9 +190,12 @@ public class CollectionRequestService : ICollectionRequestService
             var line = cr.Lines.FirstOrDefault(l => l.SpeciesId == update.SpeciesId);
             if (line != null)
             {
-                line.ReceivedQty = update.ReceivedQty;
+                line.ShortQty = Math.Max(0, update.ShortQty);
+                line.OverQty  = Math.Max(0, update.OverQty);
+                line.DeadQty  = Math.Max(0, update.DeadQty);
                 line.DiscrepancyNotes = update.DiscrepancyNotes ?? "";
-                line.DeadQty = update.DeadQty;
+                // ReceivedQty = animals that physically arrived alive at the hub
+                line.ReceivedQty = Math.Max(0, line.LoadedQty - line.ShortQty + line.OverQty - line.DeadQty);
             }
         }
 
@@ -1032,7 +1035,9 @@ public class CollectionRequestService : ICollectionRequestService
                 LoadingNotes     = l.LoadingNotes,
                 ReceivedQty      = l.ReceivedQty,
                 DiscrepancyNotes = l.DiscrepancyNotes,
-                DeadQty          = l.DeadQty
+                DeadQty          = l.DeadQty,
+                ShortQty         = l.ShortQty,
+                OverQty          = l.OverQty,
             }).ToList(),
             RoadsideSales = cr.RoadsideSales.Select(r => new RoadsaleLineResponse
             {
