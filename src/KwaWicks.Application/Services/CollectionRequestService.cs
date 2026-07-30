@@ -1007,6 +1007,53 @@ public class CollectionRequestService : ICollectionRequestService
         }).ToList();
     }
 
+    public async Task<List<DriverDiscrepancyReportItem>> GetDriverDiscrepancyReportAsync(
+        DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
+    {
+        var all = await _repo.ListAsync(null, null, null, ct);
+
+        var confirmed = all
+            .Where(cr => cr.Status is "HubConfirmed" or "FinanceAcknowledged")
+            .Where(cr => cr.Lines.Any(l => l.ShortQty > 0 || l.OverQty > 0 || l.DeadQty > 0))
+            .Where(cr => from == null || cr.UpdatedAt >= from.Value)
+            .Where(cr => to == null || cr.UpdatedAt <= to.Value.AddDays(1))
+            .OrderByDescending(cr => cr.UpdatedAt)
+            .ToList();
+
+        var byDriver = confirmed
+            .GroupBy(cr => new { cr.AssignedDriverId, cr.AssignedDriverName })
+            .Select(g => new DriverDiscrepancyReportItem
+            {
+                DriverId   = g.Key.AssignedDriverId,
+                DriverName = g.Key.AssignedDriverName,
+                TotalShort = g.SelectMany(cr => cr.Lines).Sum(l => l.ShortQty),
+                TotalOver  = g.SelectMany(cr => cr.Lines).Sum(l => l.OverQty),
+                TotalDead  = g.SelectMany(cr => cr.Lines).Sum(l => l.DeadQty),
+                Collections = g.Select(cr => new DriverDiscrepancyCollection
+                {
+                    CollectionRequestId = cr.CollectionRequestId,
+                    SupplierName        = cr.SupplierName,
+                    CollectionDate      = cr.CollectionDate,
+                    ConfirmedAt         = cr.UpdatedAt,
+                    Lines = cr.Lines
+                        .Where(l => l.ShortQty > 0 || l.OverQty > 0 || l.DeadQty > 0)
+                        .Select(l => new DriverDiscrepancyLine
+                        {
+                            SpeciesName = l.SpeciesName,
+                            LoadedQty   = l.LoadedQty,
+                            ShortQty    = l.ShortQty,
+                            OverQty     = l.OverQty,
+                            DeadQty     = l.DeadQty,
+                            Notes       = l.DiscrepancyNotes,
+                        }).ToList()
+                }).OrderByDescending(c => c.ConfirmedAt).ToList()
+            })
+            .OrderByDescending(d => d.TotalShort + d.TotalDead)
+            .ToList();
+
+        return byDriver;
+    }
+
     private async Task<CollectionRequestResponse> MapToResponseAsync(CollectionRequest cr, CancellationToken ct)
     {
         var response = new CollectionRequestResponse

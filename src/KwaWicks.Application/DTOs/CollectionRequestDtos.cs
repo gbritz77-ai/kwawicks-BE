@@ -162,6 +162,36 @@ public class CollectionAllocationLineResponse
     public int AcceptedQty { get; set; }
 }
 
+// ── Driver receipt discrepancy report ─────────────────────────────────────────
+public class DriverDiscrepancyReportItem
+{
+    public string DriverId { get; set; } = "";
+    public string DriverName { get; set; } = "";
+    public List<DriverDiscrepancyCollection> Collections { get; set; } = new();
+    public int TotalShort { get; set; }
+    public int TotalOver { get; set; }
+    public int TotalDead { get; set; }
+}
+
+public class DriverDiscrepancyCollection
+{
+    public string CollectionRequestId { get; set; } = "";
+    public string SupplierName { get; set; } = "";
+    public DateTime? CollectionDate { get; set; }
+    public DateTime ConfirmedAt { get; set; }
+    public List<DriverDiscrepancyLine> Lines { get; set; } = new();
+}
+
+public class DriverDiscrepancyLine
+{
+    public string SpeciesName { get; set; } = "";
+    public int LoadedQty { get; set; }
+    public int ShortQty { get; set; }
+    public int OverQty { get; set; }
+    public int DeadQty { get; set; }
+    public string Notes { get; set; } = "";
+}
+
 // ── Admin: confirm actual delivered qty + payment type ─────────────────────────
 public class AdminConfirmDeliveryRequest
 {

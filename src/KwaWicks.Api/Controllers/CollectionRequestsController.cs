@@ -154,6 +154,14 @@ public class CollectionRequestsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("driver-discrepancy-report")]
+    [Authorize(Policy = "CollectionManagement")]
+    public async Task<IActionResult> DriverDiscrepancyReport([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
+    {
+        var result = await _service.GetDriverDiscrepancyReportAsync(from, to, ct);
+        return Ok(result);
+    }
+
     [HttpPost("{id}/allocations")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> AddAllocation(string id, [FromBody] AddDeliveryAllocationRequest request, CancellationToken ct)
