@@ -90,6 +90,7 @@ public class StockLossRepository : IStockLossRepository
         ["SpeciesId"]        = new() { S = l.SpeciesId },
         ["SpeciesName"]      = new() { S = l.SpeciesName },
         ["Qty"]              = new() { N = l.Qty.ToString() },
+        ["AdjustmentType"]   = new() { S = l.AdjustmentType },
         ["Notes"]            = new() { S = l.Notes },
         ["RecordedByUserId"] = new() { S = l.RecordedByUserId },
         ["CreatedAt"]        = new() { S = l.CreatedAt.ToString("O") },
@@ -104,12 +105,14 @@ public class StockLossRepository : IStockLossRepository
         static DateTime Dt(Dictionary<string, AttributeValue> d, string k) =>
             d.TryGetValue(k, out var v) && DateTime.TryParse(v.S, null, DateTimeStyles.RoundtripKind, out var dt) ? dt : DateTime.MinValue;
 
+        var adjustmentType = Str(item, "AdjustmentType");
         return new StockLoss
         {
             LossId           = Str(item, "LossId"),
             SpeciesId        = Str(item, "SpeciesId"),
             SpeciesName      = Str(item, "SpeciesName"),
             Qty              = Int(item, "Qty"),
+            AdjustmentType   = string.IsNullOrEmpty(adjustmentType) ? "Under" : adjustmentType,
             Notes            = Str(item, "Notes"),
             RecordedByUserId = Str(item, "RecordedByUserId"),
             CreatedAt        = Dt(item,  "CreatedAt"),

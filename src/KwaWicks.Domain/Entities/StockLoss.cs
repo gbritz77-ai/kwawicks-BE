@@ -6,8 +6,11 @@ public class StockLoss
     public string SpeciesId { get; set; } = "";
     public string SpeciesName { get; set; } = "";
 
-    /// <summary>Number of units that died / were lost. Always positive.</summary>
+    /// <summary>Number of units adjusted. Always positive — direction is in AdjustmentType.</summary>
     public int Qty { get; set; }
+
+    /// <summary>Over = surplus/stock found (increases QtyOnHand). Under = loss/missing (decreases QtyOnHand).</summary>
+    public string AdjustmentType { get; set; } = "Under";
 
     public string Notes { get; set; } = "";
     public string RecordedByUserId { get; set; } = "";
