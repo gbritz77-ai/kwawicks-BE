@@ -189,7 +189,7 @@ public class AiReportService : IAiReportService
                 "list_species"                => await ListSpeciesAsync(ct),
                 "list_delivery_orders"        => await ListDeliveryOrdersAsync(input, ct),
                 "list_fuel_records"           => await ListFuelRecordsAsync(input, ct),
-                "list_slaughter_batches"      => await ListSlaughterBatchesAsync(ct),
+                "list_slaughter_batches"      => await ListSlaughterBatchesAsync(input, ct),
                 "list_stock_losses"           => await ListStockLossesAsync(input, ct),
                 "list_vehicles"               => await ListVehiclesAsync(ct),
                 "list_procurement_orders"     => await ListProcurementOrdersAsync(input, ct),
@@ -263,7 +263,7 @@ public class AiReportService : IAiReportService
             ByDate = list
                 .GroupBy(i => i.CreatedAt.ToString("yyyy-MM-dd"))
                 .Select(g => new { Date = g.Key, Revenue = g.Sum(i => i.GrandTotal), Count = g.Count() })
-                .OrderByDescending(g => g.Date).Take(30).ToList()
+                .OrderByDescending(g => g.Date).ToList()
         });
     }
 
@@ -274,19 +274,30 @@ public class AiReportService : IAiReportService
         var from        = input["from_date"]?.GetValue<string>();
         var to          = input["to_date"]?.GetValue<string>();
 
-        var all = await _invoices.ListAsync(null, null, ct);
-        var q   = all.AsEnumerable();
+        var all       = await _invoices.ListAsync(null, null, ct);
+        var clientMap = (await _clients.ListAsync(200, ct)).ToDictionary(c => c.ClientId, c => c.ClientName);
+        var q         = all.AsEnumerable();
         if (!string.IsNullOrEmpty(status))      q = q.Where(i => string.Equals(i.Status,      status,      StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrEmpty(paymentType)) q = q.Where(i => string.Equals(i.PaymentType, paymentType, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f)) q = q.Where(i => i.CreatedAt >= f);
         if (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) q = q.Where(i => i.CreatedAt <= t.AddDays(1));
 
-        return JsonSerializer.Serialize(q.OrderByDescending(i => i.CreatedAt).Take(100).Select(i => new
+        var list       = q.OrderByDescending(i => i.CreatedAt).ToList();
+        var returned   = list.Take(200).ToList();
+        return JsonSerializer.Serialize(new
         {
-            i.InvoiceNumber, i.CustomerId, CreatedAt = i.CreatedAt.ToString("yyyy-MM-dd"),
-            i.Status, i.PaymentType, i.PaymentStatus, i.GrandTotal, i.AmountPaid,
-            Outstanding = i.GrandTotal - i.AmountPaid
-        }));
+            TotalCount   = list.Count,
+            ReturnedCount = returned.Count,
+            Note         = list.Count > 200 ? $"Only the 200 most recent of {list.Count} invoices are included. Use from_date/to_date to narrow the range for complete accuracy." : null,
+            Invoices     = returned.Select(i => new
+            {
+                i.InvoiceNumber,
+                CustomerName = clientMap.TryGetValue(i.CustomerId, out var cn) ? cn : i.CustomerId,
+                CreatedAt    = i.CreatedAt.ToString("yyyy-MM-dd"),
+                i.Status, i.PaymentType, i.PaymentStatus, i.GrandTotal, i.AmountPaid,
+                Outstanding  = i.GrandTotal - i.AmountPaid
+            })
+        });
     }
 
     private async Task<string> GetInvoiceLineItemsAsync(JsonObject input, CancellationToken ct)
@@ -299,13 +310,16 @@ public class AiReportService : IAiReportService
         var speciesMap  = (await _species.ListAsync(ct)).ToDictionary(s => s.SpeciesId, s => s.Name);
         var clientMap   = (await _clients.ListAsync(200, ct)).ToDictionary(c => c.ClientId, c => c.ClientName);
 
+        // Filter invoices first (date/customer) — do NOT cap invoices here; cap the final line-item rows
         var q = allInvoices.Where(i => i.Status != "Cancelled");
         if (!string.IsNullOrEmpty(customerId)) q = q.Where(i => i.CustomerId == customerId);
         if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f)) q = q.Where(i => i.CreatedAt >= f);
         if (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) q = q.Where(i => i.CreatedAt <= t.AddDays(1));
 
-        // Group by (customer, species, payment) so the AI receives aggregated rows, not raw line items
-        var lines = q.OrderByDescending(i => i.CreatedAt).Take(200)
+        var matchedInvoices = q.OrderByDescending(i => i.CreatedAt).ToList();
+
+        // Expand all line items across all matched invoices, then aggregate
+        var lines = matchedInvoices
             .SelectMany(i => i.Lines.Select(l => new
             {
                 CustomerName = clientMap.TryGetValue(i.CustomerId, out var cn) ? cn : i.CustomerId,
@@ -328,7 +342,13 @@ public class AiReportService : IAiReportService
             .OrderBy(r => r.CustomerName).ThenBy(r => r.SpeciesName)
             .ToList();
 
-        return JsonSerializer.Serialize(lines);
+        return JsonSerializer.Serialize(new
+        {
+            InvoiceCount = matchedInvoices.Count,
+            AggregatedRows = lines.Count,
+            Note = $"All {matchedInvoices.Count} invoices in the date range are included. Data is pre-aggregated by customer+species+payment+price.",
+            Lines = lines
+        });
     }
 
     private async Task<string> GetPettyCashSummaryAsync(CancellationToken ct)
@@ -349,18 +369,38 @@ public class AiReportService : IAiReportService
     private async Task<string> ListCollectionsAsync(JsonObject input, CancellationToken ct)
     {
         var status = input["status"]?.GetValue<string>();
-        var all    = await _collections.ListAsync(status: status, ct: ct);
-        return JsonSerializer.Serialize(all.OrderByDescending(c => c.CreatedAt).Take(100).Select(c => new
+        var from   = input["from_date"]?.GetValue<string>();
+        var to     = input["to_date"]?.GetValue<string>();
+
+        var all = await _collections.ListAsync(status: status, ct: ct);
+        var q   = all.AsEnumerable();
+        if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f)) q = q.Where(c => (c.CollectionDate ?? c.CreatedAt) >= f);
+        if (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) q = q.Where(c => (c.CollectionDate ?? c.CreatedAt) <= t.AddDays(1));
+
+        var list     = q.OrderByDescending(c => c.CollectionDate ?? c.CreatedAt).ToList();
+        var returned = list.Take(200).ToList();
+        return JsonSerializer.Serialize(new
         {
-            c.CollectionRequestId, c.SupplierName, c.AssignedDriverName, c.Status,
-            Date         = c.CollectionDate?.ToString("yyyy-MM-dd") ?? c.CreatedAt.ToString("yyyy-MM-dd"),
-            TotalOrdered = c.Lines.Sum(l => l.OrderedQty),
-            TotalLoaded  = c.Lines.Sum(l => l.LoadedQty),
-            TotalDead    = c.Lines.Sum(l => l.DeadQty),
-            TotalShort   = c.Lines.Sum(l => Math.Max(0, l.OrderedQty - l.LoadedQty)),
-            TotalOver    = c.Lines.Sum(l => Math.Max(0, l.LoadedQty - l.OrderedQty)),
-            Lines        = c.Lines.Select(l => new { l.SpeciesName, l.OrderedQty, l.LoadedQty, l.DeadQty })
-        }));
+            TotalCount    = list.Count,
+            ReturnedCount = returned.Count,
+            Note          = list.Count > 200 ? $"Only 200 of {list.Count} collections returned. Use from_date/to_date to narrow the range." : null,
+            Collections   = returned.Select(c => new
+            {
+                c.CollectionRequestId, c.SupplierName, c.AssignedDriverName, c.Status,
+                Date          = c.CollectionDate?.ToString("yyyy-MM-dd") ?? c.CreatedAt.ToString("yyyy-MM-dd"),
+                TotalOrdered  = c.Lines.Sum(l => l.OrderedQty),
+                TotalLoaded   = c.Lines.Sum(l => l.LoadedQty),
+                TotalReceived = c.Lines.Sum(l => l.ReceivedQty),
+                TotalDead     = c.Lines.Sum(l => l.DeadQty),
+                TotalShort    = c.Lines.Sum(l => l.ShortQty),
+                TotalOver     = c.Lines.Sum(l => l.OverQty),
+                Lines         = c.Lines.Select(l => new
+                {
+                    l.SpeciesName, l.OrderedQty, l.LoadedQty, l.ReceivedQty,
+                    l.DeadQty, l.ShortQty, l.OverQty, l.DiscrepancyNotes
+                })
+            })
+        });
     }
 
     private async Task<string> ListStaffMembersAsync(CancellationToken ct)
@@ -385,19 +425,39 @@ public class AiReportService : IAiReportService
     private async Task<string> ListDeliveryOrdersAsync(JsonObject input, CancellationToken ct)
     {
         var status = input["status"]?.GetValue<string>();
-        var all    = await _deliveryOrders.ListAsync(null, null, status, ct);
-        return JsonSerializer.Serialize(all.OrderByDescending(o => o.CreatedAt).Take(200).Select(o => new
+        var from   = input["from_date"]?.GetValue<string>();
+        var to     = input["to_date"]?.GetValue<string>();
+
+        var all      = await _deliveryOrders.ListAsync(null, null, status, ct);
+        var specMap  = (await _species.ListAsync(ct)).ToDictionary(s => s.SpeciesId, s => s.Name);
+        var clientMap = (await _clients.ListAsync(limit: 2000, ct: ct)).ToDictionary(c => c.ClientId, c => c.ClientName);
+
+        var q = all.AsEnumerable();
+        if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f)) q = q.Where(o => o.CreatedAt >= f);
+        if (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) q = q.Where(o => o.CreatedAt <= t.AddDays(1));
+
+        var list     = q.OrderByDescending(o => o.CreatedAt).ToList();
+        var returned = list.Take(200).ToList();
+        return JsonSerializer.Serialize(new
         {
-            o.DeliveryOrderId, o.Status, o.AssignedDriverName,
-            Date       = o.CreatedAt.ToString("yyyy-MM-dd"),
-            TotalLines = o.Lines.Count,
-            TotalQty   = o.Lines.Sum(l => l.Quantity),
-            Lines      = o.Lines.Select(l => new
+            TotalCount    = list.Count,
+            ReturnedCount = returned.Count,
+            Note          = list.Count > 200 ? $"Only 200 of {list.Count} orders returned. Use from_date/to_date to narrow the range." : null,
+            Orders = returned.Select(o => new
             {
-                l.SpeciesId, l.Quantity, l.UnitPrice, l.DeliveredQty,
-                l.TotalReturnedQty, l.InspectedDeadQty, l.InspectedMutilatedQty
+                o.DeliveryOrderId, o.Status, o.AssignedDriverName,
+                ClientName = clientMap.TryGetValue(o.ClientId, out var cn) ? cn : o.ClientId,
+                Date       = o.CreatedAt.ToString("yyyy-MM-dd"),
+                TotalLines = o.Lines.Count,
+                TotalQty   = o.Lines.Sum(l => l.Quantity),
+                Lines      = o.Lines.Select(l => new
+                {
+                    SpeciesName  = specMap.TryGetValue(l.SpeciesId, out var sn) ? sn : l.SpeciesId,
+                    l.Quantity, l.UnitPrice, l.DeliveredQty,
+                    l.TotalReturnedQty, l.InspectedDeadQty, l.InspectedMutilatedQty
+                })
             })
-        }));
+        });
     }
 
     private async Task<string> ListFuelRecordsAsync(JsonObject input, CancellationToken ct)
@@ -423,17 +483,32 @@ public class AiReportService : IAiReportService
         }));
     }
 
-    private async Task<string> ListSlaughterBatchesAsync(CancellationToken ct)
+    private async Task<string> ListSlaughterBatchesAsync(JsonObject input, CancellationToken ct)
     {
+        var from = input["from_date"]?.GetValue<string>();
+        var to   = input["to_date"]?.GetValue<string>();
+
         var all = await _slaughter.ListAsync(ct);
-        return JsonSerializer.Serialize(all.OrderByDescending(b => b.SlaughteredAtUtc).Take(100).Select(b => new
+        var q   = all.AsEnumerable();
+        if (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f)) q = q.Where(b => b.SlaughteredAtUtc >= f);
+        if (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) q = q.Where(b => b.SlaughteredAtUtc <= t.AddDays(1));
+
+        var list     = q.OrderByDescending(b => b.SlaughteredAtUtc).ToList();
+        var returned = list.Take(200).ToList();
+        return JsonSerializer.Serialize(new
         {
-            b.BatchId,
-            Date           = b.SlaughteredAtUtc.ToString("yyyy-MM-dd"),
-            b.SourceSpeciesName, b.SourceQty, b.SourceUnitCost, b.TotalInputCost,
-            b.Notes,
-            Yields = b.Yields.Select(y => new { y.SpeciesName, y.Qty, y.UnitCost, y.UnitPrice })
-        }));
+            TotalCount    = list.Count,
+            ReturnedCount = returned.Count,
+            Note          = list.Count > 200 ? $"Only 200 of {list.Count} batches returned. Use from_date/to_date to narrow the range." : null,
+            Batches = returned.Select(b => new
+            {
+                b.BatchId,
+                Date           = b.SlaughteredAtUtc.ToString("yyyy-MM-dd"),
+                b.SourceSpeciesName, b.SourceQty, b.SourceUnitCost, b.TotalInputCost,
+                b.Notes,
+                Yields = b.Yields.Select(y => new { y.SpeciesName, y.Qty, y.UnitCost, y.UnitPrice })
+            })
+        });
     }
 
     private async Task<string> ListStockLossesAsync(JsonObject input, CancellationToken ct)
@@ -444,13 +519,23 @@ public class AiReportService : IAiReportService
         DateTime? fromDt = !string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f) ? f : null;
         DateTime? toDt   = !string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t) ? t.AddDays(1) : null;
 
-        var all = await _stockLosses.ListAsync(from: fromDt, to: toDt, ct: ct);
-        return JsonSerializer.Serialize(all.OrderByDescending(l => l.CreatedAt).Take(200).Select(l => new
+        var all      = await _stockLosses.ListAsync(from: fromDt, to: toDt, ct: ct);
+        var staffMap = (await _staff.ListAsync(ct)).ToDictionary(s => s.StaffMemberId, s => s.FullName);
+        var list     = all.OrderByDescending(l => l.CreatedAt).ToList();
+        var returned = list.Take(200).ToList();
+        return JsonSerializer.Serialize(new
         {
-            l.LossId,
-            Date = l.CreatedAt.ToString("yyyy-MM-dd"),
-            l.SpeciesName, l.Qty, l.Notes, l.RecordedByUserId
-        }));
+            TotalCount    = list.Count,
+            ReturnedCount = returned.Count,
+            Note          = list.Count > 200 ? $"Only 200 of {list.Count} records returned. Narrow with from_date/to_date." : null,
+            Losses = returned.Select(l => new
+            {
+                l.LossId,
+                Date           = l.CreatedAt.ToString("yyyy-MM-dd"),
+                l.SpeciesName, l.Qty, l.AdjustmentType, l.Notes,
+                RecordedBy = staffMap.TryGetValue(l.RecordedByUserId, out var sn) ? sn : l.RecordedByUserId
+            })
+        });
     }
 
     private async Task<string> ListVehiclesAsync(CancellationToken ct)
@@ -578,10 +663,12 @@ public class AiReportService : IAiReportService
             new JsonObject()),
 
         BuildTool("list_collections",
-            "Returns collection requests (live-bird collections from suppliers): supplier, driver, status, ordered/loaded/dead/short quantities per species.",
+            "Returns collection requests (live-bird collections from suppliers): supplier, driver, status, ordered/loaded/received/dead/short/over quantities per species. Short and over use actual receipt-time values.",
             new JsonObject
             {
-                ["status"] = Prop("Filter by status: Pending, Loading, InTransit, ArrivedAtHub, HubConfirmed, FinanceAcknowledged")
+                ["status"]    = Prop("Filter by status: Pending, Loading, InTransit, ArrivedAtHub, HubConfirmed, FinanceAcknowledged"),
+                ["from_date"] = Prop("Start date YYYY-MM-DD (filters by collection/created date)"),
+                ["to_date"]   = Prop("End date YYYY-MM-DD (filters by collection/created date)")
             }),
 
         BuildTool("list_staff_members",
@@ -593,10 +680,12 @@ public class AiReportService : IAiReportService
             new JsonObject()),
 
         BuildTool("list_delivery_orders",
-            "Returns delivery orders with status, assigned driver, species lines, quantities delivered, and returns/dead counts.",
+            "Returns delivery orders with status, assigned driver, client name, species names, quantities delivered, and returns/dead counts.",
             new JsonObject
             {
-                ["status"] = Prop("Filter by status: Open, OutForDelivery, Delivered")
+                ["status"]    = Prop("Filter by status: Open, OutForDelivery, Delivered"),
+                ["from_date"] = Prop("Start date YYYY-MM-DD"),
+                ["to_date"]   = Prop("End date YYYY-MM-DD")
             }),
 
         BuildTool("list_fuel_records",
@@ -605,10 +694,10 @@ public class AiReportService : IAiReportService
 
         BuildTool("list_slaughter_batches",
             "Returns slaughter batches showing input species/qty/cost and yield lines (output species, qty, unit cost, unit price).",
-            new JsonObject()),
+            DateRangeProps()),
 
         BuildTool("list_stock_losses",
-            "Returns recorded stock losses with species name, quantity, notes, and date.",
+            "Returns recorded stock losses with species name, quantity, adjustment type (Under/Over), recorded-by staff name, notes, and date.",
             DateRangeProps()),
 
         BuildTool("list_vehicles",
