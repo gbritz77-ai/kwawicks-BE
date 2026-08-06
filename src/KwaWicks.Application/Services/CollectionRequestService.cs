@@ -215,7 +215,11 @@ public class CollectionRequestService : ICollectionRequestService
                 // ReceivedQty here would double-count that portion as both "booked" AND "on-hand".
                 // Only the leftover/unallocated portion of what was physically received becomes
                 // genuinely available hub stock.
+                // HUB allocations (DeliveryOrderId = "HUB") represent stock staying at the hub.
+                // They don't create a QtyBookedOutForDelivery commitment at creation, so they must
+                // NOT be counted here — their qty is part of what goes into on-hand stock.
                 var alreadyAllocated = cr.DeliveryAllocations
+                    .Where(a => a.DeliveryOrderId != "HUB")
                     .SelectMany(a => a.Lines)
                     .Where(l => l.SpeciesId == line.SpeciesId)
                     .Sum(l => l.Qty);
@@ -809,15 +813,13 @@ public class CollectionRequestService : ICollectionRequestService
                     $"AcceptedQty {reqLine.AcceptedQty} exceeds allocated qty {allocLine.Qty} for species {reqLine.SpeciesId}.");
         }
 
-        // Stock was already added to QtyOnHandHub by HubConfirmAsync, so no on-hand adjustment
-        // is needed here. But the booked commitment made when this allocation was created
-        // (AddDeliveryAllocationAsync) must now be released — the stock has been folded into
-        // general on-hand inventory and is no longer "reserved", it's just available stock.
+        // Stock was already added to QtyOnHandHub by HubConfirmAsync. HUB allocations do NOT
+        // create a QtyBookedOutForDelivery commitment at creation, so there is nothing to release
+        // here — just record the accepted quantities.
         foreach (var reqLine in request.Lines.Where(l => l.AcceptedQty > 0))
         {
             var allocLine = hubAlloc.Lines.First(l => l.SpeciesId == reqLine.SpeciesId);
             allocLine.AcceptedQty = reqLine.AcceptedQty;
-            await _speciesRepo.AdjustStockAsync(reqLine.SpeciesId, 0, -allocLine.Qty, ct);
         }
 
         hubAlloc.HubAcceptanceStatus = "Accepted";
@@ -844,13 +846,14 @@ public class CollectionRequestService : ICollectionRequestService
                 throw new InvalidOperationException(
                     "Cannot remove a HUB allocation that has already been accepted — stock has been added to hub inventory.");
 
-            // Release the booked commitment made when this allocation was created. Use the
-            // per-line flag set at creation time to know whether on-hand was also deducted then.
+            // HUB allocations don't create a QtyBookedOutForDelivery commitment — nothing to release.
+            // If HubConfirm already ran, the qty was added to on-hand and must be reversed.
+            bool hubAlreadyConfirmed = cr.Status is "HubConfirmed" or "FinanceAcknowledged";
             foreach (var line in allocation.Lines)
             {
                 ct.ThrowIfCancellationRequested();
-                int onHandRestore = line.OnHandDeducted ? +line.Qty : 0;
-                await _speciesRepo.AdjustStockAsync(line.SpeciesId, onHandRestore, -line.Qty, ct);
+                if (hubAlreadyConfirmed)
+                    await _speciesRepo.AdjustStockAsync(line.SpeciesId, -line.Qty, 0, ct, minOnHandRequired: line.Qty);
             }
 
             cr.DeliveryAllocations.Remove(allocation);
