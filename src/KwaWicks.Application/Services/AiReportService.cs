@@ -446,7 +446,7 @@ public class AiReportService : IAiReportService
             Orders = returned.Select(o => new
             {
                 o.DeliveryOrderId, o.Status, o.AssignedDriverName,
-                ClientName = clientMap.TryGetValue(o.ClientId, out var cn) ? cn : o.ClientId,
+                ClientName = clientMap.TryGetValue(o.CustomerId, out var cn) ? cn : o.CustomerId,
                 Date       = o.CreatedAt.ToString("yyyy-MM-dd"),
                 TotalLines = o.Lines.Count,
                 TotalQty   = o.Lines.Sum(l => l.Quantity),
@@ -520,7 +520,7 @@ public class AiReportService : IAiReportService
         DateTime? toDt   = !string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t) ? t.AddDays(1) : null;
 
         var all      = await _stockLosses.ListAsync(from: fromDt, to: toDt, ct: ct);
-        var staffMap = (await _staff.ListAsync(ct)).ToDictionary(s => s.StaffMemberId, s => s.FullName);
+        var staffMap = (await _staff.ListAsync(ct)).ToDictionary(s => s.StaffMemberId, s => s.Name);
         var list     = all.OrderByDescending(l => l.CreatedAt).ToList();
         var returned = list.Take(200).ToList();
         return JsonSerializer.Serialize(new

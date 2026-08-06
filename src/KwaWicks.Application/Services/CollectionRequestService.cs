@@ -201,34 +201,91 @@ public class CollectionRequestService : ICollectionRequestService
 
         cr.Status = "HubConfirmed";
 
-        // Book stock into hub with compensating rollback
-        var bookedIn = new List<(string speciesId, int qty)>();
+        // Book unallocated stock to on-hand, and auto-complete the HUB allocation as a delivery.
+        // All allocations (client + HUB) were booked (QtyBookedOutForDelivery) at creation, so
+        // only the truly unallocated remainder goes to on-hand here.
+        var bookedIn = new List<(string speciesId, int onHandAdded, int bookedReleased)>();
         try
         {
             foreach (var line in cr.Lines.Where(l => l.ReceivedQty > 0))
             {
                 ct.ThrowIfCancellationRequested();
 
-                // Stock already allocated to specific client/hub deliveries for this species was
-                // booked (not on-hand) when those allocations were created — it bypasses general
-                // availability and goes straight to fulfilling those commitments. Adding the full
-                // ReceivedQty here would double-count that portion as both "booked" AND "on-hand".
-                // Only the leftover/unallocated portion of what was physically received becomes
-                // genuinely available hub stock.
-                // HUB allocations (DeliveryOrderId = "HUB") represent stock staying at the hub.
-                // They don't create a QtyBookedOutForDelivery commitment at creation, so they must
-                // NOT be counted here — their qty is part of what goes into on-hand stock.
+                // All pre-allocated qty (client + HUB) bypasses on-hand; only the true remainder
+                // becomes general available stock.
                 var alreadyAllocated = cr.DeliveryAllocations
-                    .Where(a => a.DeliveryOrderId != "HUB")
                     .SelectMany(a => a.Lines)
                     .Where(l => l.SpeciesId == line.SpeciesId)
                     .Sum(l => l.Qty);
                 var unallocatedReceived = Math.Max(0, line.ReceivedQty - alreadyAllocated);
-                if (unallocatedReceived == 0) continue;
+                if (unallocatedReceived > 0)
+                {
+                    await _speciesRepo.AdjustStockAsync(line.SpeciesId, +unallocatedReceived, 0, ct);
+                    bookedIn.Add((line.SpeciesId, unallocatedReceived, 0));
+                }
+            }
 
-                // Atomic ADD — eliminates stale-write races with concurrent deliveries
-                await _speciesRepo.AdjustStockAsync(line.SpeciesId, +unallocatedReceived, 0, ct);
-                bookedIn.Add((line.SpeciesId, unallocatedReceived));
+            // Auto-complete the HUB allocation: the stock physically arrived at the hub, so
+            // transfer its booked qty to on-hand and generate an invoice for the hub.
+            var hubAlloc = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == "HUB");
+            if (hubAlloc != null && hubAlloc.HubAcceptanceStatus != "Accepted")
+            {
+                var hubInvoiceLines = new List<InvoiceLine>();
+
+                foreach (var hubLine in hubAlloc.Lines.Where(l => l.Qty > 0))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var crLine = cr.Lines.FirstOrDefault(l => l.SpeciesId == hubLine.SpeciesId);
+                    if (crLine == null) continue;
+
+                    // Hub receives whatever was received minus what client allocations take
+                    var clientAllocated = cr.DeliveryAllocations
+                        .Where(a => a.DeliveryOrderId != "HUB")
+                        .SelectMany(a => a.Lines)
+                        .Where(l => l.SpeciesId == hubLine.SpeciesId)
+                        .Sum(l => l.Qty);
+                    int hubReceived = Math.Min(hubLine.Qty, Math.Max(0, crLine.ReceivedQty - clientAllocated));
+
+                    hubLine.AcceptedQty = hubReceived;
+
+                    // Transfer: release the booked commitment, add actually-received to on-hand
+                    await _speciesRepo.AdjustStockAsync(hubLine.SpeciesId, +hubReceived, -hubLine.Qty, ct);
+                    bookedIn.Add((hubLine.SpeciesId, hubReceived, hubLine.Qty));
+
+                    if (hubReceived > 0)
+                    {
+                        var lineNet = hubReceived * hubLine.UnitPrice;
+                        hubInvoiceLines.Add(new InvoiceLine
+                        {
+                            SpeciesId = hubLine.SpeciesId,
+                            Quantity  = hubReceived,
+                            UnitPrice = hubLine.UnitPrice,
+                            VatRate   = 0m,
+                            LineTotal = lineNet,
+                        });
+                    }
+                }
+
+                if (hubInvoiceLines.Count > 0)
+                {
+                    var invoiceNumber = await _invoiceRepo.GetNextInvoiceNumberAsync(ct);
+                    var hubInvoice = new Invoice
+                    {
+                        CustomerId    = cr.HubId,
+                        HubId         = cr.HubId,
+                        InvoiceNumber = invoiceNumber,
+                        SaleType      = "HubStock",
+                        SubTotal      = hubInvoiceLines.Sum(l => l.LineTotal),
+                        VatTotal      = 0m,
+                        GrandTotal    = hubInvoiceLines.Sum(l => l.LineTotal),
+                        Lines         = hubInvoiceLines,
+                    };
+                    await _invoiceRepo.CreateAsync(hubInvoice, ct);
+                    hubAlloc.HubInvoiceId = hubInvoice.InvoiceId;
+                }
+
+                hubAlloc.HubAcceptanceStatus = "Accepted";
+                hubAlloc.HubAcceptedAt = DateTime.UtcNow;
             }
 
             await _repo.UpdateAsync(cr, ct);
@@ -244,11 +301,11 @@ public class CollectionRequestService : ICollectionRequestService
         catch
         {
             // Compensating rollback — atomically reverse each addition
-            foreach (var (speciesId, qty) in bookedIn)
+            foreach (var (speciesId, onHandAdded, bookedReleased) in bookedIn)
             {
                 try
                 {
-                    await _speciesRepo.AdjustStockAsync(speciesId, -qty, 0, CancellationToken.None);
+                    await _speciesRepo.AdjustStockAsync(speciesId, -onHandAdded, +bookedReleased, CancellationToken.None);
                 }
                 catch { /* swallow rollback errors */ }
             }
@@ -360,22 +417,48 @@ public class CollectionRequestService : ICollectionRequestService
                         $"{(crLine.LoadedQty > 0 ? "Loaded" : "Ordered")}: {effectiveQty}, already allocated: {alreadyAllocated}.");
             }
 
+            // Hub is now treated as a customer: book the qty the same way a client pre-confirm
+            // allocation does. On HubConfirm the booking is transferred to on-hand and invoiced.
+            bool alreadyHubConfirmedForHub = cr.Status is "HubConfirmed" or "FinanceAcknowledged";
             var hubLines = new List<CollectionAllocationLine>();
-            foreach (var reqLine in request.Lines)
+            var hubBooked = new List<(string speciesId, int qty)>();
+            try
             {
-                var species = await _speciesRepo.GetAsync(reqLine.SpeciesId, ct);
-                hubLines.Add(new CollectionAllocationLine
+                foreach (var reqLine in request.Lines)
                 {
-                    SpeciesId   = reqLine.SpeciesId,
-                    SpeciesName = species?.Name ?? reqLine.SpeciesId,
-                    Qty         = reqLine.Qty,
-                    UnitPrice   = 0m, // hub stock has no outgoing sale price
-                });
+                    var species = await _speciesRepo.GetAsync(reqLine.SpeciesId, ct);
+                    bool deductOnHand = alreadyHubConfirmedForHub;
+                    int onHandDelta = deductOnHand ? -reqLine.Qty : 0;
+                    await _speciesRepo.AdjustStockAsync(reqLine.SpeciesId, onHandDelta, +reqLine.Qty, ct,
+                        minOnHandRequired: onHandDelta < 0 ? reqLine.Qty : 0);
+                    hubBooked.Add((reqLine.SpeciesId, reqLine.Qty));
+                    hubLines.Add(new CollectionAllocationLine
+                    {
+                        SpeciesId      = reqLine.SpeciesId,
+                        SpeciesName    = species?.Name ?? reqLine.SpeciesId,
+                        Qty            = reqLine.Qty,
+                        UnitPrice      = reqLine.UnitPrice ?? 0m,
+                        OnHandDeducted = deductOnHand,
+                    });
+                }
+            }
+            catch
+            {
+                foreach (var (speciesId, qty) in hubBooked)
+                {
+                    try
+                    {
+                        bool deductOnHand = alreadyHubConfirmedForHub;
+                        await _speciesRepo.AdjustStockAsync(speciesId, deductOnHand ? +qty : 0, -qty, CancellationToken.None);
+                    }
+                    catch { }
+                }
+                throw;
             }
 
             cr.DeliveryAllocations.Add(new CollectionDeliveryAllocation
             {
-                DeliveryOrderId = "HUB", // sentinel — not a real delivery order
+                DeliveryOrderId = "HUB",
                 ClientId        = "HUB",
                 ClientName      = "Hub Stock",
                 Lines           = hubLines,
@@ -846,14 +929,13 @@ public class CollectionRequestService : ICollectionRequestService
                 throw new InvalidOperationException(
                     "Cannot remove a HUB allocation that has already been accepted — stock has been added to hub inventory.");
 
-            // HUB allocations don't create a QtyBookedOutForDelivery commitment — nothing to release.
-            // If HubConfirm already ran, the qty was added to on-hand and must be reversed.
-            bool hubAlreadyConfirmed = cr.Status is "HubConfirmed" or "FinanceAcknowledged";
+            // HUB allocations book QtyBookedOutForDelivery at creation (same as client allocations).
+            // Reverse the booking and restore on-hand if it was deducted.
             foreach (var line in allocation.Lines)
             {
                 ct.ThrowIfCancellationRequested();
-                if (hubAlreadyConfirmed)
-                    await _speciesRepo.AdjustStockAsync(line.SpeciesId, -line.Qty, 0, ct, minOnHandRequired: line.Qty);
+                int onHandRestore = line.OnHandDeducted ? +line.Qty : 0;
+                await _speciesRepo.AdjustStockAsync(line.SpeciesId, onHandRestore, -line.Qty, ct);
             }
 
             cr.DeliveryAllocations.Remove(allocation);

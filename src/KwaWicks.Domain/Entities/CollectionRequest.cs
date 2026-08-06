@@ -32,6 +32,7 @@ public class CollectionDeliveryAllocation
     // Hub-direct allocations only — tracks whether hub staff has physically accepted the stock
     public string HubAcceptanceStatus { get; set; } = ""; // "" | "Accepted"
     public DateTime? HubAcceptedAt { get; set; }
+    public string HubInvoiceId { get; set; } = "";
 }
 
 public class CollectionAllocationLine
