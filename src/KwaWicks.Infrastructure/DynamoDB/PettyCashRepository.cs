@@ -176,7 +176,7 @@ public class PettyCashRepository : IPettyCashRepository
             Key = new Dictionary<string, AttributeValue>
             {
                 ["PK"] = new() { S = CashupPk(cashupId) },
-                ["SK"] = new() { S = "CASHUP" }
+                ["SK"] = new() { S = SkMeta }
             },
             UpdateExpression = "SET ActualBalance = :ab",
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
