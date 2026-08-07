@@ -68,13 +68,15 @@ public class ClientCreditRepository : IClientCreditRepository
 
     public async Task<decimal> SumCashDepositsAsync(DateTime? since, CancellationToken ct = default)
     {
-        // Positive-amount entries with PaymentMethod=Cash (deposits only, not invoice charges)
-        var filterParts = new List<string> { "EntityType = :et", "PaymentMethod = :pm", "Amount > :zero" };
+        // Only count Deposit entries with PaymentMethod=Cash — exclude InvoicePayment entries
+        // which are already counted under Hub Sales Cash (they would otherwise be double-counted).
+        var filterParts = new List<string> { "EntityType = :et", "EntryType = :etype", "PaymentMethod = :pm", "Amount > :zero" };
         var values = new Dictionary<string, AttributeValue>
         {
-            [":et"]   = new() { S = "ClientCreditEntry" },
-            [":pm"]   = new() { S = "Cash" },
-            [":zero"] = new() { N = "0" }
+            [":et"]    = new() { S = "ClientCreditEntry" },
+            [":etype"] = new() { S = "Deposit" },
+            [":pm"]    = new() { S = "Cash" },
+            [":zero"]  = new() { N = "0" }
         };
 
         if (since.HasValue)
