@@ -97,7 +97,7 @@ public class AiReportService : IAiReportService
         {
             var requestBody = new JsonObject
             {
-                ["model"]      = "claude-haiku-4-5-20251001",
+                ["model"]      = "claude-3-5-haiku-20241022",
                 ["max_tokens"] = 8192,
                 ["system"]     = systemPrompt,
                 ["tools"]      = JsonNode.Parse(toolsJson),
