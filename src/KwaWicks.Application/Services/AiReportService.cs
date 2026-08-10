@@ -109,7 +109,13 @@ public class AiReportService : IAiReportService
                 new StringContent(requestBody.ToJsonString(), Encoding.UTF8, "application/json"),
                 ct);
 
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                throw new InvalidOperationException(
+                    $"Anthropic API error {(int)response.StatusCode}: {errorBody}");
+            }
+
             var body = await response.Content.ReadFromJsonAsync<JsonObject>(ct)
                        ?? throw new InvalidOperationException("Empty response from Anthropic API");
 

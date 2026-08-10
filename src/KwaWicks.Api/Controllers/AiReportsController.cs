@@ -22,7 +22,18 @@ public class AiReportsController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Prompt))
             return BadRequest(new { error = "Prompt is required." });
 
-        var result = await _service.RunReportAsync(req.Prompt.Trim(), ct);
-        return Ok(result);
+        try
+        {
+            var result = await _service.RunReportAsync(req.Prompt.Trim(), ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = $"Report failed: {ex.Message}" });
+        }
     }
 }
