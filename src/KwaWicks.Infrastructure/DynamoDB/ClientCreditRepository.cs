@@ -108,6 +108,51 @@ public class ClientCreditRepository : IClientCreditRepository
             .Sum(i => decimal.Parse(i["Amount"].N!, NumberStyles.Any, CultureInfo.InvariantCulture));
     }
 
+    public async Task<ClientCreditEntry?> FindInvoiceChargeAsync(string invoiceId, CancellationToken ct = default)
+    {
+        var req = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = "EntityType = :et AND EntryType = :etype AND #ref = :iid",
+            ExpressionAttributeNames  = new Dictionary<string, string> { ["#ref"] = "Reference" },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":et"]    = new() { S = "ClientCreditEntry" },
+                [":etype"] = new() { S = "InvoiceCharge" },
+                [":iid"]   = new() { S = invoiceId }
+            }
+        };
+
+        ScanResponse? resp;
+        var items = new List<Dictionary<string, AttributeValue>>();
+        do
+        {
+            resp = await _ddb.ScanAsync(req, ct);
+            items.AddRange(resp.Items);
+            req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        } while (resp.LastEvaluatedKey is { Count: > 0 });
+
+        return items.Select(FromItem).FirstOrDefault();
+    }
+
+    public async Task UpdateEntryAmountAsync(string entryId, decimal newAmount, CancellationToken ct = default)
+    {
+        await _ddb.UpdateItemAsync(new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = Pk(entryId) },
+                ["SK"] = new() { S = SkMeta }
+            },
+            UpdateExpression = "SET Amount = :amt",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":amt"] = new() { N = newAmount.ToString(CultureInfo.InvariantCulture) }
+            }
+        }, ct);
+    }
+
     public async Task DeleteEntryAsync(string entryId, CancellationToken ct = default)
     {
         await _ddb.DeleteItemAsync(new DeleteItemRequest

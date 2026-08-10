@@ -185,6 +185,13 @@ public class ClientCreditService : IClientCreditService
         return settlement;
     }
 
+    public async Task UpdateInvoiceChargeAsync(string invoiceId, decimal newGrandTotal, CancellationToken ct = default)
+    {
+        var entry = await _repo.FindInvoiceChargeAsync(invoiceId, ct);
+        if (entry is null) return; // invoice not yet charged to account — nothing to update
+        await _repo.UpdateEntryAmountAsync(entry.EntryId, -Math.Abs(newGrandTotal), ct);
+    }
+
     public async Task<CreditProofUploadUrlResponse> GetProofUploadUrlAsync(
         string clientId, string contentType, CancellationToken ct = default)
     {

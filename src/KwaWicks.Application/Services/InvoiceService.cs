@@ -455,6 +455,10 @@ public class InvoiceService : IInvoiceService
         invoice.UpdatedAt = DateTime.UtcNow;
 
         await _invoiceRepo.UpdateAsync(invoice, ct);
+
+        // Keep the client ledger charge entry in sync with the updated total
+        await _clientCreditService.UpdateInvoiceChargeAsync(invoiceId, invoice.GrandTotal, ct);
+
         return MapToResponse(invoice);
     }
 

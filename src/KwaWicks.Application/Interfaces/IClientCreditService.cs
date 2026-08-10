@@ -23,4 +23,6 @@ public interface IClientCreditService
     /// <summary>Posts a positive SalaryDeduction entry equal to the outstanding negative balance,
     /// bringing the staff member's credit back to R0. Returns the settlement amount posted (0 if already balanced).</summary>
     Task<decimal> SettleSalaryDeductionAsync(string staffMemberId, string settledByUserId, CancellationToken ct = default);
+    /// <summary>Updates the InvoiceCharge ledger entry for an invoice to reflect a revised grand total after a price change.</summary>
+    Task UpdateInvoiceChargeAsync(string invoiceId, decimal newGrandTotal, CancellationToken ct = default);
 }

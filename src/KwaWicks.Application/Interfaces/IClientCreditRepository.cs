@@ -9,4 +9,6 @@ public interface IClientCreditRepository
     Task<decimal> GetBalanceAsync(string clientId, CancellationToken ct = default);
     Task<decimal> SumCashDepositsAsync(DateTime? since, CancellationToken ct = default);
     Task DeleteEntryAsync(string entryId, CancellationToken ct = default);
+    Task<ClientCreditEntry?> FindInvoiceChargeAsync(string invoiceId, CancellationToken ct = default);
+    Task UpdateEntryAmountAsync(string entryId, decimal newAmount, CancellationToken ct = default);
 }
