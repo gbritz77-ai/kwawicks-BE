@@ -622,6 +622,7 @@ public class ReportService : IReportService
                         LineTotal     = line.LineTotal,
                         PaymentType   = inv.PaymentType,
                         SaleType      = inv.SaleType,
+                        SplitPayments = inv.SplitPayments.Select(sp => new SplitPaymentReportLine { Method = sp.Method, Amount = sp.Amount }).ToList(),
                     };
                 });
             })

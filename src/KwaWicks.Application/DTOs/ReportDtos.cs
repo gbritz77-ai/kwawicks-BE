@@ -274,6 +274,14 @@ public class SalesReportRow
     public decimal LineTotal    { get; set; }
     public string PaymentType   { get; set; } = "";
     public string SaleType      { get; set; } = "";
+    /// <summary>Populated when PaymentType == "Split".</summary>
+    public List<SplitPaymentReportLine> SplitPayments { get; set; } = new();
+}
+
+public class SplitPaymentReportLine
+{
+    public string Method { get; set; } = "";
+    public decimal Amount { get; set; }
 }
 
 // ── Admin: Species Revenue ────────────────────────────────────────────────────
