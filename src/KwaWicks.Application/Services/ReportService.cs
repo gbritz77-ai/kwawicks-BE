@@ -594,6 +594,7 @@ public class ReportService : IReportService
         var speciesMap = speciesTask.Result.ToDictionary(s => s.SpeciesId, s => s.Name);
 
         var rows = invoicesTask.Result
+            .Where(i => i.Status != "Cancelled")
             .Where(i => from == null || i.CreatedAt >= from.Value)
             .Where(i => to   == null || i.CreatedAt <= to.Value.AddDays(1))
             .OrderBy(i => i.CreatedAt)
