@@ -15,6 +15,7 @@ public interface IBankStatementService
     Task<AllocateResponse> AllocateExpenseAsync(string statementId, string transactionId, AllocateExpenseRequest request, CancellationToken ct);
     Task<BankStatementResponse> DeallocateAsync(string statementId, string transactionId, CancellationToken ct);
     Task<List<BankReconAllocationReportItem>> GetAllocationReportAsync(DateTime? from, DateTime? to, CancellationToken ct);
+    Task<DebitReportResponse> GetDebitReportAsync(DateTime? from, DateTime? to, CancellationToken ct);
     Task<List<string>> GetExpenseCategoriesAsync(CancellationToken ct);
     Task<List<string>> AddExpenseCategoryAsync(string category, CancellationToken ct);
 }

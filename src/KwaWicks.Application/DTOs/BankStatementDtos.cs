@@ -112,6 +112,36 @@ public class BankStatementSummaryResponse
     public decimal UnallocatedAmount { get; set; }
 }
 
+public class DebitReportItem
+{
+    public string StatementId { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public string TransactionId { get; set; } = "";
+    public string Date { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Reference { get; set; } = "";
+    public decimal Amount { get; set; }
+    public bool IsAllocated { get; set; }
+    public string AllocationType { get; set; } = "";   // "Expense" | "Supplier" | "NonClient" | ""
+    public string AllocatedTo { get; set; } = "";      // category / supplier name / description
+    public string? AllocatedAt { get; set; }
+}
+
+public class DebitReportResponse
+{
+    public decimal TotalDebits { get; set; }
+    public decimal TotalAllocated { get; set; }
+    public decimal TotalUnallocated { get; set; }
+    public List<DebitReportCategorySummary> ByCategory { get; set; } = new();
+    public List<DebitReportItem> Items { get; set; } = new();
+}
+
+public class DebitReportCategorySummary
+{
+    public string Label { get; set; } = "";   // "Expense: Fuel", "Supplier: ABC", "Unallocated", etc.
+    public decimal Total { get; set; }
+}
+
 public class BankReconAllocationReportItem
 {
     public string StatementId { get; set; } = "";

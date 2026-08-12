@@ -440,6 +440,80 @@ public class BankStatementService : IBankStatementService
         return result.OrderByDescending(r => r.Date).ToList();
     }
 
+    // ── Debit report ───────────────────────────────────────────────────────
+
+    public async Task<DebitReportResponse> GetDebitReportAsync(DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var statements = await _repo.ListAsync(ct);
+        var items = new List<DebitReportItem>();
+
+        foreach (var s in statements)
+        {
+            foreach (var tx in s.Transactions.Where(t => t.Type == "Debit"))
+            {
+                if (from.HasValue && tx.Date.Date < from.Value.Date) continue;
+                if (to.HasValue   && tx.Date.Date > to.Value.Date)   continue;
+
+                var allocTo = tx.AllocationType switch
+                {
+                    "Expense"     => tx.ExpenseCategory,
+                    "Supplier"    => tx.AllocatedSupplierName,
+                    "NonClient"   => tx.NonClientDescription,
+                    _             => ""
+                };
+
+                items.Add(new DebitReportItem
+                {
+                    StatementId   = s.StatementId,
+                    FileName      = s.FileName,
+                    TransactionId = tx.TransactionId,
+                    Date          = tx.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    Description   = tx.Description,
+                    Reference     = tx.Reference,
+                    Amount        = tx.Amount,
+                    IsAllocated   = tx.IsAllocated,
+                    AllocationType = tx.AllocationType,
+                    AllocatedTo   = allocTo,
+                    AllocatedAt   = tx.AllocatedAt.HasValue
+                        ? tx.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
+                        : null
+                });
+            }
+        }
+
+        items = items.OrderByDescending(i => i.Date).ThenByDescending(i => i.Amount).ToList();
+
+        var totalDebits      = items.Sum(i => i.Amount);
+        var totalAllocated   = items.Where(i => i.IsAllocated).Sum(i => i.Amount);
+        var totalUnallocated = items.Where(i => !i.IsAllocated).Sum(i => i.Amount);
+
+        // Category summary
+        var categoryGroups = items
+            .Where(i => i.IsAllocated)
+            .GroupBy(i => i.AllocationType switch
+            {
+                "Expense"   => $"Expense: {i.AllocatedTo}",
+                "Supplier"  => $"Supplier: {i.AllocatedTo}",
+                "NonClient" => $"Non-Client: {i.AllocatedTo}",
+                _           => i.AllocationType
+            })
+            .Select(g => new DebitReportCategorySummary { Label = g.Key, Total = g.Sum(x => x.Amount) })
+            .OrderByDescending(g => g.Total)
+            .ToList();
+
+        if (totalUnallocated > 0)
+            categoryGroups.Add(new DebitReportCategorySummary { Label = "Unallocated", Total = totalUnallocated });
+
+        return new DebitReportResponse
+        {
+            TotalDebits      = totalDebits,
+            TotalAllocated   = totalAllocated,
+            TotalUnallocated = totalUnallocated,
+            ByCategory       = categoryGroups,
+            Items            = items
+        };
+    }
+
     // ── Amount mismatch warning ────────────────────────────────────────────
 
     private static AllocationWarning? BuildAmountWarning(decimal bankAmount, decimal allocationAmount)

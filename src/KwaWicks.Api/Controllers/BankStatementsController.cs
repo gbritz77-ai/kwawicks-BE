@@ -81,6 +81,18 @@ public class BankStatementsController : ControllerBase
         return Ok(result);
     }
 
+    // GET /api/bank-statements/debit-report?from=&to=
+    [HttpGet("debit-report")]
+    [ProducesResponseType(typeof(DebitReportResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DebitReport(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var result = await _service.GetDebitReportAsync(from, to, ct);
+        return Ok(result);
+    }
+
     // GET /api/bank-statements/allocation-report?from=&to=
     [HttpGet("allocation-report")]
     [ProducesResponseType(typeof(List<BankReconAllocationReportItem>), StatusCodes.Status200OK)]
