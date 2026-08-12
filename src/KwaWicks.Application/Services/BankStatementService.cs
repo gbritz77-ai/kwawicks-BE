@@ -301,6 +301,57 @@ public class BankStatementService : IBankStatementService
         return new AllocateResponse { Statement = MapToResponse(statement) };
     }
 
+    // ── Expense allocation ─────────────────────────────────────────────────
+
+    public async Task<AllocateResponse> AllocateExpenseAsync(
+        string statementId,
+        string transactionId,
+        AllocateExpenseRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Category))
+            throw new InvalidOperationException("An expense category is required.");
+
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found in statement {statementId}.");
+
+        if (tx.IsAllocated)
+            throw new InvalidOperationException("Transaction is already allocated.");
+
+        tx.IsAllocated       = true;
+        tx.AllocationType    = "Expense";
+        tx.ExpenseCategory   = request.Category.Trim();
+        tx.AllocatedAt       = DateTime.UtcNow;
+
+        await _repo.UpdateAsync(statement, ct);
+
+        return new AllocateResponse { Statement = MapToResponse(statement) };
+    }
+
+    // ── Expense categories ─────────────────────────────────────────────────
+
+    public Task<List<string>> GetExpenseCategoriesAsync(CancellationToken ct)
+        => _repo.GetExpenseCategoriesAsync(ct);
+
+    public async Task<List<string>> AddExpenseCategoryAsync(string category, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            throw new InvalidOperationException("Category name is required.");
+
+        var categories = await _repo.GetExpenseCategoriesAsync(ct);
+        var trimmed = category.Trim();
+        if (!categories.Any(c => string.Equals(c, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            categories.Add(trimmed);
+            categories.Sort(StringComparer.OrdinalIgnoreCase);
+            await _repo.SaveExpenseCategoriesAsync(categories, ct);
+        }
+        return categories;
+    }
+
     // ── Deallocation ───────────────────────────────────────────────────────
 
     public async Task<BankStatementResponse> DeallocateAsync(
@@ -333,6 +384,7 @@ public class BankStatementService : IBankStatementService
         tx.AllocatedSupplierName  = "";
         tx.AllocatedClientId      = "";
         tx.AllocatedClientName    = "";
+        tx.ExpenseCategory        = "";
         tx.AllocatedAt            = null;
 
         if (!string.IsNullOrWhiteSpace(allocatedInvoiceId))
@@ -377,6 +429,7 @@ public class BankStatementService : IBankStatementService
                     AllocatedSupplierName  = tx.AllocatedSupplierName,
                     AllocatedClientId      = tx.AllocatedClientId,
                     AllocatedClientName    = tx.AllocatedClientName,
+                    ExpenseCategory        = tx.ExpenseCategory,
                     AllocatedAt            = tx.AllocatedAt.HasValue
                         ? tx.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
                         : null
@@ -744,6 +797,7 @@ public class BankStatementService : IBankStatementService
         AllocatedSupplierName  = t.AllocatedSupplierName,
         AllocatedClientId      = t.AllocatedClientId,
         AllocatedClientName    = t.AllocatedClientName,
+        ExpenseCategory        = t.ExpenseCategory,
         IsPossibleDuplicate           = t.IsPossibleDuplicate,
         DuplicateOfStatementFileName  = t.DuplicateOfStatementFileName,
         DuplicateOfAllocationSummary  = t.DuplicateOfAllocationSummary,

@@ -31,6 +31,7 @@ public class BankTransaction
     public string AllocatedClientId { get; set; } = "";
     public string AllocatedClientName { get; set; } = "";
     public DateTime? AllocatedAt { get; set; }
+    public string ExpenseCategory { get; set; } = "";
 
     // ── Cross-statement duplicate detection ──────────────────────────────
     /// <summary>True when this transaction matches (same date + amount) a transaction that

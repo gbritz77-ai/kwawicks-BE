@@ -129,6 +129,45 @@ public class BankStatementRepository : IBankStatementRepository
         };
     }
 
+    private const string PkConfig = "CONFIG#EXPENSE_CATEGORIES";
+    private const string SkConfig = "CONFIG";
+
+    public async Task<List<string>> GetExpenseCategoriesAsync(CancellationToken ct)
+    {
+        var res = await _ddb.GetItemAsync(new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = PkConfig },
+                ["SK"] = new() { S = SkConfig }
+            }
+        }, ct);
+
+        if (res.Item is null || res.Item.Count == 0) return DefaultCategories();
+        if (res.Item.TryGetValue("CategoriesJson", out var v) && !string.IsNullOrEmpty(v.S))
+            return JsonSerializer.Deserialize<List<string>>(v.S) ?? DefaultCategories();
+        return DefaultCategories();
+    }
+
+    public async Task SaveExpenseCategoriesAsync(List<string> categories, CancellationToken ct)
+    {
+        await _ddb.PutItemAsync(new PutItemRequest
+        {
+            TableName = _tableName,
+            Item = new Dictionary<string, AttributeValue>
+            {
+                ["PK"]             = new() { S = PkConfig },
+                ["SK"]             = new() { S = SkConfig },
+                ["EntityType"]     = new() { S = "Config" },
+                ["CategoriesJson"] = new() { S = JsonSerializer.Serialize(categories) }
+            }
+        }, ct);
+    }
+
+    private static List<string> DefaultCategories() =>
+        new() { "Bank Charges", "Fuel", "Salaries", "Utilities", "Rent", "Insurance", "Office Supplies", "Maintenance", "Other" };
+
     private static BankStatement FromItemSummary(Dictionary<string, AttributeValue> item) =>
         new BankStatement
         {

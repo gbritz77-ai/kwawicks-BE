@@ -165,6 +165,56 @@ public class BankStatementsController : ControllerBase
         }
     }
 
+    // PUT /api/bank-statements/{statementId}/transactions/{transactionId}/allocate-expense
+    [HttpPut("{statementId}/transactions/{transactionId}/allocate-expense")]
+    [ProducesResponseType(typeof(AllocateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AllocateExpense(
+        string statementId,
+        string transactionId,
+        [FromBody] AllocateExpenseRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.AllocateExpenseAsync(statementId, transactionId, request, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not found")
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
+    // GET /api/bank-statements/expense-categories
+    [HttpGet("expense-categories")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetExpenseCategories(CancellationToken ct)
+    {
+        var categories = await _service.GetExpenseCategoriesAsync(ct);
+        return Ok(categories);
+    }
+
+    // POST /api/bank-statements/expense-categories
+    [HttpPost("expense-categories")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AddExpenseCategory([FromBody] AddExpenseCategoryRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var categories = await _service.AddExpenseCategoryAsync(request.Category, ct);
+            return Ok(categories);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     // PUT /api/bank-statements/{statementId}/transactions/{transactionId}/allocate-client-credit
     [HttpPut("{statementId}/transactions/{transactionId}/allocate-client-credit")]
     [ProducesResponseType(typeof(AllocateResponse), StatusCodes.Status200OK)]

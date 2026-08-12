@@ -29,6 +29,16 @@ public class AllocateClientCreditRequest
     public string Notes { get; set; } = "";
 }
 
+public class AllocateExpenseRequest
+{
+    public string Category { get; set; } = "";
+}
+
+public class AddExpenseCategoryRequest
+{
+    public string Category { get; set; } = "";
+}
+
 public class AllocationWarning
 {
     public string Code { get; set; } = "";          // "AMOUNT_MISMATCH"
@@ -61,6 +71,7 @@ public class BankTransactionResponse
     public string AllocatedSupplierName { get; set; } = "";
     public string AllocatedClientId { get; set; } = "";
     public string AllocatedClientName { get; set; } = "";
+    public string ExpenseCategory { get; set; } = "";
     public string? AllocatedAt { get; set; }
 
     // ── Cross-statement duplicate detection ──────────────────────────────
@@ -119,5 +130,6 @@ public class BankReconAllocationReportItem
     public string AllocatedSupplierName { get; set; } = "";
     public string AllocatedClientId { get; set; } = "";
     public string AllocatedClientName { get; set; } = "";
+    public string ExpenseCategory { get; set; } = "";
     public string? AllocatedAt { get; set; }
 }
