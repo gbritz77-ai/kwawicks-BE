@@ -133,6 +133,17 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("client-balances")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> ClientBalances(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        CancellationToken ct)
+    {
+        var result = await _reports.GetClientBalancesAsync(from, to, ct);
+        return Ok(result);
+    }
+
     [HttpGet("staff-stock-deductions")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> StaffStockDeductions(

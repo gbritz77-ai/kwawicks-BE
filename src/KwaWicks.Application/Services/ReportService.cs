@@ -10,6 +10,7 @@ public class ReportService : IReportService
     private readonly IClientRepository _clients;
     private readonly ISpeciesRepository _species;
     private readonly IClientCreditService _clientCreditService;
+    private readonly IClientCreditRepository _creditRepo;
     private readonly IStaffMemberRepository _staffMembers;
 
     public ReportService(
@@ -18,6 +19,7 @@ public class ReportService : IReportService
         IClientRepository clients,
         ISpeciesRepository species,
         IClientCreditService clientCreditService,
+        IClientCreditRepository creditRepo,
         IStaffMemberRepository staffMembers)
     {
         _invoices = invoices;
@@ -25,6 +27,7 @@ public class ReportService : IReportService
         _clients = clients;
         _species = species;
         _clientCreditService = clientCreditService;
+        _creditRepo = creditRepo;
         _staffMembers = staffMembers;
     }
 
@@ -625,5 +628,60 @@ public class ReportService : IReportService
             .ToList();
 
         return new SalesReportResponse { From = from, To = to, Rows = rows };
+    }
+
+    public async Task<List<ClientBalanceSummary>> GetClientBalancesAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        var clientsTask = _clients.ListAsync(1000, ct);
+        // Fetch all ledger entries in one scan; use from=null so we get history for opening balance too
+        var allEntriesTask = _creditRepo.ListAllAsync(null, null, ct);
+
+        await Task.WhenAll(clientsTask, allEntriesTask);
+
+        var clientMap = clientsTask.Result
+            .Where(c => !c.IsWalkIn)
+            .ToDictionary(c => c.ClientId);
+
+        var grouped = allEntriesTask.Result
+            .Where(e => clientMap.ContainsKey(e.ClientId))
+            .GroupBy(e => e.ClientId);
+
+        var fromUtc = from?.ToUniversalTime();
+        var toUtc   = to?.AddDays(1).ToUniversalTime();
+
+        var result = new List<ClientBalanceSummary>();
+
+        foreach (var grp in grouped)
+        {
+            var ordered = grp.OrderBy(e => e.CreatedAt).ToList();
+
+            var openingBalance = fromUtc.HasValue
+                ? ordered.Where(e => e.CreatedAt < fromUtc.Value).Sum(e => e.Amount)
+                : 0m;
+
+            var inRange = ordered
+                .Where(e => fromUtc == null || e.CreatedAt >= fromUtc.Value)
+                .Where(e => toUtc   == null || e.CreatedAt <  toUtc.Value)
+                .ToList();
+
+            var totalDeposits = inRange.Where(e => e.Amount > 0).Sum(e => e.Amount);
+            var totalCharges  = inRange.Where(e => e.Amount < 0).Sum(e => Math.Abs(e.Amount));
+            var closingBalance = openingBalance + inRange.Sum(e => e.Amount);
+
+            clientMap.TryGetValue(grp.Key, out var client);
+            result.Add(new ClientBalanceSummary
+            {
+                CustomerId     = grp.Key,
+                CustomerName   = client?.ClientName ?? grp.Key,
+                From           = from,
+                To             = to,
+                OpeningBalance = openingBalance,
+                TotalDeposits  = totalDeposits,
+                TotalCharges   = totalCharges,
+                ClosingBalance = closingBalance,
+            });
+        }
+
+        return result.OrderBy(r => r.CustomerName).ToList();
     }
 }

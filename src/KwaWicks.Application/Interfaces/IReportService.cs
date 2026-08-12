@@ -20,4 +20,7 @@ public interface IReportService
     /// <summary>Admin/Finance: stock taken by staff on their hub account, for salary deduction.</summary>
     Task<StaffStockDeductionsReportResponse> GetStaffStockDeductionsAsync(
         string? staffMemberId, DateTime? from, DateTime? to, CancellationToken ct = default);
+
+    /// <summary>All clients with opening balance, charges, deposits, and closing balance for a date range.</summary>
+    Task<List<ClientBalanceSummary>> GetClientBalancesAsync(DateTime? from, DateTime? to, CancellationToken ct = default);
 }

@@ -170,6 +170,18 @@ public class ClientCreditStatementResponse
     public decimal ClosingBalance { get; set; }
 }
 
+public class ClientBalanceSummary
+{
+    public string CustomerId { get; set; } = "";
+    public string CustomerName { get; set; } = "";
+    public DateTime? From { get; set; }
+    public DateTime? To { get; set; }
+    public decimal OpeningBalance { get; set; }
+    public decimal TotalDeposits { get; set; }
+    public decimal TotalCharges { get; set; }
+    public decimal ClosingBalance { get; set; }
+}
+
 public class ClientCreditStatementLine
 {
     public DateTime Date { get; set; }
