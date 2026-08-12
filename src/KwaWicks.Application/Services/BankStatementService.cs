@@ -485,7 +485,14 @@ public class BankStatementService : IBankStatementService
             }
         }
 
-        items = items.OrderByDescending(i => i.Date).ThenByDescending(i => i.Amount).ToList();
+        // Deduplicate: same physical transaction may appear in multiple statement uploads.
+        // Per (Date, Description, Amount) group, keep the allocated version if one exists,
+        // otherwise keep the first occurrence.
+        items = items
+            .GroupBy(i => (i.Date, i.Description.Trim().ToUpperInvariant(), i.Amount))
+            .Select(g => g.FirstOrDefault(x => x.IsAllocated) ?? g.First())
+            .OrderByDescending(i => i.Date).ThenByDescending(i => i.Amount)
+            .ToList();
 
         var totalDebits      = items.Sum(i => i.Amount);
         var totalAllocated   = items.Where(i => i.IsAllocated).Sum(i => i.Amount);
