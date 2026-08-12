@@ -74,20 +74,21 @@ public class BankStatementService : IBankStatementService
     private async Task FlagCrossStatementDuplicatesAsync(List<BankTransaction> newTransactions, CancellationToken ct)
     {
         var newCredits = newTransactions.Where(t => t.Type == "Credit").ToList();
-        if (newCredits.Count == 0) return;
+        var newDebits  = newTransactions.Where(t => t.Type == "Debit").ToList();
+        if (newCredits.Count == 0 && newDebits.Count == 0) return;
 
         var allStatements = await _repo.ListAsync(ct);
         if (allStatements.Count == 0) return;
 
         foreach (var prior in allStatements)
         {
-            // ListAsync returns summaries only — load the full statement to inspect transactions.
             var full = await _repo.GetAsync(prior.StatementId, ct);
             if (full is null) continue;
 
             foreach (var priorTx in full.Transactions.Where(t => t.IsAllocated))
             {
-                foreach (var newTx in newCredits.Where(t => !t.IsPossibleDuplicate))
+                var candidates = priorTx.Type == "Credit" ? newCredits : newDebits;
+                foreach (var newTx in candidates.Where(t => !t.IsPossibleDuplicate))
                 {
                     if (newTx.Date.Date != priorTx.Date.Date) continue;
                     if (Math.Round(newTx.Amount, 2) != Math.Round(priorTx.Amount, 2)) continue;
@@ -98,11 +99,12 @@ public class BankStatementService : IBankStatementService
                     newTx.DuplicateOfAllocatedAt = priorTx.AllocatedAt;
                     newTx.DuplicateOfAllocationSummary = priorTx.AllocationType switch
                     {
-                        "Invoice" => $"Invoice {(string.IsNullOrWhiteSpace(priorTx.AllocatedInvoiceNumber) ? priorTx.AllocatedInvoiceId : priorTx.AllocatedInvoiceNumber)}",
-                        "Supplier" => $"Supplier {priorTx.AllocatedSupplierName}",
+                        "Invoice"      => $"Invoice {(string.IsNullOrWhiteSpace(priorTx.AllocatedInvoiceNumber) ? priorTx.AllocatedInvoiceId : priorTx.AllocatedInvoiceNumber)}",
+                        "Supplier"     => $"Supplier {priorTx.AllocatedSupplierName}",
                         "ClientCredit" => $"Client Credit — {priorTx.AllocatedClientName}",
-                        "NonClient" => $"Non-Client — {priorTx.NonClientDescription}",
-                        _ => priorTx.AllocationType
+                        "NonClient"    => $"Non-Client — {priorTx.NonClientDescription}",
+                        "Expense"      => $"Expense — {priorTx.ExpenseCategory}",
+                        _              => priorTx.AllocationType
                     };
                 }
             }
