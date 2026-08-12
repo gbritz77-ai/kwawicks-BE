@@ -42,6 +42,10 @@ public class Invoice
     /// Guards against double-charging across ConfirmPaymentAsync / ReconAsync.</summary>
     public bool LedgerCharged { get; set; }
 
+    /// <summary>EntryId of the InvoiceCharge credit entry for this invoice.
+    /// Stored so price edits can update the ledger entry directly without scanning.</summary>
+    public string CreditChargeEntryId { get; set; } = "";
+
     // ── Cancellation ──────────────────────────────────────────────────────
     public DateTime? CancelledAt { get; set; }
     public string CancelledReason { get; set; } = "";

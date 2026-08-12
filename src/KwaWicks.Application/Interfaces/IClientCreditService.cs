@@ -25,4 +25,5 @@ public interface IClientCreditService
     Task<decimal> SettleSalaryDeductionAsync(string staffMemberId, string settledByUserId, CancellationToken ct = default);
     /// <summary>Updates the InvoiceCharge ledger entry for an invoice to reflect a revised grand total after a price change.</summary>
     Task UpdateInvoiceChargeAsync(string invoiceId, decimal newGrandTotal, CancellationToken ct = default);
+    Task UpdateInvoiceChargeByEntryIdAsync(string entryId, decimal newGrandTotal, CancellationToken ct = default);
 }

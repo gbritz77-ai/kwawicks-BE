@@ -192,6 +192,11 @@ public class ClientCreditService : IClientCreditService
         await _repo.UpdateEntryAmountAsync(entry.EntryId, -Math.Abs(newGrandTotal), ct);
     }
 
+    public async Task UpdateInvoiceChargeByEntryIdAsync(string entryId, decimal newGrandTotal, CancellationToken ct = default)
+    {
+        await _repo.UpdateEntryAmountAsync(entryId, -Math.Abs(newGrandTotal), ct);
+    }
+
     public async Task<CreditProofUploadUrlResponse> GetProofUploadUrlAsync(
         string clientId, string contentType, CancellationToken ct = default)
     {

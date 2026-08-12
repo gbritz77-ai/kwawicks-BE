@@ -248,6 +248,7 @@ public class InvoiceRepository : IInvoiceRepository
             ["AmountPaid"] = new AttributeValue { N = inv.AmountPaid.ToString(CultureInfo.InvariantCulture) },
             ["ReconciledAtUtc"] = new AttributeValue { S = inv.ReconciledAt?.ToString("O", CultureInfo.InvariantCulture) ?? "" },
             ["LedgerCharged"] = new AttributeValue { BOOL = inv.LedgerCharged },
+            ["CreditChargeEntryId"] = new AttributeValue { S = inv.CreditChargeEntryId ?? "" },
             ["CancelledAtUtc"] = new AttributeValue { S = inv.CancelledAt?.ToString("O", CultureInfo.InvariantCulture) ?? "" },
             ["CancelledReason"] = new AttributeValue { S = inv.CancelledReason ?? "" },
             ["CancelledByUserId"] = new AttributeValue { S = inv.CancelledByUserId ?? "" }
@@ -302,6 +303,7 @@ public class InvoiceRepository : IInvoiceRepository
                 ? DateTime.Parse(rat.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                 : (DateTime?)null,
             LedgerCharged = item.TryGetValue("LedgerCharged", out var lc) && lc.BOOL == true,
+            CreditChargeEntryId = item.TryGetValue("CreditChargeEntryId", out var ccei) ? ccei.S ?? "" : "",
             CancelledAt = item.TryGetValue("CancelledAtUtc", out var cat) && !string.IsNullOrEmpty(cat.S)
                 ? DateTime.Parse(cat.S, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                 : (DateTime?)null,

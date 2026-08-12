@@ -364,7 +364,11 @@ public class InvoiceService : IInvoiceService
         if (needsLedgerPost)
         {
             // Debit: the sale itself.
-            await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+            var chargeEntry = await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+
+            // Store the credit entry ID so price edits can update it directly later (no scan needed).
+            invoice.CreditChargeEntryId = chargeEntry.EntryId;
+            await _invoiceRepo.UpdateAsync(invoice, ct);
 
             // Credit: money actually received now, for every payment type except deferred-payment
             // types (Credit/AccountCredit/OnAccount — those mean the client/staff owes it, no
@@ -456,8 +460,12 @@ public class InvoiceService : IInvoiceService
 
         await _invoiceRepo.UpdateAsync(invoice, ct);
 
-        // Keep the client ledger charge entry in sync with the updated total
-        await _clientCreditService.UpdateInvoiceChargeAsync(invoiceId, invoice.GrandTotal, ct);
+        // Keep the client ledger charge entry in sync with the updated total.
+        // Use the stored EntryId for a direct update; fall back to scan for older invoices.
+        if (!string.IsNullOrWhiteSpace(invoice.CreditChargeEntryId))
+            await _clientCreditService.UpdateInvoiceChargeByEntryIdAsync(invoice.CreditChargeEntryId, invoice.GrandTotal, ct);
+        else
+            await _clientCreditService.UpdateInvoiceChargeAsync(invoiceId, invoice.GrandTotal, ct);
 
         return MapToResponse(invoice);
     }
@@ -545,7 +553,11 @@ public class InvoiceService : IInvoiceService
         if (!string.IsNullOrWhiteSpace(invoice.CustomerId))
         {
             if (needsCharge)
-                await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+            {
+                var chargeEntry = await _clientCreditService.ChargeInvoiceAsync(invoice.CustomerId, invoiceId, invoice.GrandTotal, ct);
+                invoice.CreditChargeEntryId = chargeEntry.EntryId;
+                await _invoiceRepo.UpdateAsync(invoice, ct);
+            }
 
             if (payment > 0m)
                 await _clientCreditService.RecordInvoicePaymentAsync(
