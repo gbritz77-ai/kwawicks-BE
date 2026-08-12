@@ -444,11 +444,15 @@ public class BankStatementService : IBankStatementService
 
     public async Task<DebitReportResponse> GetDebitReportAsync(DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var statements = await _repo.ListAsync(ct);
-        var items = new List<DebitReportItem>();
+        var summaries   = await _repo.ListAsync(ct);
+        var items       = new List<DebitReportItem>();
 
-        foreach (var s in statements)
+        foreach (var summary in summaries)
         {
+            // ListAsync returns summaries with no transactions — load the full statement
+            var s = await _repo.GetAsync(summary.StatementId, ct);
+            if (s is null) continue;
+
             foreach (var tx in s.Transactions.Where(t => t.Type == "Debit"))
             {
                 if (from.HasValue && tx.Date.Date < from.Value.Date) continue;
