@@ -591,9 +591,11 @@ public class ReportService : IReportService
         var invoicesTask = _invoices.ListAsync(null, null, ct);
         var clientsTask  = _clients.ListAsync(500, ct);
         var speciesTask  = _species.ListAsync(ct);
-        await Task.WhenAll(invoicesTask, clientsTask, speciesTask);
+        var staffTask    = _staffMembers.ListAsync(ct);
+        await Task.WhenAll(invoicesTask, clientsTask, speciesTask, staffTask);
 
         var clientMap  = clientsTask.Result.ToDictionary(c => c.ClientId);
+        var staffMap   = staffTask.Result.ToDictionary(s => s.StaffMemberId, s => s.Name);
         var speciesMap = speciesTask.Result.ToDictionary(s => s.SpeciesId, s => s.Name);
 
         var rows = invoicesTask.Result
@@ -604,6 +606,8 @@ public class ReportService : IReportService
             .SelectMany(inv =>
             {
                 clientMap.TryGetValue(inv.CustomerId, out var client);
+                staffMap.TryGetValue(inv.CustomerId, out var staffName);
+                var displayName = client?.ClientName ?? staffName ?? "(Unknown)";
                 return inv.Lines.Select(line =>
                 {
                     speciesMap.TryGetValue(line.SpeciesId, out var speciesName);
@@ -613,7 +617,7 @@ public class ReportService : IReportService
                         InvoiceNumber = inv.InvoiceNumber,
                         Date          = inv.CreatedAt,
                         ClientId      = inv.CustomerId,
-                        ClientName    = client?.ClientName ?? "(Unknown)",
+                        ClientName    = displayName,
                         IsWalkIn      = client?.IsWalkIn ?? false,
                         SpeciesId     = line.SpeciesId,
                         SpeciesName   = speciesName ?? line.SpeciesId,
