@@ -896,13 +896,65 @@ public class CollectionRequestService : ICollectionRequestService
                     $"AcceptedQty {reqLine.AcceptedQty} exceeds allocated qty {allocLine.Qty} for species {reqLine.SpeciesId}.");
         }
 
-        // Stock was already added to QtyOnHandHub by HubConfirmAsync. HUB allocations do NOT
-        // create a QtyBookedOutForDelivery commitment at creation, so there is nothing to release
-        // here — just record the accepted quantities.
-        foreach (var reqLine in request.Lines.Where(l => l.AcceptedQty > 0))
+        // Immediately move hub stock from booked → on-hand so the driver can continue
+        // to client deliveries while hub stock is already in inventory.
+        // Release the full booked qty and add only what was physically accepted.
+        var adjusted = new List<(string speciesId, int acceptedQty, int bookedQty)>();
+        var hubInvoiceLines = new List<InvoiceLine>();
+        try
         {
-            var allocLine = hubAlloc.Lines.First(l => l.SpeciesId == reqLine.SpeciesId);
-            allocLine.AcceptedQty = reqLine.AcceptedQty;
+            foreach (var reqLine in request.Lines)
+            {
+                var allocLine = hubAlloc.Lines.First(l => l.SpeciesId == reqLine.SpeciesId);
+                allocLine.AcceptedQty = reqLine.AcceptedQty;
+
+                // +acceptedQty → on-hand   |   -allocLine.Qty → release booked commitment
+                await _speciesRepo.AdjustStockAsync(
+                    reqLine.SpeciesId,
+                    onHandDelta:  +reqLine.AcceptedQty,
+                    bookedDelta:  -allocLine.Qty,
+                    ct);
+
+                adjusted.Add((reqLine.SpeciesId, reqLine.AcceptedQty, allocLine.Qty));
+
+                if (reqLine.AcceptedQty > 0 && allocLine.UnitPrice > 0)
+                {
+                    var lineTotal = reqLine.AcceptedQty * allocLine.UnitPrice;
+                    hubInvoiceLines.Add(new InvoiceLine
+                    {
+                        SpeciesId = reqLine.SpeciesId,
+                        Quantity  = reqLine.AcceptedQty,
+                        UnitPrice = allocLine.UnitPrice,
+                        VatRate   = 0m,
+                        LineTotal = lineTotal,
+                    });
+                }
+            }
+        }
+        catch
+        {
+            foreach (var (speciesId, acceptedQty, bookedQty) in adjusted)
+                try { await _speciesRepo.AdjustStockAsync(speciesId, -acceptedQty, +bookedQty, CancellationToken.None); } catch { }
+            throw;
+        }
+
+        // Create a HubStock invoice to record the hub delivery (same as HubConfirmAsync does)
+        if (hubInvoiceLines.Count > 0)
+        {
+            var invoiceNumber = await _invoiceRepo.GetNextInvoiceNumberAsync(ct);
+            var hubInvoice = new Invoice
+            {
+                CustomerId    = cr.HubId,
+                HubId         = cr.HubId,
+                InvoiceNumber = invoiceNumber,
+                SaleType      = "HubStock",
+                SubTotal      = hubInvoiceLines.Sum(l => l.LineTotal),
+                VatTotal      = 0m,
+                GrandTotal    = hubInvoiceLines.Sum(l => l.LineTotal),
+                Lines         = hubInvoiceLines,
+            };
+            await _invoiceRepo.CreateAsync(hubInvoice, ct);
+            hubAlloc.HubInvoiceId = hubInvoice.InvoiceId;
         }
 
         hubAlloc.HubAcceptanceStatus = "Accepted";
