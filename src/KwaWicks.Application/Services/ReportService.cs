@@ -622,7 +622,7 @@ public class ReportService : IReportService
                         SpeciesId     = line.SpeciesId,
                         SpeciesName   = speciesName ?? line.SpeciesId,
                         Qty           = line.Quantity,
-                        UnitPrice     = line.UnitPrice,
+                        UnitPrice     = line.UnitPrice * (1 + line.VatRate),
                         LineTotal     = line.LineTotal,
                         PaymentType   = inv.PaymentType,
                         SaleType      = inv.SaleType,
