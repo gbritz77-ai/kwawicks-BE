@@ -22,18 +22,22 @@ public class StockLossService : IStockLossService
             throw new ArgumentException("Quantity must be greater than zero.");
 
         var type = string.Equals(request.AdjustmentType, "Over", StringComparison.OrdinalIgnoreCase)
-            ? "Over" : "Under";
+            ? "Over"
+            : string.Equals(request.AdjustmentType, "Short", StringComparison.OrdinalIgnoreCase)
+                ? "Short"
+                : "Under";
 
         var species = await _speciesRepo.GetAsync(request.SpeciesId, ct)
             ?? throw new InvalidOperationException($"Species '{request.SpeciesId}' not found.");
 
-        if (type == "Under" && request.Qty > species.QtyOnHandHub)
+        var isDeduction = type == "Under" || type == "Short";
+        if (isDeduction && request.Qty > species.QtyOnHandHub)
             throw new ArgumentException(
-                $"Cannot record an under-stock of {request.Qty} — only {species.QtyOnHandHub} units are on hand.");
+                $"Cannot record a stock reduction of {request.Qty} — only {species.QtyOnHandHub} units are on hand.");
 
         var delta = type == "Over" ? +request.Qty : -request.Qty;
         await _speciesRepo.AdjustStockAsync(request.SpeciesId, delta, 0, ct,
-            minOnHandRequired: type == "Under" ? request.Qty : 0);
+            minOnHandRequired: isDeduction ? request.Qty : 0);
 
         var loss = new StockLoss
         {
