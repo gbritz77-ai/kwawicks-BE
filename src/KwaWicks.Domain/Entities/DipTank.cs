@@ -22,6 +22,7 @@ public class DipReading
     public decimal? ReadingMm { get; set; }
     public decimal? PctFull { get; set; }
     public string Notes { get; set; } = "";
+    public string Supplier { get; set; } = "";
     public string RecordedBy { get; set; } = "";
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
 }

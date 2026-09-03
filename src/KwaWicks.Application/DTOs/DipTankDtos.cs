@@ -30,6 +30,7 @@ public class DipReadingDto
     public decimal? ReadingMm { get; set; }
     public decimal? PctFull { get; set; }
     public string Notes { get; set; } = "";
+    public string Supplier { get; set; } = "";
     public string RecordedBy { get; set; } = "";
     public DateTime RecordedAt { get; set; }
 }
@@ -47,6 +48,12 @@ public class LoadTankRequest
     public decimal Litres { get; set; }
     public decimal? CostPerLitre { get; set; }
     public string? Notes { get; set; }
+    public string? Supplier { get; set; }
+}
+
+public class AddFuelSupplierRequest
+{
+    public string Supplier { get; set; } = "";
 }
 
 public class TankSummaryDto

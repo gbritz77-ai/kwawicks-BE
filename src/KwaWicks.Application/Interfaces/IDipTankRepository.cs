@@ -10,4 +10,6 @@ public interface IDipTankRepository
     Task<DipReading> CreateReadingAsync(DipReading reading, CancellationToken ct);
     Task<List<DipReading>> ListReadingsAsync(CancellationToken ct);
     Task<List<DipReading>> ListReadingsByTankAsync(string tankId, CancellationToken ct);
+    Task<List<string>> GetFuelSuppliersAsync(CancellationToken ct);
+    Task SaveFuelSuppliersAsync(List<string> suppliers, CancellationToken ct);
 }

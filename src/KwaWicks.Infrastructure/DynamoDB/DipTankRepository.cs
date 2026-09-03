@@ -3,6 +3,7 @@ using Amazon.DynamoDBv2.Model;
 using KwaWicks.Application.Interfaces;
 using KwaWicks.Domain.Entities;
 using System.Globalization;
+using System.Text.Json;
 
 namespace KwaWicks.Infrastructure.DynamoDB;
 
@@ -165,6 +166,7 @@ public class DipTankRepository : IDipTankRepository
             ["TankId"] = new AttributeValue { S = r.TankId },
             ["ReadingLitres"] = new AttributeValue { N = r.ReadingLitres.ToString(CultureInfo.InvariantCulture) },
             ["Notes"] = new AttributeValue { S = r.Notes },
+            ["Supplier"] = new AttributeValue { S = r.Supplier },
             ["RecordedBy"] = new AttributeValue { S = r.RecordedBy },
             ["RecordedAt"] = new AttributeValue { S = r.RecordedAt.ToString("O", CultureInfo.InvariantCulture) },
         };
@@ -181,7 +183,46 @@ public class DipTankRepository : IDipTankRepository
         ReadingMm     = item.TryGetValue("ReadingMm", out var mm) && decimal.TryParse(mm.N, NumberStyles.Number, CultureInfo.InvariantCulture, out var mmv) ? mmv : null,
         PctFull       = item.TryGetValue("PctFull", out var pf) && decimal.TryParse(pf.N, NumberStyles.Number, CultureInfo.InvariantCulture, out var pfv) ? pfv : null,
         Notes         = item.TryGetValue("Notes", out var no) ? no.S ?? "" : "",
+        Supplier      = item.TryGetValue("Supplier", out var sp) ? sp.S ?? "" : "",
         RecordedBy    = item.TryGetValue("RecordedBy", out var rb) ? rb.S ?? "" : "",
         RecordedAt    = item.TryGetValue("RecordedAt", out var ra) ? DateTime.Parse(ra.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind) : DateTime.UtcNow,
     };
+
+    // ── Fuel Suppliers config ─────────────────────────────────────────────────
+
+    private const string PkFuelSuppliers = "CONFIG#FUEL_SUPPLIERS";
+    private const string SkConfig        = "CONFIG";
+
+    public async Task<List<string>> GetFuelSuppliersAsync(CancellationToken ct)
+    {
+        var res = await _ddb.GetItemAsync(new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = PkFuelSuppliers },
+                ["SK"] = new() { S = SkConfig }
+            }
+        }, ct);
+
+        if (res.Item is null || res.Item.Count == 0) return new List<string>();
+        if (res.Item.TryGetValue("SuppliersJson", out var v) && !string.IsNullOrEmpty(v.S))
+            return JsonSerializer.Deserialize<List<string>>(v.S) ?? new List<string>();
+        return new List<string>();
+    }
+
+    public async Task SaveFuelSuppliersAsync(List<string> suppliers, CancellationToken ct)
+    {
+        await _ddb.PutItemAsync(new PutItemRequest
+        {
+            TableName = _tableName,
+            Item = new Dictionary<string, AttributeValue>
+            {
+                ["PK"]            = new() { S = PkFuelSuppliers },
+                ["SK"]            = new() { S = SkConfig },
+                ["EntityType"]    = new() { S = "Config" },
+                ["SuppliersJson"] = new() { S = JsonSerializer.Serialize(suppliers) }
+            }
+        }, ct);
+    }
 }

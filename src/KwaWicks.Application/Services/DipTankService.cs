@@ -105,8 +105,10 @@ public class DipTankService
         var pct = tank.CapacityLitres > 0 ? Math.Round(newLevel / tank.CapacityLitres * 100, 1) : (decimal?)null;
 
         var notes = req.Notes?.Trim() ?? "";
+        var supplier = req.Supplier?.Trim() ?? "";
         var costNote = req.CostPerLitre.HasValue ? $" @ R{req.CostPerLitre:N4}/L" : "";
-        var autoNote = $"Fuel delivery: +{req.Litres:N0}L{costNote}";
+        var supplierNote = !string.IsNullOrEmpty(supplier) ? $" from {supplier}" : "";
+        var autoNote = $"Fuel delivery: +{req.Litres:N0}L{costNote}{supplierNote}";
         if (!string.IsNullOrEmpty(notes)) autoNote += $". {notes}";
 
         var reading = new DipReading
@@ -115,8 +117,21 @@ public class DipTankService
             ReadingLitres = newLevel,
             PctFull       = pct,
             Notes         = autoNote,
+            Supplier      = supplier,
             RecordedBy    = recordedBy,
         };
+
+        // Persist supplier name for future lookups
+        if (!string.IsNullOrEmpty(supplier))
+        {
+            var existing = await _repo.GetFuelSuppliersAsync(ct);
+            if (!existing.Contains(supplier, StringComparer.OrdinalIgnoreCase))
+            {
+                existing.Add(supplier);
+                existing.Sort(StringComparer.OrdinalIgnoreCase);
+                await _repo.SaveFuelSuppliersAsync(existing, ct);
+            }
+        }
         await _repo.CreateReadingAsync(reading, ct);
         return ReadingToDto(reading);
     }
@@ -125,6 +140,23 @@ public class DipTankService
     {
         var all = await _repo.ListReadingsAsync(ct);
         return all.OrderByDescending(r => r.RecordedAt).Select(ReadingToDto).ToList();
+    }
+
+    public Task<List<string>> GetFuelSuppliersAsync(CancellationToken ct) =>
+        _repo.GetFuelSuppliersAsync(ct);
+
+    public async Task<List<string>> AddFuelSupplierAsync(string supplier, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(supplier)) throw new ArgumentException("Supplier name is required.");
+        supplier = supplier.Trim();
+        var existing = await _repo.GetFuelSuppliersAsync(ct);
+        if (!existing.Contains(supplier, StringComparer.OrdinalIgnoreCase))
+        {
+            existing.Add(supplier);
+            existing.Sort(StringComparer.OrdinalIgnoreCase);
+            await _repo.SaveFuelSuppliersAsync(existing, ct);
+        }
+        return existing;
     }
 
     private static DipTankDto TankToDto(DipTank t) => new()
@@ -147,6 +179,7 @@ public class DipTankService
         ReadingMm     = r.ReadingMm,
         PctFull       = r.PctFull,
         Notes         = r.Notes,
+        Supplier      = r.Supplier,
         RecordedBy    = r.RecordedBy,
         RecordedAt    = r.RecordedAt,
     };

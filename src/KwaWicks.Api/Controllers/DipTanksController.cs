@@ -61,6 +61,24 @@ public class DipTanksController : ControllerBase
         catch (KeyNotFoundException ex) { return NotFound(new { error = ex.Message }); }
     }
 
+    // GET /api/dip-tanks/fuel-suppliers
+    [HttpGet("fuel-suppliers")]
+    [Authorize(Policy = "OperationalAccess")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFuelSuppliers(CancellationToken ct) =>
+        Ok(await _service.GetFuelSuppliersAsync(ct));
+
+    // POST /api/dip-tanks/fuel-suppliers
+    [HttpPost("fuel-suppliers")]
+    [Authorize(Policy = "OperationalAccess")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AddFuelSupplier([FromBody] AddFuelSupplierRequest req, CancellationToken ct)
+    {
+        try { return Ok(await _service.AddFuelSupplierAsync(req.Supplier, ct)); }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     // POST /api/dip-tanks/readings
     [HttpPost("readings")]
     [Authorize(Policy = "OperationalAccess")]
