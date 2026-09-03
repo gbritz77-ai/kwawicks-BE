@@ -825,14 +825,22 @@ public class CollectionRequestService : ICollectionRequestService
         // Any species not in the admin request defaults to deliveredQty=0 (all returned as NotWanted).
         var invoiceLines = doOrder.Lines.Select(doLine =>
         {
-            var reqLine = request.Lines.FirstOrDefault(l => l.SpeciesId == doLine.SpeciesId);
+            var reqLine      = request.Lines.FirstOrDefault(l => l.SpeciesId == doLine.SpeciesId);
             var deliveredQty = reqLine?.DeliveredQty ?? 0;
             var unitPrice    = (reqLine?.UnitPrice ?? 0) > 0 ? reqLine!.UnitPrice : doLine.UnitPrice;
+
+            // Only alive-and-undelivered roosters can return to hub stock.
+            // cr.Lines.ReceivedQty excludes dead/short animals (LoadedQty - dead - short + over).
+            // Returned = received-alive minus what was delivered. Dead animals must not restock.
+            var crLine       = cr.Lines.FirstOrDefault(l => l.SpeciesId == doLine.SpeciesId);
+            var receivedAlive = crLine != null ? crLine.ReceivedQty : doLine.Quantity;
+            var returnedAlive = Math.Max(0, receivedAlive - deliveredQty);
+
             return new CreateInvoiceFromDeliveryLine
             {
                 SpeciesId              = doLine.SpeciesId,
                 DeliveredQty           = deliveredQty,
-                TotalReturnedQty       = doLine.Quantity - deliveredQty,
+                TotalReturnedQty       = returnedAlive,
                 UnitPrice              = unitPrice,
                 VatRate                = 0m, // admin confirmations use VAT-inclusive prices
             };
