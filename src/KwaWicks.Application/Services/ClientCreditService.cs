@@ -36,6 +36,7 @@ public class ClientCreditService : IClientCreditService
             CreatedByUserId = request.CreatedByUserId,
             Reference       = "",
             ProofS3Key      = request.ProofS3Key?.Trim() ?? "",
+            CreatedAt       = request.OccurredAt ?? DateTime.UtcNow,
         };
 
         await _repo.AddEntryAsync(entry, ct);

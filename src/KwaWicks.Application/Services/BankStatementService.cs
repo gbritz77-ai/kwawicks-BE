@@ -281,6 +281,15 @@ public class BankStatementService : IBankStatementService
         var client = await _clientService.GetByIdAsync(request.ClientId, ct)
             ?? throw new InvalidOperationException($"Client {request.ClientId} not found.");
 
+        DateTime? occurredAt = null;
+        if (!string.IsNullOrWhiteSpace(request.StatementDate) &&
+            DateTime.TryParseExact(request.StatementDate, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var parsed))
+        {
+            occurredAt = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+        }
+
         // Record the EFT deposit in the client credit ledger
         await _clientCreditService.AddDepositAsync(request.ClientId, new AddCreditDepositRequest
         {
@@ -289,7 +298,8 @@ public class BankStatementService : IBankStatementService
             Notes         = string.IsNullOrWhiteSpace(request.Notes)
                               ? $"Bank statement: {statement.FileName} — {tx.Description}"
                               : request.Notes.Trim(),
-            CreatedByUserId = "BankRecon"
+            CreatedByUserId = "BankRecon",
+            OccurredAt    = occurredAt,
         }, ct);
 
         tx.IsAllocated          = true;

@@ -27,6 +27,8 @@ public class AllocateClientCreditRequest
 {
     public string ClientId { get; set; } = "";
     public string Notes { get; set; } = "";
+    /// <summary>The bank statement transaction date (yyyy-MM-dd). Used as the ledger entry date instead of today.</summary>
+    public string? StatementDate { get; set; }
 }
 
 public class AllocateExpenseRequest

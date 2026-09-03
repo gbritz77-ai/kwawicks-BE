@@ -13,6 +13,9 @@ public class AddCreditDepositRequest
 
     /// <summary>S3 key returned by the proof-upload-url endpoint. Optional.</summary>
     public string? ProofS3Key { get; set; }
+
+    /// <summary>When provided (bank recon), use this date instead of UtcNow as the entry's CreatedAt.</summary>
+    public DateTime? OccurredAt { get; set; }
 }
 
 public class AddManualChargeRequest
