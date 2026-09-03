@@ -9,6 +9,8 @@ public class BankStatement
     public int CreditCount { get; set; }
     public decimal TotalCredits { get; set; }
     public int AllocatedCount { get; set; }
+    public int UnallocatedCount { get; set; }
+    public decimal UnallocatedAmount { get; set; }
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     public List<BankTransaction> Transactions { get; set; } = new();
 }
@@ -33,6 +35,10 @@ public class BankTransaction
     public DateTime? AllocatedAt { get; set; }
     public string ExpenseCategory { get; set; } = "";
 
+    // ── Split allocation ─────────────────────────────────────────────────
+    /// <summary>When AllocationType == "SplitClientCredit", the individual lines that sum to Amount.</summary>
+    public List<BankTransactionSplitLine> SplitLines { get; set; } = new();
+
     // ── Cross-statement duplicate detection ──────────────────────────────
     /// <summary>True when this transaction matches (same date + amount) a transaction that
     /// was already allocated in a different, previously-imported statement — almost always
@@ -42,4 +48,12 @@ public class BankTransaction
     public string DuplicateOfTransactionId { get; set; } = "";
     public string DuplicateOfAllocationSummary { get; set; } = ""; // e.g. "Invoice INV000123" / "Supplier ABC"
     public DateTime? DuplicateOfAllocatedAt { get; set; }
+}
+
+public class BankTransactionSplitLine
+{
+    public string ClientId { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string Notes { get; set; } = "";
 }

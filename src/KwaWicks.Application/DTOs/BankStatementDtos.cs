@@ -36,6 +36,21 @@ public class AllocateExpenseRequest
     public string Category { get; set; } = "";
 }
 
+public class SplitAllocationLine
+{
+    public string ClientId { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string Notes { get; set; } = "";
+}
+
+/// <summary>Split one bank transaction across multiple client credit accounts.</summary>
+public class SplitClientCreditRequest
+{
+    public List<SplitAllocationLine> Lines { get; set; } = new();
+    /// <summary>The bank statement transaction date (yyyy-MM-dd). Used as the ledger entry date.</summary>
+    public string? StatementDate { get; set; }
+}
+
 public class AddExpenseCategoryRequest
 {
     public string Category { get; set; } = "";
@@ -76,11 +91,22 @@ public class BankTransactionResponse
     public string ExpenseCategory { get; set; } = "";
     public string? AllocatedAt { get; set; }
 
+    // ── Split allocation ─────────────────────────────────────────────────
+    public List<SplitAllocationLineResponse> SplitLines { get; set; } = new();
+
     // ── Cross-statement duplicate detection ──────────────────────────────
     public bool IsPossibleDuplicate { get; set; }
     public string DuplicateOfStatementFileName { get; set; } = "";
     public string DuplicateOfAllocationSummary { get; set; } = "";
     public string? DuplicateOfAllocatedAt { get; set; }
+}
+
+public class SplitAllocationLineResponse
+{
+    public string ClientId { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string Notes { get; set; } = "";
 }
 
 public class BankStatementResponse

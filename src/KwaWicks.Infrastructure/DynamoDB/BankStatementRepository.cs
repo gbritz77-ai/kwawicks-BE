@@ -68,7 +68,7 @@ public class BankStatementRepository : IBankStatementRepository
                 [":et"] = new() { S = "BankStatement" }
             },
             // Don't scan transaction JSON on list — just metadata
-            ProjectionExpression = "StatementId, FileName, S3Key, TransactionCount, CreditCount, TotalCredits, UploadedAtUtc, AllocatedCount"
+            ProjectionExpression = "StatementId, FileName, S3Key, TransactionCount, CreditCount, TotalCredits, UploadedAtUtc, AllocatedCount, UnallocatedCount, UnallocatedAmount"
         };
 
         var result = new List<BankStatement>();
@@ -88,20 +88,25 @@ public class BankStatementRepository : IBankStatementRepository
 
     private static Dictionary<string, AttributeValue> ToItem(BankStatement s)
     {
-        var allocated = s.Transactions.Count(t => t.IsAllocated);
+        var credits = s.Transactions.Where(t => t.Type == "Credit").ToList();
+        var allocated   = credits.Count(t => t.IsAllocated);
+        var unallocated = credits.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate);
+        var unallocAmt  = credits.Where(t => !t.IsAllocated && !t.IsPossibleDuplicate).Sum(t => t.Amount);
         return new Dictionary<string, AttributeValue>
         {
-            ["PK"]             = new() { S = Pk(s.StatementId) },
-            ["SK"]             = new() { S = SkMeta },
-            ["EntityType"]     = new() { S = "BankStatement" },
-            ["StatementId"]    = new() { S = s.StatementId },
-            ["FileName"]       = new() { S = s.FileName },
-            ["S3Key"]          = new() { S = s.S3Key },
+            ["PK"]               = new() { S = Pk(s.StatementId) },
+            ["SK"]               = new() { S = SkMeta },
+            ["EntityType"]       = new() { S = "BankStatement" },
+            ["StatementId"]      = new() { S = s.StatementId },
+            ["FileName"]         = new() { S = s.FileName },
+            ["S3Key"]            = new() { S = s.S3Key },
             ["TransactionCount"] = new() { N = s.TransactionCount.ToString() },
-            ["CreditCount"]    = new() { N = s.CreditCount.ToString() },
-            ["AllocatedCount"] = new() { N = allocated.ToString() },
-            ["TotalCredits"]   = new() { N = s.TotalCredits.ToString(CultureInfo.InvariantCulture) },
-            ["UploadedAtUtc"]  = new() { S = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture) },
+            ["CreditCount"]      = new() { N = s.CreditCount.ToString() },
+            ["AllocatedCount"]   = new() { N = allocated.ToString() },
+            ["UnallocatedCount"] = new() { N = unallocated.ToString() },
+            ["UnallocatedAmount"]= new() { N = unallocAmt.ToString(CultureInfo.InvariantCulture) },
+            ["TotalCredits"]     = new() { N = s.TotalCredits.ToString(CultureInfo.InvariantCulture) },
+            ["UploadedAtUtc"]    = new() { S = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture) },
             ["TransactionsJson"] = new() { S = JsonSerializer.Serialize(s.Transactions) }
         };
     }
@@ -171,16 +176,31 @@ public class BankStatementRepository : IBankStatementRepository
     private static BankStatement FromItemSummary(Dictionary<string, AttributeValue> item) =>
         new BankStatement
         {
-            StatementId      = item.TryGetValue("StatementId",     out var id)  ? id.S  ?? "" : "",
-            FileName         = item.TryGetValue("FileName",         out var fn)  ? fn.S  ?? "" : "",
-            S3Key            = item.TryGetValue("S3Key",            out var sk)  ? sk.S  ?? "" : "",
-            TransactionCount = item.TryGetValue("TransactionCount", out var tc)  ? int.Parse(tc.N) : 0,
-            CreditCount      = item.TryGetValue("CreditCount",      out var cc)  ? int.Parse(cc.N) : 0,
-            AllocatedCount   = item.TryGetValue("AllocatedCount",   out var ac)  ? int.Parse(ac.N) : 0,
-            TotalCredits     = item.TryGetValue("TotalCredits",     out var tot) ? decimal.Parse(tot.N, CultureInfo.InvariantCulture) : 0m,
-            UploadedAt       = item.TryGetValue("UploadedAtUtc",    out var ua)
+            StatementId      = item.TryGetValue("StatementId",      out var id)  ? id.S  ?? "" : "",
+            FileName         = item.TryGetValue("FileName",          out var fn)  ? fn.S  ?? "" : "",
+            S3Key            = item.TryGetValue("S3Key",             out var sk)  ? sk.S  ?? "" : "",
+            TransactionCount = item.TryGetValue("TransactionCount",  out var tc)  ? int.Parse(tc.N) : 0,
+            CreditCount      = item.TryGetValue("CreditCount",       out var cc)  ? int.Parse(cc.N) : 0,
+            AllocatedCount   = item.TryGetValue("AllocatedCount",    out var ac)  ? int.Parse(ac.N) : 0,
+            UnallocatedCount = item.TryGetValue("UnallocatedCount",  out var uc)  ? int.Parse(uc.N) : 0,
+            UnallocatedAmount= item.TryGetValue("UnallocatedAmount", out var ua2) ? decimal.Parse(ua2.N, CultureInfo.InvariantCulture) : 0m,
+            TotalCredits     = item.TryGetValue("TotalCredits",      out var tot) ? decimal.Parse(tot.N, CultureInfo.InvariantCulture) : 0m,
+            UploadedAt       = item.TryGetValue("UploadedAtUtc",     out var ua)
                                  ? DateTime.Parse(ua.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                                  : DateTime.UtcNow,
             Transactions = new List<BankTransaction>() // not loaded on list
         };
+
+    public async Task DeleteAsync(string statementId, CancellationToken ct)
+    {
+        await _ddb.DeleteItemAsync(new DeleteItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = Pk(statementId) },
+                ["SK"] = new() { S = SkMeta }
+            }
+        }, ct);
+    }
 }

@@ -12,8 +12,10 @@ public interface IBankStatementService
     Task<AllocateResponse> AllocateNonClientAsync(string statementId, string transactionId, AllocateNonClientRequest request, CancellationToken ct);
     Task<AllocateResponse> AllocateSupplierAsync(string statementId, string transactionId, AllocateSupplierRequest request, CancellationToken ct);
     Task<AllocateResponse> AllocateClientCreditAsync(string statementId, string transactionId, AllocateClientCreditRequest request, CancellationToken ct);
+    Task<AllocateResponse> SplitClientCreditAsync(string statementId, string transactionId, SplitClientCreditRequest request, CancellationToken ct);
     Task<AllocateResponse> AllocateExpenseAsync(string statementId, string transactionId, AllocateExpenseRequest request, CancellationToken ct);
     Task<BankStatementResponse> DeallocateAsync(string statementId, string transactionId, CancellationToken ct);
+    Task DeleteAsync(string statementId, CancellationToken ct);
     Task<List<BankReconAllocationReportItem>> GetAllocationReportAsync(DateTime? from, DateTime? to, CancellationToken ct);
     Task<DebitReportResponse> GetDebitReportAsync(DateTime? from, DateTime? to, CancellationToken ct);
     Task<List<string>> GetExpenseCategoriesAsync(CancellationToken ct);

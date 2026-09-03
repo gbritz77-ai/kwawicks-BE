@@ -8,6 +8,7 @@ public interface IBankStatementRepository
     Task<BankStatement?> GetAsync(string statementId, CancellationToken ct);
     Task<BankStatement> UpdateAsync(BankStatement statement, CancellationToken ct);
     Task<List<BankStatement>> ListAsync(CancellationToken ct);
+    Task DeleteAsync(string statementId, CancellationToken ct);
     Task<List<string>> GetExpenseCategoriesAsync(CancellationToken ct);
     Task SaveExpenseCategoriesAsync(List<string> categories, CancellationToken ct);
 }

@@ -313,6 +313,72 @@ public class BankStatementService : IBankStatementService
         return new AllocateResponse { Statement = MapToResponse(statement) };
     }
 
+    // ── Split client credit allocation ─────────────────────────────────────
+
+    public async Task<AllocateResponse> SplitClientCreditAsync(
+        string statementId,
+        string transactionId,
+        SplitClientCreditRequest request,
+        CancellationToken ct)
+    {
+        if (request.Lines == null || request.Lines.Count < 2)
+            throw new InvalidOperationException("A split allocation requires at least 2 lines.");
+        if (request.Lines.Any(l => string.IsNullOrWhiteSpace(l.ClientId)))
+            throw new InvalidOperationException("Every split line must have a client.");
+        if (request.Lines.Any(l => l.Amount <= 0))
+            throw new InvalidOperationException("Every split line amount must be greater than zero.");
+
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
+        if (tx.IsAllocated)
+            throw new InvalidOperationException("Transaction is already allocated.");
+
+        DateTime? occurredAt = null;
+        if (!string.IsNullOrWhiteSpace(request.StatementDate) &&
+            DateTime.TryParseExact(request.StatementDate, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var parsedDate))
+        {
+            occurredAt = DateTime.SpecifyKind(parsedDate, DateTimeKind.Utc);
+        }
+
+        var splitLines = new List<BankTransactionSplitLine>();
+        foreach (var line in request.Lines)
+        {
+            var client = await _clientService.GetByIdAsync(line.ClientId, ct)
+                ?? throw new InvalidOperationException($"Client {line.ClientId} not found.");
+            await _clientCreditService.AddDepositAsync(line.ClientId, new AddCreditDepositRequest
+            {
+                Amount          = line.Amount,
+                PaymentMethod   = "EFT",
+                Notes           = string.IsNullOrWhiteSpace(line.Notes)
+                                    ? $"Bank statement split: {statement.FileName} — {tx.Description}"
+                                    : line.Notes.Trim(),
+                CreatedByUserId = "BankRecon",
+                OccurredAt      = occurredAt,
+            }, ct);
+            splitLines.Add(new BankTransactionSplitLine
+            {
+                ClientId   = client.ClientId,
+                ClientName = client.ClientName,
+                Amount     = line.Amount,
+                Notes      = line.Notes,
+            });
+        }
+
+        tx.IsAllocated     = true;
+        tx.AllocationType  = "SplitClientCredit";
+        tx.AllocatedAt     = DateTime.UtcNow;
+        tx.SplitLines      = splitLines;
+        // Show a summary in the client name field for the list view
+        tx.AllocatedClientName = string.Join(", ", splitLines.Select(l => l.ClientName));
+
+        await _repo.UpdateAsync(statement, ct);
+        return new AllocateResponse { Statement = MapToResponse(statement) };
+    }
+
     // ── Expense allocation ─────────────────────────────────────────────────
 
     public async Task<AllocateResponse> AllocateExpenseAsync(
@@ -404,6 +470,17 @@ public class BankStatementService : IBankStatementService
 
         await _repo.UpdateAsync(statement, ct);
         return MapToResponse(statement);
+    }
+
+    // ── Delete statement ───────────────────────────────────────────────────
+
+    public async Task DeleteAsync(string statementId, CancellationToken ct)
+    {
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+        if (statement.Transactions.Any(t => t.IsAllocated))
+            throw new InvalidOperationException("Cannot delete a statement that has allocated transactions. Deallocate all transactions first.");
+        await _repo.DeleteAsync(statementId, ct);
     }
 
     // ── Allocation report ──────────────────────────────────────────────────
@@ -870,11 +947,10 @@ public class BankStatementService : IBankStatementService
         CreditCount      = s.CreditCount,
         TotalCredits     = s.TotalCredits,
         UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
-        AllocatedCount   = s.Transactions.Count(t => t.IsAllocated && t.Type == "Credit"),
-        UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit"),
-        UnallocatedAmount = s.Transactions
-            .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit")
-            .Sum(t => t.Amount)
+        // Use stored counts — Transactions list is empty on list endpoint (no JSON loaded)
+        AllocatedCount    = s.AllocatedCount,
+        UnallocatedCount  = s.UnallocatedCount,
+        UnallocatedAmount = s.UnallocatedAmount,
     };
 
     private static BankTransactionResponse MapTx(BankTransaction t) => new()
@@ -903,6 +979,13 @@ public class BankStatementService : IBankStatementService
             : null,
         AllocatedAt            = t.AllocatedAt.HasValue
             ? t.AllocatedAt.Value.ToString("O", CultureInfo.InvariantCulture)
-            : null
+            : null,
+        SplitLines             = t.SplitLines.Select(l => new SplitAllocationLineResponse
+        {
+            ClientId   = l.ClientId,
+            ClientName = l.ClientName,
+            Amount     = l.Amount,
+            Notes      = l.Notes,
+        }).ToList(),
     };
 }

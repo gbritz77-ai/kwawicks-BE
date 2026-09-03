@@ -227,6 +227,29 @@ public class BankStatementsController : ControllerBase
         }
     }
 
+    // PUT /api/bank-statements/{statementId}/transactions/{transactionId}/split-client-credit
+    [HttpPut("{statementId}/transactions/{transactionId}/split-client-credit")]
+    [ProducesResponseType(typeof(AllocateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SplitClientCredit(
+        string statementId,
+        string transactionId,
+        [FromBody] SplitClientCreditRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.SplitClientCreditAsync(statementId, transactionId, request, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not found")
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
     // PUT /api/bank-statements/{statementId}/transactions/{transactionId}/allocate-client-credit
     [HttpPut("{statementId}/transactions/{transactionId}/allocate-client-credit")]
     [ProducesResponseType(typeof(AllocateResponse), StatusCodes.Status200OK)]
@@ -309,6 +332,26 @@ public class BankStatementsController : ControllerBase
         {
             var result = await _service.DeallocateAsync(statementId, transactionId, ct);
             return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not found")
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
+    // DELETE /api/bank-statements/{statementId}
+    [HttpDelete("{statementId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteStatement(string statementId, CancellationToken ct)
+    {
+        try
+        {
+            await _service.DeleteAsync(statementId, ct);
+            return NoContent();
         }
         catch (InvalidOperationException ex)
         {
