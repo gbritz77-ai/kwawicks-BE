@@ -42,6 +42,9 @@ public class CollectionAllocationLine
     public int Qty { get; set; }
     public decimal UnitPrice { get; set; }
 
+    /// <summary>Actual qty delivered to client (0 = not yet delivered). Set when the delivery order is confirmed.</summary>
+    public int DeliveredQty { get; set; }
+
     /// <summary>For HUB allocations: qty hub staff physically counted and accepted. 0 = not yet accepted.</summary>
     public int AcceptedQty { get; set; }
 

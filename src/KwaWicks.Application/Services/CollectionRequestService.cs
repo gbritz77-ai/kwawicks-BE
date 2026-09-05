@@ -408,7 +408,7 @@ public class CollectionRequestService : ICollectionRequestService
                 var alreadyAllocated = cr.DeliveryAllocations
                     .SelectMany(a => a.Lines)
                     .Where(l => l.SpeciesId == reqLine.SpeciesId)
-                    .Sum(l => l.Qty);
+                    .Sum(l => l.DeliveredQty > 0 ? l.DeliveredQty : l.Qty);
 
                 var effectiveQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
                 if (alreadyAllocated + reqLine.Qty > effectiveQty)
@@ -481,11 +481,13 @@ public class CollectionRequestService : ICollectionRequestService
             if (reqLine.Qty <= 0)
                 throw new ArgumentException($"Quantity for species {reqLine.SpeciesId} must be greater than zero.");
 
-            // Sum already-allocated qty for this species across existing allocations
+            // Sum already-allocated qty for this species across existing allocations.
+            // Use deliveredQty when recorded (client took less than allocated), so returned
+            // stock that is still on the truck can be re-allocated to another client.
             var alreadyAllocated = cr.DeliveryAllocations
                 .SelectMany(a => a.Lines)
                 .Where(l => l.SpeciesId == reqLine.SpeciesId)
-                .Sum(l => l.Qty);
+                .Sum(l => l.DeliveredQty > 0 ? l.DeliveredQty : l.Qty);
 
             // Use loaded qty as the cap once the driver has loaded (more accurate than ordered qty when there's a shortfall)
             var effectiveQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
@@ -866,6 +868,20 @@ public class CollectionRequestService : ICollectionRequestService
         {
             await _invoiceService.RecordPaymentAsync(invoiceId,
                 new RecordPaymentRequest { PaymentType = request.PaymentType }, ct);
+        }
+
+        // Write confirmed deliveredQty back onto the CR allocation line so the
+        // available-qty validation can use it when the driver re-allocates returned stock.
+        var crAlloc = cr.DeliveryAllocations.FirstOrDefault(a => a.DeliveryOrderId == deliveryOrderId);
+        if (crAlloc != null)
+        {
+            foreach (var invoiceLine in invoiceLines)
+            {
+                var allocLine = crAlloc.Lines.FirstOrDefault(l => l.SpeciesId == invoiceLine.SpeciesId);
+                if (allocLine != null)
+                    allocLine.DeliveredQty = invoiceLine.DeliveredQty;
+            }
+            await _repo.UpdateAsync(cr, ct);
         }
 
         // Re-fetch CR so MapToResponseAsync picks up the fresh delivery order data
