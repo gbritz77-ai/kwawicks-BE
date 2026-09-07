@@ -626,7 +626,14 @@ public class ReportService : IReportService
                         LineTotal     = line.LineTotal,
                         PaymentType   = inv.PaymentType,
                         SaleType      = inv.SaleType,
-                        SplitPayments = inv.SplitPayments.Select(sp => new SplitPaymentReportLine { Method = sp.Method, Amount = sp.Amount }).ToList(),
+                        // Prorate split amounts to this species line so per-line totals are accurate.
+                        SplitPayments = inv.SplitPayments.Count > 0 && inv.GrandTotal > 0
+                            ? inv.SplitPayments.Select(sp => new SplitPaymentReportLine
+                              {
+                                  Method = sp.Method,
+                                  Amount = Math.Round(sp.Amount / inv.GrandTotal * line.LineTotal, 2)
+                              }).ToList()
+                            : inv.SplitPayments.Select(sp => new SplitPaymentReportLine { Method = sp.Method, Amount = sp.Amount }).ToList(),
                     };
                 });
             })
