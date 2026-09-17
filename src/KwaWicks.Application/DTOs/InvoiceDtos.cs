@@ -110,6 +110,11 @@ public class CancelInvoiceRequest
     public string Reason { get; set; } = "";
 }
 
+public class FixPaymentTypeRequest
+{
+    public string PaymentType { get; set; } = "";
+}
+
 public class ReconInvoiceItem
 {
     public string InvoiceId { get; set; } = "";

@@ -383,4 +383,21 @@ public class InvoiceRepository : IInvoiceRepository
 
         return result;
     }
+
+    public async Task<Invoice?> GetByNumberAsync(string invoiceNumber, CancellationToken ct)
+    {
+        var req = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = "EntityType = :et AND InvoiceNumber = :num",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":et"]  = new AttributeValue { S = "Invoice" },
+                [":num"] = new AttributeValue { S = invoiceNumber }
+            }
+        };
+
+        var response = await _ddb.ScanAsync(req, ct);
+        return response.Items.FirstOrDefault() is { } item ? FromItem(item) : null;
+    }
 }

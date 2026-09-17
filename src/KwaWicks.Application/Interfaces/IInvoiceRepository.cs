@@ -12,4 +12,5 @@ public interface IInvoiceRepository
     Task<decimal> SumCashSalesAsync(DateTime? since, CancellationToken ct);
     Task<List<Invoice>> ListByPriceApprovalStatusAsync(string status, CancellationToken ct);
     Task<List<Invoice>> ListForReconAsync(string? paymentType, DateTime? from, DateTime? to, CancellationToken ct);
+    Task<Invoice?> GetByNumberAsync(string invoiceNumber, CancellationToken ct);
 }

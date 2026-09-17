@@ -269,6 +269,24 @@ public class InvoicesController : ControllerBase
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
     }
 
+    // PATCH /api/invoices/by-number/{invoiceNumber}/payment-type  (Admin: correct payment type)
+    [HttpPatch("by-number/{invoiceNumber}/payment-type")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> FixPaymentType(string invoiceNumber, [FromBody] FixPaymentTypeRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.PaymentType))
+            return BadRequest(new { error = "PaymentType is required." });
+        try
+        {
+            await _service.FixPaymentTypeAsync(invoiceNumber, request.PaymentType, ct);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) { return NotFound(new { error = ex.Message }); }
+    }
+
     // GET /api/invoices/{invoiceId}/receipt-upload-url
     [HttpGet("{invoiceId}/receipt-upload-url")]
     [Authorize(Policy = "DriverOnly")]

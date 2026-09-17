@@ -28,4 +28,7 @@ public interface IInvoiceService
     /// <summary>Cancels a duplicate or mistaken invoice: restores booked stock, reverses any credit charge,
     /// and marks the invoice Cancelled. Blocked if the invoice has bank-reconciled payments.</summary>
     Task CancelInvoiceAsync(string invoiceId, string reason, string cancelledByUserId, CancellationToken ct);
+
+    /// <summary>Admin: correct the PaymentType on an invoice found by invoice number.</summary>
+    Task FixPaymentTypeAsync(string invoiceNumber, string newPaymentType, CancellationToken ct);
 }
