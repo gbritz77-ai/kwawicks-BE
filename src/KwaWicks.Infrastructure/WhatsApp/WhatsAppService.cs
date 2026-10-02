@@ -182,7 +182,7 @@ public class WhatsAppService : IWhatsAppService
 
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            $"https://graph.facebook.com/v21.0/{phoneNumberId}/messages");
+            $"https://graph.facebook.com/v22.0/{phoneNumberId}/messages");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = content;
 
