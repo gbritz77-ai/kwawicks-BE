@@ -472,6 +472,21 @@ public class CollectionRequestService : ICollectionRequestService
         var client = await _clientRepo.GetAsync(request.ClientId, ct)
             ?? throw new InvalidOperationException($"Client not found: {request.ClientId}");
 
+        // Pre-fetch delivery orders so validation uses the same DeliveredQty source as the DTO
+        // (DoLine.DeliveredQty is set when the driver creates an invoice; CollectionAllocationLine.DeliveredQty
+        //  is only updated later during admin confirmation and may lag behind)
+        var doIdsForValidation = cr.DeliveryAllocations
+            .Where(a => !string.IsNullOrEmpty(a.DeliveryOrderId) && a.DeliveryOrderId != "HUB")
+            .Select(a => a.DeliveryOrderId)
+            .Distinct()
+            .ToList();
+        var doMapForValidation = new Dictionary<string, DeliveryOrder>();
+        foreach (var doId in doIdsForValidation)
+        {
+            var doOrder = await _deliveryRepo.GetAsync(doId, ct);
+            if (doOrder != null) doMapForValidation[doId] = doOrder;
+        }
+
         // Validate quantities: cannot allocate more than ordered across all allocations per species
         foreach (var reqLine in request.Lines)
         {
@@ -482,12 +497,21 @@ public class CollectionRequestService : ICollectionRequestService
                 throw new ArgumentException($"Quantity for species {reqLine.SpeciesId} must be greater than zero.");
 
             // Sum already-allocated qty for this species across existing allocations.
-            // Use deliveredQty when recorded (client took less than allocated), so returned
-            // stock that is still on the truck can be re-allocated to another client.
+            // Prefer DoLine.DeliveredQty (set by driver invoice creation), then fall back to
+            // CollectionAllocationLine.DeliveredQty (set on admin confirmation), then Qty.
             var alreadyAllocated = cr.DeliveryAllocations
-                .SelectMany(a => a.Lines)
-                .Where(l => l.SpeciesId == reqLine.SpeciesId)
-                .Sum(l => l.DeliveredQty > 0 ? l.DeliveredQty : l.Qty);
+                .SelectMany(a => a.Lines.Select(l => (Allocation: a, Line: l)))
+                .Where(x => x.Line.SpeciesId == reqLine.SpeciesId)
+                .Sum(x =>
+                {
+                    if (doMapForValidation.TryGetValue(x.Allocation.DeliveryOrderId, out var doOrder))
+                    {
+                        var doLine = doOrder.Lines.FirstOrDefault(dl => dl.SpeciesId == x.Line.SpeciesId);
+                        if (doLine != null && doLine.DeliveredQty > 0)
+                            return doLine.DeliveredQty;
+                    }
+                    return x.Line.DeliveredQty > 0 ? x.Line.DeliveredQty : x.Line.Qty;
+                });
 
             // Use loaded qty as the cap once the driver has loaded (more accurate than ordered qty when there's a shortfall)
             var effectiveQty = crLine.LoadedQty > 0 ? crLine.LoadedQty : crLine.OrderedQty;
