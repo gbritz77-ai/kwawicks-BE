@@ -334,13 +334,12 @@ public class InvoiceService : IInvoiceService
 
         await _invoiceRepo.UpdateAsync(invoice, ct);
 
-        // Cash and card-machine payments are collected by the driver in person and need no
-        // further verification — confirm immediately so they don't sit as "Pending" forever.
-        // Credit sales settle against the client's account immediately too — mark paid and
-        // charge the credit ledger now instead of waiting for a separate confirm step.
-        // EFT and Split are left Pending: EFT needs proof-of-payment review/reconciliation,
-        // and Split may include an EFT leg that hasn't cleared yet.
-        var autoConfirmTypes = new[] { "Cash", "CardMachine", "Credit" };
+        // Cash and card-machine payments are collected in person — confirm immediately.
+        // Credit sales settle against the account — confirm immediately.
+        // Split payments may contain an EFT leg (needs bank recon) but also a Cash/Card leg
+        // that is collected now — confirm immediately so the cash leg is posted to the ledger.
+        // Pure EFT is left Pending until bank recon.
+        var autoConfirmTypes = new[] { "Cash", "CardMachine", "Credit", "Split" };
         if (autoConfirmTypes.Contains(request.PaymentType))
             await ConfirmPaymentAsync(invoiceId, ct);
     }
@@ -370,16 +369,27 @@ public class InvoiceService : IInvoiceService
             invoice.CreditChargeEntryId = chargeEntry.EntryId;
             await _invoiceRepo.UpdateAsync(invoice, ct);
 
-            // Credit: money actually received now, for every payment type except deferred-payment
-            // types (Credit/AccountCredit/OnAccount — those mean the client/staff owes it, no
-            // payment received yet). EFT is also excluded here: the payment credit is posted in
-            // ReconAsync when the bank transaction is matched, so posting it here would duplicate
-            // the ledger entry when the admin confirms EFT before doing bank recon.
-            var isDeferred = invoice.PaymentType is "Credit" or "AccountCredit" or "OnAccount" or "EFT";
-            if (!isDeferred)
+            // Credit: money actually received now, per payment type:
+            // - EFT: excluded — payment credit is posted by ReconAsync when the bank transaction is matched.
+            // - Split: post each non-EFT leg individually (Cash/Card collected now); EFT legs wait for recon.
+            // - Credit/AccountCredit/OnAccount: deferred — client owes it, no money received yet.
+            // - All others (Cash, CardMachine): post the full amount now.
+            if (invoice.PaymentType == "Split")
             {
-                await _clientCreditService.RecordInvoicePaymentAsync(
-                    invoice.CustomerId, invoiceId, invoice.GrandTotal, invoice.PaymentType, ct);
+                foreach (var sp in invoice.SplitPayments.Where(sp => !string.Equals(sp.Method, "EFT", StringComparison.OrdinalIgnoreCase)))
+                {
+                    await _clientCreditService.RecordInvoicePaymentAsync(
+                        invoice.CustomerId, invoiceId, sp.Amount, sp.Method, ct);
+                }
+            }
+            else
+            {
+                var isDeferred = invoice.PaymentType is "Credit" or "AccountCredit" or "OnAccount" or "EFT";
+                if (!isDeferred)
+                {
+                    await _clientCreditService.RecordInvoicePaymentAsync(
+                        invoice.CustomerId, invoiceId, invoice.GrandTotal, invoice.PaymentType, ct);
+                }
             }
         }
     }
