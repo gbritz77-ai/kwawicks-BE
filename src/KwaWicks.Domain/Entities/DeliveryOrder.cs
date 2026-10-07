@@ -26,6 +26,18 @@ public class DeliveryOrder
     /// <summary>Hub staff has physically verified and checked in the returned stock.</summary>
     public bool ReturnCheckedIn { get; set; } = false;
 
+    /// <summary>Expected cash from the driver (set when invoice is linked: Cash = GrandTotal, Split = Cash leg).</summary>
+    public decimal? CashExpected { get; set; }
+
+    /// <summary>Cash amount hub staff received from the driver on return (null = not yet confirmed).</summary>
+    public decimal? CashReceived { get; set; }
+
+    /// <summary>True once hub has confirmed the cash amount returned by the driver.</summary>
+    public bool CashConfirmed { get; set; }
+
+    /// <summary>Difference between CashReceived and CashExpected (positive = over, negative = short).</summary>
+    public decimal? CashDiscrepancy { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

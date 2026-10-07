@@ -9,15 +9,18 @@ public class DeliveryOrderService : IDeliveryOrderService
     private readonly IDeliveryOrderRepository _deliveryRepo;
     private readonly ISpeciesRepository _speciesRepo;
     private readonly IHubTaskRepository _hubTaskRepo;
+    private readonly IInvoiceRepository _invoiceRepo;
 
     public DeliveryOrderService(
         IDeliveryOrderRepository deliveryRepo,
         ISpeciesRepository speciesRepo,
-        IHubTaskRepository hubTaskRepo)
+        IHubTaskRepository hubTaskRepo,
+        IInvoiceRepository invoiceRepo)
     {
         _deliveryRepo = deliveryRepo ?? throw new ArgumentNullException(nameof(deliveryRepo));
         _speciesRepo = speciesRepo ?? throw new ArgumentNullException(nameof(speciesRepo));
         _hubTaskRepo = hubTaskRepo ?? throw new ArgumentNullException(nameof(hubTaskRepo));
+        _invoiceRepo = invoiceRepo ?? throw new ArgumentNullException(nameof(invoiceRepo));
     }
 
     public async Task<string> CreateAsync(CreateDeliveryOrderRequest request, CancellationToken ct)
@@ -348,6 +351,32 @@ public class DeliveryOrderService : IDeliveryOrderService
                 line.ReturnsInspected = true;
             }
 
+            // Cash confirmation: compute expected cash from invoice and store discrepancy
+            if (!string.IsNullOrEmpty(order.InvoiceId))
+            {
+                var invoice = await _invoiceRepo.GetAsync(order.InvoiceId, ct);
+                if (invoice != null)
+                {
+                    decimal expectedCash = 0m;
+                    if (invoice.PaymentType == "Cash")
+                        expectedCash = invoice.GrandTotal;
+                    else if (invoice.PaymentType == "Split")
+                        expectedCash = invoice.SplitPayments.Where(sp => sp.Method == "Cash").Sum(sp => sp.Amount);
+
+                    if (expectedCash > 0)
+                    {
+                        order.CashExpected = expectedCash;
+
+                        if (request.CashReceived.HasValue)
+                        {
+                            order.CashReceived = request.CashReceived;
+                            order.CashConfirmed = true;
+                            order.CashDiscrepancy = request.CashReceived.Value - expectedCash;
+                        }
+                    }
+                }
+            }
+
             order.UpdatedAt = DateTime.UtcNow;
             await _deliveryRepo.UpdateAsync(order, ct);
         }
@@ -395,6 +424,10 @@ public class DeliveryOrderService : IDeliveryOrderService
         PostalCode = order.PostalCode,
         ReturnSubmitted = order.ReturnSubmitted,
         ReturnCheckedIn = order.ReturnCheckedIn,
+        CashExpected = order.CashExpected,
+        CashReceived = order.CashReceived,
+        CashConfirmed = order.CashConfirmed,
+        CashDiscrepancy = order.CashDiscrepancy,
         CreatedAt = order.CreatedAt,
         UpdatedAt = order.UpdatedAt,
         Lines = order.Lines.Select(l => new DeliveryOrderLineResponse

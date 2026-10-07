@@ -43,6 +43,10 @@ public class DeliveryOrderResponse
     public List<DeliveryOrderLineResponse> Lines { get; set; } = new();
     public bool ReturnSubmitted { get; set; }
     public bool ReturnCheckedIn { get; set; }
+    public decimal? CashExpected { get; set; }
+    public decimal? CashReceived { get; set; }
+    public bool CashConfirmed { get; set; }
+    public decimal? CashDiscrepancy { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -63,6 +67,9 @@ public class DeliveryOrderLineResponse
 public class RecordReturnsInspectionRequest
 {
     public List<RecordReturnsInspectionLine> Lines { get; set; } = new();
+
+    /// <summary>Cash amount physically received from the driver (only relevant for Cash/Split-Cash deliveries).</summary>
+    public decimal? CashReceived { get; set; }
 }
 
 public class RecordReturnsInspectionLine
