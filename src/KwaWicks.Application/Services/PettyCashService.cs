@@ -218,7 +218,10 @@ public class PettyCashService : IPettyCashService
 
     public async Task<List<CashDepositDetailDto>> GetDepositDetailsAsync(DateTime? since, CancellationToken ct)
     {
-        var deposits = await _creditRepo.ListCashDepositsAsync(since, ct);
+        // Pass null to return all cash deposits regardless of cashup period.
+        // The caller can filter by date in the UI; server-side since-filtering
+        // caused empty results when cashup.CreatedAtUtc was missing or stale.
+        var deposits = await _creditRepo.ListCashDepositsAsync(null, ct);
 
         if (deposits.Count == 0) return new List<CashDepositDetailDto>();
 
