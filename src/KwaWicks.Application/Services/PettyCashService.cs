@@ -220,11 +220,7 @@ public class PettyCashService : IPettyCashService
         var lastCashup = await _repo.GetLatestCashupAsync(ct);
         DateTime? since = lastCashup?.CreatedAtUtc;
 
-        var all = await _creditRepo.ListAllAsync(since, null, ct);
-        var deposits = all
-            .Where(e => e.EntryType == "Deposit" && e.PaymentMethod == "Cash" && e.Amount > 0)
-            .OrderByDescending(e => e.CreatedAt)
-            .ToList();
+        var deposits = await _creditRepo.ListCashDepositsAsync(since, ct);
 
         if (deposits.Count == 0) return new List<CashDepositDetailDto>();
 

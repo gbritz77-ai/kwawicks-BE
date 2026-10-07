@@ -108,6 +108,43 @@ public class ClientCreditRepository : IClientCreditRepository
             .Sum(i => decimal.Parse(i["Amount"].N!, NumberStyles.Any, CultureInfo.InvariantCulture));
     }
 
+    public async Task<List<ClientCreditEntry>> ListCashDepositsAsync(DateTime? since, CancellationToken ct = default)
+    {
+        var filterParts = new List<string> { "EntityType = :et", "EntryType = :etype", "PaymentMethod = :pm", "Amount > :zero" };
+        var values = new Dictionary<string, AttributeValue>
+        {
+            [":et"]    = new() { S = "ClientCreditEntry" },
+            [":etype"] = new() { S = "Deposit" },
+            [":pm"]    = new() { S = "Cash" },
+            [":zero"]  = new() { N = "0" }
+        };
+
+        if (since.HasValue)
+        {
+            filterParts.Add("CreatedAt >= :since");
+            values[":since"] = new() { S = since.Value.ToString("O", CultureInfo.InvariantCulture) };
+        }
+
+        var req = new ScanRequest
+        {
+            TableName = _tableName,
+            FilterExpression = string.Join(" AND ", filterParts),
+            ExpressionAttributeValues = values
+        };
+
+        var items = new List<Dictionary<string, AttributeValue>>();
+        ScanResponse? resp;
+        do
+        {
+            resp = await _ddb.ScanAsync(req, ct);
+            items.AddRange(resp.Items);
+            req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        }
+        while (resp.LastEvaluatedKey is { Count: > 0 });
+
+        return items.Select(FromItem).OrderByDescending(e => e.CreatedAt).ToList();
+    }
+
     public async Task<List<ClientCreditEntry>> ListAllAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
     {
         var filterParts = new List<string> { "EntityType = :et" };
