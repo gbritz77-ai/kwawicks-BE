@@ -600,6 +600,7 @@ public class ReportService : IReportService
 
         var rows = invoicesTask.Result
             .Where(i => i.Status != "Cancelled")
+            .Where(i => i.SaleType != "HubStock")   // internal stock transfers, not customer sales
             .Where(i => from == null || i.CreatedAt >= from.Value)
             .Where(i => to   == null || i.CreatedAt <= to.Value.AddDays(1))
             .OrderBy(i => i.CreatedAt)
