@@ -165,7 +165,7 @@ public class PettyCashRepository : IPettyCashRepository
     public async Task<PettyCashup?> GetLatestCashupAsync(CancellationToken ct)
     {
         var all = await ListCashupsAsync(ct);
-        return all.MaxBy(c => c.CashupDate);
+        return all.MaxBy(c => (c.CashupDate, c.CreatedAtUtc));
     }
 
     public async Task UpdateCashupActualBalanceAsync(string cashupId, decimal actualBalance, CancellationToken ct)
