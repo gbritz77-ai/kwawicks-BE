@@ -49,6 +49,11 @@ public class InvoiceService : IInvoiceService
             if (l.VatRate < 0) throw new ArgumentException("VatRate cannot be negative.");
         }
 
+        var saleType = string.IsNullOrWhiteSpace(request.SaleType) ? "Delivery" : request.SaleType;
+        var validPaymentTypes = new[] { "Cash", "EFT", "Card", "Credit", "CardMachine", "Split" };
+        if (saleType != "HubStock" && !validPaymentTypes.Contains(request.PaymentType))
+            throw new ArgumentException($"PaymentType is required. Valid values: {string.Join(", ", validPaymentTypes)}");
+
         var invoiceNumber = await _invoiceRepo.GetNextInvoiceNumberAsync(ct);
 
         var invoice = new Invoice
@@ -57,7 +62,7 @@ public class InvoiceService : IInvoiceService
             HubId = request.HubId,
             InvoiceNumber = invoiceNumber,
             PaymentType = request.PaymentType ?? "",
-            SaleType = string.IsNullOrWhiteSpace(request.SaleType) ? "Delivery" : request.SaleType,
+            SaleType = saleType,
             StaffMemberId = request.StaffMemberId ?? "",
             Lines = new List<InvoiceLine>()
         };
