@@ -103,6 +103,9 @@ builder.Services.AddScoped<ISupplierRepository>(sp =>
 builder.Services.AddScoped<IProcurementOrderRepository>(sp =>
     new ProcurementOrderRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IInboundShipmentRepository>(sp =>
+    new InboundShipmentRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 builder.Services.AddScoped<ICollectionRequestRepository>(sp =>
     new CollectionRequestRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
@@ -170,6 +173,7 @@ builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<IProcurementOrderService, ProcurementOrderService>();
+builder.Services.AddScoped<IInboundShipmentService, InboundShipmentService>();
 builder.Services.AddScoped<ICollectionRequestService, CollectionRequestService>();
 builder.Services.AddScoped<IDeliveryRunService, DeliveryRunService>();
 builder.Services.AddScoped<IStaffMemberService, StaffMemberService>();
@@ -197,7 +201,14 @@ builder.Services.AddScoped<IPriceApprovalService, PriceApprovalService>();
 builder.Services.AddScoped<ISlaughterService, SlaughterService>();
 builder.Services.AddScoped<ICostAverageService, CostAverageService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
-builder.Services.AddScoped<IBankStatementService, BankStatementService>();
+builder.Services.AddScoped<IBankStatementService>(sp => new BankStatementService(
+    sp.GetRequiredService<IBankStatementRepository>(),
+    sp.GetRequiredService<IInvoiceService>(),
+    sp.GetRequiredService<ISupplierService>(),
+    sp.GetRequiredService<IClientService>(),
+    sp.GetRequiredService<IClientCreditService>(),
+    sp.GetRequiredService<IS3Service>(),
+    sp.GetRequiredService<IPettyCashRepository>()));
 builder.Services.AddScoped<IDriverStockAllocationService, DriverStockAllocationService>();
 builder.Services.AddScoped<IStockLossService, StockLossService>();
 builder.Services.AddScoped<IVehicleTrackingService, VehicleTrackingService>();
@@ -206,7 +217,8 @@ builder.Services.AddScoped<IPettyCashService>(sp =>
         sp.GetRequiredService<IPettyCashRepository>(),
         sp.GetRequiredService<IS3Service>(),
         sp.GetRequiredService<IInvoiceRepository>(),
-        sp.GetRequiredService<IClientCreditRepository>()));
+        sp.GetRequiredService<IClientCreditRepository>(),
+        sp.GetRequiredService<IClientRepository>()));
 
 // AI Reports
 var anthropicApiKey = builder.Configuration["Anthropic:ApiKey"] ?? "";

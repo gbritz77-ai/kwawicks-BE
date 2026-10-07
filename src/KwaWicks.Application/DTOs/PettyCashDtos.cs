@@ -71,6 +71,19 @@ public class PettyCashupDto
     public List<PettyCashEntryDto> Entries { get; set; } = new();
 }
 
+// ── Deposit Details ────────────────────────────────────────────────────────
+
+public class CashDepositDetailDto
+{
+    public string EntryId { get; set; } = "";
+    public string ClientId { get; set; } = "";
+    public string ClientName { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string Reference { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public DateTime Date { get; set; }
+}
+
 // ── Summary ────────────────────────────────────────────────────────────────
 
 public class PettyCashSummaryDto

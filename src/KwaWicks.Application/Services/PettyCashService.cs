@@ -10,17 +10,20 @@ public class PettyCashService : IPettyCashService
     private readonly IS3Service _s3;
     private readonly IInvoiceRepository _invoiceRepo;
     private readonly IClientCreditRepository _creditRepo;
+    private readonly IClientRepository _clientRepo;
 
     public PettyCashService(
         IPettyCashRepository repo,
         IS3Service s3,
         IInvoiceRepository invoiceRepo,
-        IClientCreditRepository creditRepo)
+        IClientCreditRepository creditRepo,
+        IClientRepository clientRepo)
     {
         _repo = repo;
         _s3 = s3;
         _invoiceRepo = invoiceRepo;
         _creditRepo = creditRepo;
+        _clientRepo = clientRepo;
     }
 
     public async Task<PettyCashEntryDto> CreateEntryAsync(
@@ -210,6 +213,35 @@ public class PettyCashService : IPettyCashService
             };
             await _repo.CreateCashupAsync(cashup, ct);
         }
+    }
+
+    public async Task<List<CashDepositDetailDto>> GetDepositDetailsAsync(CancellationToken ct)
+    {
+        var lastCashup = await _repo.GetLatestCashupAsync(ct);
+        DateTime? since = lastCashup?.CreatedAtUtc;
+
+        var all = await _creditRepo.ListAllAsync(since, null, ct);
+        var deposits = all
+            .Where(e => e.EntryType == "Deposit" && e.PaymentMethod == "Cash" && e.Amount > 0)
+            .OrderByDescending(e => e.CreatedAt)
+            .ToList();
+
+        if (deposits.Count == 0) return new List<CashDepositDetailDto>();
+
+        var clientIds = deposits.Select(d => d.ClientId).Distinct().ToList();
+        var clients   = await _clientRepo.ListAsync(500, ct);
+        var clientMap = clients.ToDictionary(c => c.ClientId, c => c.ClientName);
+
+        return deposits.Select(d => new CashDepositDetailDto
+        {
+            EntryId    = d.EntryId,
+            ClientId   = d.ClientId,
+            ClientName = clientMap.TryGetValue(d.ClientId, out var n) ? n : d.ClientId,
+            Amount     = d.Amount,
+            Reference  = d.Reference,
+            Notes      = d.Notes,
+            Date       = d.CreatedAt,
+        }).ToList();
     }
 
     private static PettyCashEntryDto MapEntry(PettyCashEntry e) => new()

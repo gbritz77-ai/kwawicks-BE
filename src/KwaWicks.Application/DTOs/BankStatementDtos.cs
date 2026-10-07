@@ -153,6 +153,7 @@ public class DebitReportItem
     public string AllocationType { get; set; } = "";   // "Expense" | "Supplier" | "NonClient" | ""
     public string AllocatedTo { get; set; } = "";      // category / supplier name / description
     public string? AllocatedAt { get; set; }
+    public string Source { get; set; } = "Bank";       // "Bank" | "PettyCash"
 }
 
 public class DebitReportResponse

@@ -14,6 +14,7 @@ public class BankStatementService : IBankStatementService
     private readonly IClientService _clientService;
     private readonly IClientCreditService _clientCreditService;
     private readonly IS3Service _s3;
+    private readonly IPettyCashRepository _pettyCashRepo;
     private const string CsvFolder = "bank-statements";
 
     public BankStatementService(
@@ -22,11 +23,13 @@ public class BankStatementService : IBankStatementService
         ISupplierService supplierService,
         IClientService clientService,
         IClientCreditService clientCreditService,
-        IS3Service s3)
+        IS3Service s3,
+        IPettyCashRepository pettyCashRepo)
     {
         _repo                = repo                ?? throw new ArgumentNullException(nameof(repo));
         _invoiceService      = invoiceService      ?? throw new ArgumentNullException(nameof(invoiceService));
         _supplierService     = supplierService     ?? throw new ArgumentNullException(nameof(supplierService));
+        _pettyCashRepo       = pettyCashRepo       ?? throw new ArgumentNullException(nameof(pettyCashRepo));
         _clientService       = clientService       ?? throw new ArgumentNullException(nameof(clientService));
         _clientCreditService = clientCreditService ?? throw new ArgumentNullException(nameof(clientCreditService));
         _s3                  = s3                  ?? throw new ArgumentNullException(nameof(s3));
@@ -572,6 +575,29 @@ public class BankStatementService : IBankStatementService
                         : null
                 });
             }
+        }
+
+        // Add petty cash "Out" entries as allocated debit items
+        var fromStr = from.HasValue ? from.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : null;
+        var toStr   = to.HasValue   ? to.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)   : null;
+        var pcEntries = await _pettyCashRepo.ListEntriesAsync(fromStr, toStr, ct);
+        foreach (var pc in pcEntries.Where(e => e.Type == "Out"))
+        {
+            items.Add(new DebitReportItem
+            {
+                StatementId    = "petty-cash",
+                FileName       = "Petty Cash",
+                TransactionId  = pc.EntryId,
+                Date           = pc.EntryDate,
+                Description    = pc.Description,
+                Reference      = pc.RecipientName,
+                Amount         = pc.Amount,
+                IsAllocated    = true,
+                AllocationType = "Expense",
+                AllocatedTo    = pc.Category,
+                AllocatedAt    = pc.CreatedAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                Source         = "PettyCash",
+            });
         }
 
         // Deduplicate: same physical transaction may appear in multiple statement uploads.
