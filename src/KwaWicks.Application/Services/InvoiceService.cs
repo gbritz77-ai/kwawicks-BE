@@ -372,8 +372,10 @@ public class InvoiceService : IInvoiceService
 
             // Credit: money actually received now, for every payment type except deferred-payment
             // types (Credit/AccountCredit/OnAccount — those mean the client/staff owes it, no
-            // payment received yet). The latter two are legacy strings from before normalization.
-            var isDeferred = invoice.PaymentType is "Credit" or "AccountCredit" or "OnAccount";
+            // payment received yet). EFT is also excluded here: the payment credit is posted in
+            // ReconAsync when the bank transaction is matched, so posting it here would duplicate
+            // the ledger entry when the admin confirms EFT before doing bank recon.
+            var isDeferred = invoice.PaymentType is "Credit" or "AccountCredit" or "OnAccount" or "EFT";
             if (!isDeferred)
             {
                 await _clientCreditService.RecordInvoicePaymentAsync(
