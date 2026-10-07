@@ -100,6 +100,10 @@ public class PettyCashSummaryDto
     public decimal CashFromCreditDeposits { get; set; }
     public decimal TotalCashInCustody { get; set; }   // CurrentBalance + CashFromHubSales + CashFromCreditDeposits
 
+    // The exact cashup timestamp used as the lower-bound for cash calculations.
+    // Pass this back to /deposit-details so both endpoints use the identical value.
+    public DateTime? DepositsSinceUtc { get; set; }
+
     // Manual overrides (null = using auto-calculated value)
     public decimal? HubSalesCashOverride { get; set; }
     public decimal? ClientDepositsCashOverride { get; set; }

@@ -89,6 +89,7 @@ public class PettyCashService : IPettyCashService
             CashFromHubSales = effectiveHub,
             CashFromCreditDeposits = effectiveDeposits,
             TotalCashInCustody = currentBalance + effectiveHub + effectiveDeposits,
+            DepositsSinceUtc = since,
             HubSalesCashOverride = hubOverride,
             ClientDepositsCashOverride = depositOverride
         };
@@ -215,11 +216,8 @@ public class PettyCashService : IPettyCashService
         }
     }
 
-    public async Task<List<CashDepositDetailDto>> GetDepositDetailsAsync(CancellationToken ct)
+    public async Task<List<CashDepositDetailDto>> GetDepositDetailsAsync(DateTime? since, CancellationToken ct)
     {
-        var lastCashup = await _repo.GetLatestCashupAsync(ct);
-        DateTime? since = lastCashup?.CreatedAtUtc;
-
         var deposits = await _creditRepo.ListCashDepositsAsync(since, ct);
 
         if (deposits.Count == 0) return new List<CashDepositDetailDto>();

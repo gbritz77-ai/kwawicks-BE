@@ -153,4 +153,13 @@ public class PettyCashController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
+
+    // GET /api/petty-cash/deposit-details?since=2026-09-28T10:00:00Z
+    [HttpGet("deposit-details")]
+    [ProducesResponseType(typeof(List<CashDepositDetailDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetDepositDetails([FromQuery] DateTime? since, CancellationToken ct)
+    {
+        var details = await _service.GetDepositDetailsAsync(since, ct);
+        return Ok(details);
+    }
 }
