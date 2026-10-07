@@ -174,6 +174,52 @@ public class DeliveryOrderService : IDeliveryOrderService
             .ToList();
     }
 
+    public async Task HubDropAsync(string deliveryOrderId, HubDropRequest request, CancellationToken ct)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+
+        var order = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
+            ?? throw new InvalidOperationException($"Delivery order not found: {deliveryOrderId}");
+
+        if (order.Status != "OutForDelivery")
+            throw new InvalidOperationException("Hub drops can only be recorded for orders that are OutForDelivery.");
+
+        var adjusted = new List<(string speciesId, int qty)>();
+        try
+        {
+            foreach (var drop in request.Lines)
+            {
+                if (drop.Qty <= 0) continue;
+
+                var line = order.Lines.FirstOrDefault(l => l.SpeciesId == drop.SpeciesId)
+                    ?? throw new InvalidOperationException($"Species {drop.SpeciesId} is not on this delivery order.");
+
+                int maxDroppable = line.Quantity - line.HubDropQty;
+                if (drop.Qty > maxDroppable)
+                    throw new InvalidOperationException(
+                        $"Cannot drop {drop.Qty} for species {drop.SpeciesId} — only {maxDroppable} available to drop (ordered: {line.Quantity}, already dropped: {line.HubDropQty}).");
+
+                // Move dropped qty from booked → on-hand immediately
+                await _speciesRepo.AdjustStockAsync(drop.SpeciesId, onHandDelta: +drop.Qty, bookedDelta: -drop.Qty, ct);
+                adjusted.Add((drop.SpeciesId, drop.Qty));
+
+                line.HubDropQty += drop.Qty;
+            }
+
+            order.UpdatedAt = DateTime.UtcNow;
+            await _deliveryRepo.UpdateAsync(order, ct);
+        }
+        catch
+        {
+            foreach (var (speciesId, qty) in adjusted)
+            {
+                try { await _speciesRepo.AdjustStockAsync(speciesId, onHandDelta: -qty, bookedDelta: +qty, CancellationToken.None); }
+                catch { /* swallow rollback errors */ }
+            }
+            throw;
+        }
+    }
+
     public async Task SubmitReturnAsync(string deliveryOrderId, SubmitReturnRequest request, CancellationToken ct)
     {
         var order = await _deliveryRepo.GetAsync(deliveryOrderId, ct)
@@ -440,7 +486,8 @@ public class DeliveryOrderService : IDeliveryOrderService
             ReturnedToHubQty = l.ReturnedToHubQty,
             ReturnsInspected = l.ReturnsInspected,
             InspectedDeadQty = l.InspectedDeadQty,
-            InspectedMutilatedQty = l.InspectedMutilatedQty
+            InspectedMutilatedQty = l.InspectedMutilatedQty,
+            HubDropQty = l.HubDropQty
         }).ToList()
     };
 }

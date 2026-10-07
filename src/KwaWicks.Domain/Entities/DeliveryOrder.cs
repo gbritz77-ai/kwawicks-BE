@@ -59,4 +59,9 @@ public class DeliveryOrderLine
     public bool ReturnsInspected { get; set; }
     public int InspectedDeadQty { get; set; }
     public int InspectedMutilatedQty { get; set; }
+
+    /// <summary>Qty dropped at the hub BEFORE the delivery invoice is created.
+    /// This amount is immediately moved from booked → on-hand at drop time
+    /// so the hub can use the stock without waiting for the invoice.</summary>
+    public int HubDropQty { get; set; }
 }

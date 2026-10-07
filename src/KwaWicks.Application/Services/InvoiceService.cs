@@ -251,15 +251,17 @@ public class InvoiceService : IInvoiceService
         invoice.GrandTotal = subTotal + vatTotal;
         await _invoiceRepo.CreateAsync(invoice, ct);
 
-        // Atomically reconcile stock: release booked qty, return not-wanted to on-hand
+        // Atomically reconcile stock: release booked qty, return not-wanted to on-hand.
+        // HubDropQty was already moved from booked → on-hand at drop time, so we must
+        // subtract it from both deltas to avoid double-counting.
         foreach (var line in request.Lines)
         {
             var doLine = deliveryOrder.Lines.First(l => l.SpeciesId == line.SpeciesId);
-            // Deduct from booked (negative delta) and add returns to on-hand
+            int hubDropQty = doLine.HubDropQty; // already released at drop time
             await _speciesRepo.AdjustStockAsync(
                 line.SpeciesId,
-                onHandDelta: +line.TotalReturnedQty,
-                bookedDelta: -doLine.Quantity,
+                onHandDelta: +(line.TotalReturnedQty - hubDropQty),
+                bookedDelta: -(doLine.Quantity - hubDropQty),
                 ct);
 
             // Record return details on the delivery order line

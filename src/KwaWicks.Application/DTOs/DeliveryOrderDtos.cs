@@ -62,6 +62,18 @@ public class DeliveryOrderLineResponse
     public bool ReturnsInspected { get; set; }
     public int InspectedDeadQty { get; set; }
     public int InspectedMutilatedQty { get; set; }
+    public int HubDropQty { get; set; }
+}
+
+public class HubDropRequest
+{
+    public List<HubDropLine> Lines { get; set; } = new();
+}
+
+public class HubDropLine
+{
+    public string SpeciesId { get; set; } = "";
+    public int Qty { get; set; }
 }
 
 public class RecordReturnsInspectionRequest
