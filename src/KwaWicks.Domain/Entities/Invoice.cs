@@ -42,6 +42,11 @@ public class Invoice
     /// Guards against double-charging across ConfirmPaymentAsync / ReconAsync.</summary>
     public bool LedgerCharged { get; set; }
 
+    /// <summary>True once the payment credit(s) have been posted to the client's credit ledger
+    /// by ConfirmPaymentAsync. Prevents ReconAsync from double-posting when bank recon runs
+    /// after a payment was already confirmed (e.g. EFT confirmed by admin then bank-matched).</summary>
+    public bool PaymentPostedToLedger { get; set; }
+
     /// <summary>EntryId of the InvoiceCharge credit entry for this invoice.
     /// Stored so price edits can update the ledger entry directly without scanning.</summary>
     public string CreditChargeEntryId { get; set; } = "";
