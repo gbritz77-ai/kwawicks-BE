@@ -29,6 +29,6 @@ public interface IInvoiceService
     /// and marks the invoice Cancelled. Blocked if the invoice has bank-reconciled payments.</summary>
     Task CancelInvoiceAsync(string invoiceId, string reason, string cancelledByUserId, CancellationToken ct);
 
-    /// <summary>Admin: correct the PaymentType on an invoice found by invoice number.</summary>
-    Task FixPaymentTypeAsync(string invoiceNumber, string newPaymentType, CancellationToken ct);
+    /// <summary>Admin: correct the PaymentType on an invoice by invoiceId (PK).</summary>
+    Task FixPaymentTypeAsync(string invoiceId, string newPaymentType, CancellationToken ct);
 }

@@ -657,10 +657,10 @@ public class InvoiceService : IInvoiceService
         await _invoiceRepo.UpdateAsync(invoice, ct);
     }
 
-    public async Task FixPaymentTypeAsync(string invoiceNumber, string newPaymentType, CancellationToken ct)
+    public async Task FixPaymentTypeAsync(string invoiceId, string newPaymentType, CancellationToken ct)
     {
-        var invoice = await _invoiceRepo.GetByNumberAsync(invoiceNumber, ct)
-            ?? throw new InvalidOperationException($"Invoice not found: {invoiceNumber}");
+        var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
+            ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
 
         invoice.PaymentType = newPaymentType;
         invoice.UpdatedAt   = DateTime.UtcNow;
