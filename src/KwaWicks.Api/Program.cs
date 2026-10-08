@@ -285,16 +285,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("OwnerOnly",       p => p.RequireRole("Owner"));
-    options.AddPolicy("FinancialAccess",  p => p.RequireRole("Owner", "Finance"));
-    options.AddPolicy("PettyCashAccess", p => p.RequireRole("Owner", "Finance", "Admin"));
-    options.AddPolicy("OperationalAccess", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver"));
-    options.AddPolicy("UserManagement", p => p.RequireRole("Owner", "Admin"));
-    options.AddPolicy("DriverOnly", p => p.RequireRole("Owner", "Finance", "Admin", "Driver"));
-    options.AddPolicy("AdminOnly", p => p.RequireRole("Owner", "Finance", "Admin"));
-    options.AddPolicy("HubStaffOnly", p => p.RequireRole("Owner", "Finance", "Admin", "HubStaff", "Procurement"));
-    options.AddPolicy("ProcurementAccess", p => p.RequireRole("Owner", "Finance", "Admin", "Procurement"));
-    options.AddPolicy("SupplierManagement", p => p.RequireRole("Owner", "Admin", "Procurement"));
-    options.AddPolicy("CollectionManagement", p => p.RequireRole("Owner", "Admin", "HubStaff", "Procurement"));
+    options.AddPolicy("FinancialAccess",  p => p.RequireRole("Master", "Owner", "Finance"));
+    options.AddPolicy("PettyCashAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin"));
+    options.AddPolicy("OperationalAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver"));
+    options.AddPolicy("UserManagement", p => p.RequireRole("Master", "Owner", "Admin"));
+    options.AddPolicy("DriverOnly", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "Driver"));
+    options.AddPolicy("AdminOnly", p => p.RequireRole("Master", "Owner", "Finance", "Admin"));
+    options.AddPolicy("HubStaffOnly", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "HubStaff", "Procurement"));
+    options.AddPolicy("ProcurementAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "Procurement"));
+    options.AddPolicy("SupplierManagement", p => p.RequireRole("Master", "Owner", "Admin", "Procurement"));
+    options.AddPolicy("CollectionManagement", p => p.RequireRole("Master", "Owner", "Admin", "HubStaff", "Procurement"));
 });
 
 // -------------------- Cognito Client --------------------
