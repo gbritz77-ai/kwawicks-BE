@@ -137,11 +137,12 @@ public class InvoiceRepository : IInvoiceRepository
         ScanResponse? response;
 
         // ── 1. Pure-cash invoices — sum GrandTotal ────────────────────────
-        var cashFilterParts = new List<string> { "EntityType = :et", "PaymentType = :pt" };
+        var cashFilterParts = new List<string> { "EntityType = :et", "PaymentType = :pt", "CancelledAtUtc = :empty" };
         var cashValues = new Dictionary<string, AttributeValue>
         {
-            [":et"] = new() { S = "Invoice" },
-            [":pt"] = new() { S = "Cash" }
+            [":et"]    = new() { S = "Invoice" },
+            [":pt"]    = new() { S = "Cash" },
+            [":empty"] = new() { S = "" }
         };
 
         if (since.HasValue)
@@ -170,11 +171,12 @@ public class InvoiceRepository : IInvoiceRepository
         while (response.LastEvaluatedKey is { Count: > 0 });
 
         // ── 2. Split invoices — sum only the Cash leg ─────────────────────
-        var splitFilterParts = new List<string> { "EntityType = :et2", "PaymentType = :pt2" };
+        var splitFilterParts = new List<string> { "EntityType = :et2", "PaymentType = :pt2", "CancelledAtUtc = :empty2" };
         var splitValues = new Dictionary<string, AttributeValue>
         {
-            [":et2"] = new() { S = "Invoice" },
-            [":pt2"] = new() { S = "Split" }
+            [":et2"]    = new() { S = "Invoice" },
+            [":pt2"]    = new() { S = "Split" },
+            [":empty2"] = new() { S = "" }
         };
 
         if (since.HasValue)
