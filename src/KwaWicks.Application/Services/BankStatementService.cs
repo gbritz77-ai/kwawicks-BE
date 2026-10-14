@@ -412,6 +412,29 @@ public class BankStatementService : IBankStatementService
         return new AllocateResponse { Statement = MapToResponse(statement) };
     }
 
+    public async Task<AllocateResponse> AllocatePettyCashAsync(
+        string statementId,
+        string transactionId,
+        CancellationToken ct)
+    {
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found in statement {statementId}.");
+
+        if (tx.IsAllocated)
+            throw new InvalidOperationException("Transaction is already allocated.");
+
+        tx.IsAllocated    = true;
+        tx.AllocationType = "PettyCash";
+        tx.AllocatedAt    = DateTime.UtcNow;
+
+        await _repo.UpdateAsync(statement, ct);
+
+        return new AllocateResponse { Statement = MapToResponse(statement) };
+    }
+
     // ── Expense categories ─────────────────────────────────────────────────
 
     public Task<List<string>> GetExpenseCategoriesAsync(CancellationToken ct)
@@ -555,6 +578,7 @@ public class BankStatementService : IBankStatementService
                     "Expense"     => tx.ExpenseCategory,
                     "Supplier"    => tx.AllocatedSupplierName,
                     "NonClient"   => tx.NonClientDescription,
+                    "PettyCash"   => "Petty Cash",
                     _             => ""
                 };
 
@@ -616,13 +640,16 @@ public class BankStatementService : IBankStatementService
         // Category summary
         var categoryGroups = items
             .Where(i => i.IsAllocated)
-            .GroupBy(i => i.AllocationType switch
-            {
-                "Expense"   => $"Expense: {i.AllocatedTo}",
-                "Supplier"  => $"Supplier: {i.AllocatedTo}",
-                "NonClient" => $"Non-Client: {i.AllocatedTo}",
-                _           => i.AllocationType
-            })
+            .GroupBy(i => i.Source == "PettyCash"
+                ? $"Petty Cash: {i.AllocatedTo}"
+                : i.AllocationType switch
+                {
+                    "Expense"   => $"Expense: {i.AllocatedTo}",
+                    "Supplier"  => $"Supplier: {i.AllocatedTo}",
+                    "NonClient" => $"Non-Client: {i.AllocatedTo}",
+                    "PettyCash" => "Petty Cash",
+                    _           => i.AllocationType
+                })
             .Select(g => new DebitReportCategorySummary { Label = g.Key, Total = g.Sum(x => x.Amount) })
             .OrderByDescending(g => g.Total)
             .ToList();

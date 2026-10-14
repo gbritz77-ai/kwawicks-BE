@@ -201,6 +201,29 @@ public class BankStatementsController : ControllerBase
         }
     }
 
+    // PUT /api/bank-statements/{statementId}/transactions/{transactionId}/allocate-petty-cash
+    [HttpPut("{statementId}/transactions/{transactionId}/allocate-petty-cash")]
+    [ProducesResponseType(typeof(AllocateResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AllocatePettyCash(
+        string statementId,
+        string transactionId,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await _service.AllocatePettyCashAsync(statementId, transactionId, ct);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not found")
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
     // GET /api/bank-statements/expense-categories
     [HttpGet("expense-categories")]
     [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
