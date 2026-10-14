@@ -183,6 +183,16 @@ public class PettyCashService : IPettyCashService
         return MapEntry(entry);
     }
 
+    public async Task<PettyCashEntryDto> UpdateEntryCategoryAsync(string entryId, string category, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(category))
+            throw new ArgumentException("Category is required.");
+        await _repo.UpdateEntryCategoryAsync(entryId, category.Trim(), ct);
+        var entry = await _repo.GetEntryAsync(entryId, ct)
+                    ?? throw new ArgumentException("Entry not found.");
+        return MapEntry(entry);
+    }
+
     public Task ClearAllAsync(CancellationToken ct) => _repo.ClearAllAsync(ct);
 
     public Task SetCashOverridesAsync(decimal? hubSales, decimal? clientDeposits, CancellationToken ct)

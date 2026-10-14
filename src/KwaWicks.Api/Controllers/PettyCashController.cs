@@ -79,6 +79,24 @@ public class PettyCashController : ControllerBase
         return Ok(new { uploadUrl = url, s3Key });
     }
 
+    // PATCH /api/petty-cash/entries/{id}/category
+    [HttpPatch("entries/{id}/category")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(PettyCashEntryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateCategory(string id, [FromBody] UpdatePettyCashCategoryRequest request, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.UpdateEntryCategoryAsync(id, request.Category, ct);
+            return Ok(dto);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     // PUT /api/petty-cash/entries/{id}/slip
     [HttpPut("entries/{id}/slip")]
     [Authorize(Policy = "DriverOnly")]

@@ -10,6 +10,7 @@ public interface IPettyCashRepository
     Task<List<PettyCashEntry>> ListDriverEntriesAsync(string driverId, CancellationToken ct);
     Task<PettyCashEntry?> GetEntryAsync(string entryId, CancellationToken ct);
     Task UpdateEntrySlipAsync(string entryId, string slipS3Key, CancellationToken ct);
+    Task UpdateEntryCategoryAsync(string entryId, string category, CancellationToken ct);
     Task MarkEntriesCashedUpAsync(IEnumerable<string> entryIds, string cashupId, CancellationToken ct);
 
     Task<PettyCashup> CreateCashupAsync(PettyCashup cashup, CancellationToken ct);

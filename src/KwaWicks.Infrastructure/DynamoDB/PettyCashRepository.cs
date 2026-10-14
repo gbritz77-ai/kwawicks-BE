@@ -108,6 +108,24 @@ public class PettyCashRepository : IPettyCashRepository
         }, ct);
     }
 
+    public async Task UpdateEntryCategoryAsync(string entryId, string category, CancellationToken ct)
+    {
+        await _ddb.UpdateItemAsync(new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                ["PK"] = new() { S = EntryPk(entryId) },
+                ["SK"] = new() { S = SkMeta }
+            },
+            UpdateExpression = "SET Category = :cat",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                [":cat"] = new() { S = category }
+            }
+        }, ct);
+    }
+
     public async Task MarkEntriesCashedUpAsync(IEnumerable<string> entryIds, string cashupId, CancellationToken ct)
     {
         foreach (var id in entryIds)

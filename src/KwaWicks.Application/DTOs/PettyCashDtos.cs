@@ -108,3 +108,8 @@ public class PettyCashSummaryDto
     public decimal? HubSalesCashOverride { get; set; }
     public decimal? ClientDepositsCashOverride { get; set; }
 }
+
+public class UpdatePettyCashCategoryRequest
+{
+    public string Category { get; set; } = "";
+}

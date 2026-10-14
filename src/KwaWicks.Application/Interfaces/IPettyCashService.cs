@@ -16,4 +16,5 @@ public interface IPettyCashService
     Task SetFloatAsync(decimal floatAmount, CancellationToken ct);
     Task SetCashOverridesAsync(decimal? hubSales, decimal? clientDeposits, CancellationToken ct);
     Task<List<DTOs.CashDepositDetailDto>> GetDepositDetailsAsync(DateTime? since, CancellationToken ct);
+    Task<PettyCashEntryDto> UpdateEntryCategoryAsync(string entryId, string category, CancellationToken ct);
 }
