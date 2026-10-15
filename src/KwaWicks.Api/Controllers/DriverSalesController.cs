@@ -144,7 +144,7 @@ public class DriverSalesController : ControllerBase
 
             // 3. Confirm payment immediately for every type — ConfirmPaymentAsync posts the sale
             // (debit) and, for everything except Credit, the matching payment (credit) too.
-            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine", "Split", "Credit" };
+            var immediatePayTypes = new[] { "Cash", "EFT", "Card", "CardMachine", "Split" };
             bool creditCharged = false;
             decimal newCreditBalance = 0m;
             if (immediatePayTypes.Contains(normalizedPaymentType))
