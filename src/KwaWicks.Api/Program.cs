@@ -331,7 +331,7 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("MasterOnly",        p => p.RequireRole("Master"));
+    options.AddPolicy("MasterOnly",        p => p.RequireRole("Master", "Owner"));
     options.AddPolicy("OwnerOnly",         p => p.RequireRole("Owner"));
     options.AddPolicy("FinancialAccess",   p => p.RequireRole("Master", "Owner", "Finance", "BranchUser"));
     options.AddPolicy("PettyCashAccess",   p => p.RequireRole("Master", "Owner", "Finance", "Admin", "BranchUser"));
