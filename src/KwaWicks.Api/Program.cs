@@ -14,6 +14,9 @@ using KwaWicks.Infrastructure.S3;
 using KwaWicks.Infrastructure.Pdf;
 using KwaWicks.Infrastructure.WhatsApp;
 using KwaWicks.Infrastructure.Services;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -212,6 +215,10 @@ builder.Services.AddScoped<IBankStatementService>(sp => new BankStatementService
 builder.Services.AddScoped<IDriverStockAllocationService, DriverStockAllocationService>();
 builder.Services.AddScoped<IStockLossService, StockLossService>();
 builder.Services.AddScoped<IVehicleTrackingService, VehicleTrackingService>();
+builder.Services.AddScoped<IBranchRepository>(sp =>
+    new BranchRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+builder.Services.AddScoped<IBranchService, BranchService>();
+
 builder.Services.AddScoped<IPettyCashService>(sp =>
     new PettyCashService(
         sp.GetRequiredService<IPettyCashRepository>(),
@@ -253,7 +260,7 @@ builder.Services.AddScoped<IPdfService, PdfService>();
 builder.Services.AddHttpClient<IWhatsAppService, WhatsAppService>();
 builder.Services.AddScoped<IInvoiceNotificationService, InvoiceNotificationService>();
 
-// -------------------- Cognito JWT Auth --------------------
+// -------------------- Cognito + Branch JWT Auth --------------------
 var cognitoRegion = builder.Configuration["Cognito:Region"] ?? "af-south-1";
 var userPoolId = builder.Configuration["Cognito:UserPoolId"]
                  ?? throw new InvalidOperationException("Missing Cognito:UserPoolId");
@@ -263,38 +270,79 @@ builder.Services.AddScoped<IUserManagementService>(sp =>
         sp.GetRequiredService<IAmazonCognitoIdentityProvider>(),
         userPoolId));
 
-var authority = "https://cognito-idp." + cognitoRegion + ".amazonaws.com/" + userPoolId;
+var authority      = "https://cognito-idp." + cognitoRegion + ".amazonaws.com/" + userPoolId;
+var branchJwtSecret = builder.Configuration["BranchJwt:Secret"] ?? "REPLACE_WITH_SECURE_SECRET_MIN_32_CHARS";
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme          = "MultiScheme";
+    options.DefaultChallengeScheme = "MultiScheme";
+})
+.AddPolicyScheme("MultiScheme", "MultiScheme", options =>
+{
+    options.ForwardDefaultSelector = ctx =>
     {
-        options.Authority = authority;
-
-        options.TokenValidationParameters = new TokenValidationParameters
+        string? auth = ctx.Request.Headers.Authorization;
+        if (auth?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true)
         {
-            ValidateIssuer = true,
-            ValidIssuer = authority,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            RoleClaimType = "cognito:groups",
-            NameClaimType = "cognito:username"
-        };
-    });
+            var rawToken = auth["Bearer ".Length..].Trim();
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (handler.CanReadToken(rawToken))
+                {
+                    var jwt = handler.ReadJwtToken(rawToken);
+                    if (jwt.Claims.Any(c => c.Type == "hub_id"))
+                        return "Branch";
+                }
+            }
+            catch { /* fall through to Cognito */ }
+        }
+        return "Cognito";
+    };
+})
+.AddJwtBearer("Cognito", options =>
+{
+    options.Authority = authority;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer           = true,
+        ValidIssuer              = authority,
+        ValidateAudience         = false,
+        ValidateLifetime         = true,
+        ValidateIssuerSigningKey = true,
+        RoleClaimType            = "cognito:groups",
+        NameClaimType            = "cognito:username"
+    };
+})
+.AddJwtBearer("Branch", options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer           = false,
+        ValidateAudience         = false,
+        ValidateLifetime         = true,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(branchJwtSecret)),
+        RoleClaimType            = ClaimTypes.Role,
+        NameClaimType            = "username"
+    };
+});
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("OwnerOnly",       p => p.RequireRole("Owner"));
-    options.AddPolicy("FinancialAccess",  p => p.RequireRole("Master", "Owner", "Finance"));
-    options.AddPolicy("PettyCashAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin"));
-    options.AddPolicy("OperationalAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver"));
-    options.AddPolicy("UserManagement", p => p.RequireRole("Master", "Owner", "Admin"));
-    options.AddPolicy("DriverOnly", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "Driver"));
-    options.AddPolicy("AdminOnly", p => p.RequireRole("Master", "Owner", "Finance", "Admin"));
-    options.AddPolicy("HubStaffOnly", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "HubStaff", "Procurement"));
-    options.AddPolicy("ProcurementAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "Procurement"));
-    options.AddPolicy("SupplierManagement", p => p.RequireRole("Master", "Owner", "Admin", "Procurement"));
-    options.AddPolicy("CollectionManagement", p => p.RequireRole("Master", "Owner", "Admin", "HubStaff", "Procurement"));
+    options.AddPolicy("MasterOnly",        p => p.RequireRole("Master"));
+    options.AddPolicy("OwnerOnly",         p => p.RequireRole("Owner"));
+    options.AddPolicy("FinancialAccess",   p => p.RequireRole("Master", "Owner", "Finance", "BranchUser"));
+    options.AddPolicy("PettyCashAccess",   p => p.RequireRole("Master", "Owner", "Finance", "Admin", "BranchUser"));
+    options.AddPolicy("OperationalAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "HubStaff", "Procurement", "Driver", "BranchUser"));
+    options.AddPolicy("UserManagement",    p => p.RequireRole("Master", "Owner", "Admin"));
+    options.AddPolicy("DriverOnly",        p => p.RequireRole("Master", "Owner", "Finance", "Admin", "Driver", "BranchUser"));
+    options.AddPolicy("AdminOnly",         p => p.RequireRole("Master", "Owner", "Finance", "Admin", "BranchUser"));
+    options.AddPolicy("HubStaffOnly",      p => p.RequireRole("Master", "Owner", "Finance", "Admin", "HubStaff", "Procurement", "BranchUser"));
+    options.AddPolicy("ProcurementAccess", p => p.RequireRole("Master", "Owner", "Finance", "Admin", "Procurement", "BranchUser"));
+    options.AddPolicy("SupplierManagement",   p => p.RequireRole("Master", "Owner", "Admin", "Procurement", "BranchUser"));
+    options.AddPolicy("CollectionManagement", p => p.RequireRole("Master", "Owner", "Admin", "HubStaff", "Procurement", "BranchUser"));
 });
 
 // -------------------- Cognito Client --------------------
