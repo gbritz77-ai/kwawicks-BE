@@ -90,8 +90,14 @@ public class BranchRepository : IBranchRepository
                 [":un"] = new() { S = username }
             }
         };
-        var resp = await _ddb.ScanAsync(req, ct);
-        return resp.Items.Count > 0 ? MapUser(resp.Items[0]) : null;
+        ScanResponse? resp;
+        do
+        {
+            resp = await _ddb.ScanAsync(req, ct);
+            if (resp.Items.Count > 0) return MapUser(resp.Items[0]);
+            req.ExclusiveStartKey = resp.LastEvaluatedKey;
+        } while (resp.LastEvaluatedKey is { Count: > 0 });
+        return null;
     }
 
     public async Task CreateUserAsync(BranchUser user, CancellationToken ct)
