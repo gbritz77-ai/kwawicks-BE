@@ -1,5 +1,6 @@
 using KwaWicks.Application.DTOs;
 using KwaWicks.Application.Interfaces;
+using KwaWicks.Api.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -101,7 +102,8 @@ public class InvoicesController : ControllerBase
         [FromQuery] string? customerId,
         CancellationToken ct)
     {
-        var invoices = await _service.ListAsync(hubId, customerId, ct);
+        var effectiveHubId = User.GetHubId() ?? hubId;
+        var invoices = await _service.ListAsync(effectiveHubId, customerId, ct);
         return Ok(invoices);
     }
 

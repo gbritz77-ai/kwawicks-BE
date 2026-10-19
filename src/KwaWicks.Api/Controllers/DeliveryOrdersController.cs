@@ -1,5 +1,6 @@
 using KwaWicks.Application.DTOs;
 using KwaWicks.Application.Interfaces;
+using KwaWicks.Api.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -88,7 +89,8 @@ public class DeliveryOrdersController : ControllerBase
         [FromQuery] string? status,
         CancellationToken ct)
     {
-        var orders = await _service.ListAsync(driverId, hubId, status, ct);
+        var effectiveHubId = User.GetHubId() ?? hubId;
+        var orders = await _service.ListAsync(driverId, effectiveHubId, status, ct);
         return Ok(orders);
     }
 
@@ -206,6 +208,26 @@ public class DeliveryOrdersController : ControllerBase
         }
     }
 
+    // POST /api/delivery-orders/{deliveryOrderId}/hub-drop  (HubStaff: record stock dropped at hub before invoice)
+    [HttpPost("{deliveryOrderId}/hub-drop")]
+    [Authorize(Policy = "HubStaffOnly")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> HubDrop(
+        string deliveryOrderId,
+        [FromBody] HubDropRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            await _service.HubDropAsync(deliveryOrderId, request, ct);
+            return NoContent();
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     // POST /api/delivery-orders/{deliveryOrderId}/submit-return
     [HttpPost("{deliveryOrderId}/submit-return")]
     [Authorize(Policy = "DriverOnly")]
@@ -255,9 +277,9 @@ public class DeliveryOrdersController : ControllerBase
         }
     }
 
-    // PUT /api/delivery-orders/{deliveryOrderId}/returns-inspection  (Admin/Owner: record dead/mutilated after delivery)
+    // PUT /api/delivery-orders/{deliveryOrderId}/returns-inspection  (HubStaff/Admin: record dead/mutilated + cash after delivery)
     [HttpPut("{deliveryOrderId}/returns-inspection")]
-    [Authorize(Policy = "AdminOnly")]
+    [Authorize(Policy = "HubStaffOnly")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

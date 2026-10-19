@@ -1,4 +1,5 @@
 using KwaWicks.Application.Interfaces;
+using KwaWicks.Api.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -42,7 +43,7 @@ public class ReportsController : ControllerBase
         [FromQuery] DateTime? to,
         CancellationToken ct)
     {
-        var result = await _reports.GetDriverPerformanceAsync(from, to, ct);
+        var result = await _reports.GetDriverPerformanceAsync(from, to, User.GetHubId(), ct);
         return Ok(result);
     }
 
@@ -53,7 +54,7 @@ public class ReportsController : ControllerBase
         [FromQuery] DateTime? to,
         CancellationToken ct)
     {
-        var result = await _reports.GetReturnsSummaryAsync(from, to, ct);
+        var result = await _reports.GetReturnsSummaryAsync(from, to, User.GetHubId(), ct);
         return Ok(result);
     }
 
@@ -66,7 +67,7 @@ public class ReportsController : ControllerBase
         [FromQuery] DateTime? to,
         CancellationToken ct)
     {
-        var result = await _reports.GetInvoicesAsync(customerId, paymentStatus, from, to, ct);
+        var result = await _reports.GetInvoicesAsync(customerId, paymentStatus, from, to, User.GetHubId(), ct);
         return Ok(result);
     }
 
@@ -77,7 +78,7 @@ public class ReportsController : ControllerBase
         [FromQuery] DateTime? to,
         CancellationToken ct)
     {
-        var result = await _reports.GetDeliveryStatusSummaryAsync(from, to, ct);
+        var result = await _reports.GetDeliveryStatusSummaryAsync(from, to, User.GetHubId(), ct);
         return Ok(result);
     }
 

@@ -169,9 +169,9 @@ public class ReportService : IReportService
         };
     }
 
-    public async Task<DriverPerformanceResponse> GetDriverPerformanceAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    public async Task<DriverPerformanceResponse> GetDriverPerformanceAsync(DateTime? from, DateTime? to, string? hubId = null, CancellationToken ct = default)
     {
-        var orders = await _deliveryOrders.ListAsync(null, null, "Delivered", ct);
+        var orders = await _deliveryOrders.ListAsync(null, hubId, "Delivered", ct);
 
         var filtered = orders
             .Where(o => from == null || o.UpdatedAt >= from.Value)
@@ -179,7 +179,7 @@ public class ReportService : IReportService
             .ToList();
 
         // Build invoice lookup by DeliveryOrderId for total values
-        var invoices = await _invoices.ListAsync(null, null, ct);
+        var invoices = await _invoices.ListAsync(hubId, null, ct);
         var invoiceByDo = invoices
             .Where(i => !string.IsNullOrEmpty(i.DeliveryOrderId))
             .ToDictionary(i => i.DeliveryOrderId, i => i);
@@ -210,9 +210,9 @@ public class ReportService : IReportService
         return new DriverPerformanceResponse { From = from, To = to, Drivers = drivers };
     }
 
-    public async Task<ReturnsSummaryResponse> GetReturnsSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    public async Task<ReturnsSummaryResponse> GetReturnsSummaryAsync(DateTime? from, DateTime? to, string? hubId = null, CancellationToken ct = default)
     {
-        var orders = await _deliveryOrders.ListAsync(null, null, "Delivered", ct);
+        var orders = await _deliveryOrders.ListAsync(null, hubId, "Delivered", ct);
 
         var filtered = orders
             .Where(o => from == null || o.UpdatedAt >= from.Value)
@@ -239,9 +239,9 @@ public class ReportService : IReportService
         return new ReturnsSummaryResponse { From = from, To = to, Items = items };
     }
 
-    public async Task<DeliveryStatusSummaryResponse> GetDeliveryStatusSummaryAsync(DateTime? from, DateTime? to, CancellationToken ct = default)
+    public async Task<DeliveryStatusSummaryResponse> GetDeliveryStatusSummaryAsync(DateTime? from, DateTime? to, string? hubId = null, CancellationToken ct = default)
     {
-        var all = await _deliveryOrders.ListAsync(null, null, null, ct);
+        var all = await _deliveryOrders.ListAsync(null, hubId, null, ct);
 
         var filtered = all
             .Where(o => from == null || o.CreatedAt >= from.Value)
@@ -249,7 +249,7 @@ public class ReportService : IReportService
             .OrderByDescending(o => o.CreatedAt)
             .ToList();
 
-        var invoices = await _invoices.ListAsync(null, null, ct);
+        var invoices = await _invoices.ListAsync(hubId, null, ct);
         var invoiceByDo = invoices
             .Where(i => !string.IsNullOrEmpty(i.DeliveryOrderId))
             .ToDictionary(i => i.DeliveryOrderId, i => i);
@@ -290,9 +290,9 @@ public class ReportService : IReportService
         };
     }
 
-    public async Task<List<InvoiceResponse>> GetInvoicesAsync(string? customerId, string? paymentStatus, DateTime? from, DateTime? to, CancellationToken ct = default)
+    public async Task<List<InvoiceResponse>> GetInvoicesAsync(string? customerId, string? paymentStatus, DateTime? from, DateTime? to, string? hubId = null, CancellationToken ct = default)
     {
-        var all = await _invoices.ListAsync(null, customerId, ct);
+        var all = await _invoices.ListAsync(hubId, customerId, ct);
 
         var clients = await _clients.ListAsync(1000, ct);
         var clientMap = clients.ToDictionary(c => c.ClientId, c => c.ClientName);
