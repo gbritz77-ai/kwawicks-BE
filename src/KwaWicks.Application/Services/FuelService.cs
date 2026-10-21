@@ -110,6 +110,44 @@ public class FuelService
         return dto;
     }
 
+    // ── Update ────────────────────────────────────────────────────────────────
+
+    public async Task<FuelIssueDto?> UpdateAsync(string issueId, UpdateFuelIssueRequest req, CancellationToken ct)
+    {
+        var issue = await _repo.GetAsync(issueId, ct);
+        if (issue is null) return null;
+
+        if (req.VehicleId is not null) issue.VehicleId = req.VehicleId;
+        if (req.FuelSource is not null) issue.FuelSource = req.FuelSource;
+        if (req.TankId is not null) issue.TankId = req.TankId;
+        if (req.TankIssuedBy is not null) issue.TankIssuedBy = req.TankIssuedBy.Trim();
+        if (req.SupplierStation is not null) issue.SupplierStation = req.SupplierStation.Trim();
+        if (req.SiteId is not null) issue.SiteId = req.SiteId;
+        if (req.Litres.HasValue) { issue.Litres = req.Litres.Value; }
+        if (req.OdometerKm.HasValue) issue.OdometerKm = req.OdometerKm.Value;
+        if (req.CostPerLitre.HasValue)
+        {
+            issue.CostPerLitre = req.CostPerLitre.Value;
+            issue.TotalCost = issue.Litres * req.CostPerLitre.Value;
+        }
+        if (req.Reference is not null) issue.Reference = req.Reference.Trim();
+
+        await _repo.UpdateAsync(issue, ct);
+
+        var vehicles = (await _vehicleRepo.ListAsync(ct)).ToDictionary(v => v.VehicleId);
+        var tanks    = (await _tankRepo.ListTanksAsync(ct)).ToDictionary(t => t.TankId);
+        var sites    = (await _siteRepo.ListAsync(ct)).ToDictionary(s => s.SiteId);
+
+        vehicles.TryGetValue(issue.VehicleId, out var v);
+        tanks.TryGetValue(issue.TankId, out var t);
+        sites.TryGetValue(issue.SiteId, out var s);
+
+        var dto = ToDto(issue, v?.FleetNumber ?? issue.VehicleId, t?.Name ?? "", s?.Name ?? "");
+        if (issue.SlipS3Key is not null)
+            dto.SlipUrl = await _s3.GeneratePresignedViewUrlAsync(issue.SlipS3Key, 60, ct);
+        return dto;
+    }
+
     // ── List ──────────────────────────────────────────────────────────────────
 
     public async Task<List<FuelIssueDto>> ListAsync(CancellationToken ct)

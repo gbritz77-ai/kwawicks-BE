@@ -52,6 +52,20 @@ public class VehicleFuelReportDto
     public List<MonthlyFuelDto> Monthly { get; set; } = [];
 }
 
+public class UpdateFuelIssueRequest
+{
+    public string? VehicleId { get; set; }
+    public string? FuelSource { get; set; }
+    public string? TankId { get; set; }
+    public string? TankIssuedBy { get; set; }
+    public string? SupplierStation { get; set; }
+    public string? SiteId { get; set; }
+    public decimal? Litres { get; set; }
+    public decimal? OdometerKm { get; set; }
+    public decimal? CostPerLitre { get; set; }
+    public string? Reference { get; set; }
+}
+
 public class CreateFuelIssueRequest
 {
     public string VehicleId { get; set; } = "";

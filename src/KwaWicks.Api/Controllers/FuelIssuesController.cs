@@ -69,6 +69,23 @@ public class FuelIssuesController : ControllerBase
         return Ok(dto);
     }
 
+    // PATCH /api/fuel/{id}
+    [HttpPatch("{id}")]
+    [Authorize(Policy = "MasterOnly")]
+    [ProducesResponseType(typeof(FuelIssueDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateFuelIssueRequest req, CancellationToken ct)
+    {
+        try
+        {
+            var dto = await _service.UpdateAsync(id, req, ct);
+            if (dto is null) return NotFound();
+            return Ok(dto);
+        }
+        catch (ArgumentException ex) { return BadRequest(new { error = ex.Message }); }
+    }
+
     // GET /api/fuel/report?vehicleId=&from=2025-01-01&to=2025-12-31
     [HttpGet("report")]
     [Authorize(Policy = "OperationalAccess")]
