@@ -69,7 +69,13 @@ public class WhatsAppController : ControllerBase
         }
 
         // Generate PDF
-        var pdfBytes = await _pdfService.GenerateInvoicePdfAsync(invoice, client, speciesNames, ct);
+        byte[]? sigBytes = null;
+        if (!string.IsNullOrEmpty(invoice.ClientSignatureS3Key))
+        {
+            try { sigBytes = await _s3Service.DownloadObjectAsync(invoice.ClientSignatureS3Key, ct); }
+            catch { /* non-fatal */ }
+        }
+        var pdfBytes = await _pdfService.GenerateInvoicePdfAsync(invoice, client, speciesNames, sigBytes, ct);
 
         // Upload to S3
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
