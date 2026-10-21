@@ -261,12 +261,19 @@ public class InvoiceService : IInvoiceService
             try
             {
                 var base64 = request.ClientSignatureBase64;
-                // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+                // Extract content type and strip data URI prefix (e.g. "data:image/jpeg;base64,...")
+                var contentType = "image/jpeg";
                 var commaIdx = base64.IndexOf(',');
-                if (commaIdx >= 0) base64 = base64[(commaIdx + 1)..];
+                if (commaIdx >= 0)
+                {
+                    var header = base64[..commaIdx]; // e.g. "data:image/jpeg;base64"
+                    if (header.Contains("image/png")) contentType = "image/png";
+                    base64 = base64[(commaIdx + 1)..];
+                }
                 var sigBytes = Convert.FromBase64String(base64);
-                var sigKey = $"signatures/invoice-{invoice.InvoiceId}.png";
-                await _s3Service.UploadObjectAsync(sigKey, sigBytes, "image/png", ct);
+                var ext = contentType == "image/png" ? "png" : "jpg";
+                var sigKey = $"signatures/invoice-{invoice.InvoiceId}.{ext}";
+                await _s3Service.UploadObjectAsync(sigKey, sigBytes, contentType, ct);
                 invoice.ClientSignatureS3Key = sigKey;
             }
             catch { /* signature upload failure must not block invoice creation */ }
