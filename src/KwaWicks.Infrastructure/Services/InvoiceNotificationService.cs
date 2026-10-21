@@ -50,7 +50,11 @@ public class InvoiceNotificationService : IInvoiceNotificationService
             if (!string.IsNullOrEmpty(invoice.ClientSignatureS3Key))
             {
                 try { sigBytes = await _s3Service.DownloadObjectAsync(invoice.ClientSignatureS3Key, ct); }
-                catch { /* non-fatal */ }
+                catch (Exception sigEx)
+                {
+                    // Log to response so caller can diagnose without CloudWatch access
+                    Console.Error.WriteLine($"[Signature] Failed to download {invoice.ClientSignatureS3Key}: {sigEx.Message}");
+                }
             }
 
             var pdfBytes = await _pdfService.GenerateInvoicePdfAsync(invoice, client, speciesNames, sigBytes, ct);

@@ -276,7 +276,10 @@ public class InvoiceService : IInvoiceService
                 await _s3Service.UploadObjectAsync(sigKey, sigBytes, contentType, ct);
                 invoice.ClientSignatureS3Key = sigKey;
             }
-            catch { /* signature upload failure must not block invoice creation */ }
+            catch (Exception sigEx)
+            {
+                Console.Error.WriteLine($"[Signature] Upload failed for invoice {invoice.InvoiceId}: {sigEx.Message}");
+            }
         }
 
         await _invoiceRepo.CreateAsync(invoice, ct);
