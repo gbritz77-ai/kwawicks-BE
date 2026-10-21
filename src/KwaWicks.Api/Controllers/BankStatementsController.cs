@@ -341,6 +341,42 @@ public class BankStatementsController : ControllerBase
         return Ok(matches);
     }
 
+    // POST /api/bank-statements/{statementId}/transactions/{transactionId}/skip
+    [HttpPost("{statementId}/transactions/{transactionId}/skip")]
+    [ProducesResponseType(typeof(BankStatementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(object), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SkipTransaction(string statementId, string transactionId, CancellationToken ct)
+    {
+        try { return Ok(await _service.SkipAsync(statementId, transactionId, ct)); }
+        catch (InvalidOperationException ex)
+        {
+            return ex.Message.Contains("not found")
+                ? NotFound(new { error = ex.Message })
+                : BadRequest(new { error = ex.Message });
+        }
+    }
+
+    // DELETE /api/bank-statements/{statementId}/transactions/{transactionId}/skip  (unskip)
+    [HttpDelete("{statementId}/transactions/{transactionId}/skip")]
+    [ProducesResponseType(typeof(BankStatementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnskipTransaction(string statementId, string transactionId, CancellationToken ct)
+    {
+        try { return Ok(await _service.UnskipAsync(statementId, transactionId, ct)); }
+        catch (InvalidOperationException ex) { return NotFound(new { error = ex.Message }); }
+    }
+
+    // POST /api/bank-statements/{statementId}/skip-all-duplicates
+    [HttpPost("{statementId}/skip-all-duplicates")]
+    [ProducesResponseType(typeof(BankStatementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SkipAllDuplicates(string statementId, CancellationToken ct)
+    {
+        try { return Ok(await _service.SkipAllDuplicatesAsync(statementId, ct)); }
+        catch (InvalidOperationException ex) { return NotFound(new { error = ex.Message }); }
+    }
+
     // DELETE /api/bank-statements/{statementId}/transactions/{transactionId}/allocate
     [HttpDelete("{statementId}/transactions/{transactionId}/allocate")]
     [ProducesResponseType(typeof(BankStatementResponse), StatusCodes.Status200OK)]

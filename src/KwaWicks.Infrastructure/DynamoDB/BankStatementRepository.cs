@@ -90,8 +90,8 @@ public class BankStatementRepository : IBankStatementRepository
     {
         var credits = s.Transactions.Where(t => t.Type == "Credit").ToList();
         var allocated   = credits.Count(t => t.IsAllocated);
-        var unallocated = credits.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate);
-        var unallocAmt  = credits.Where(t => !t.IsAllocated && !t.IsPossibleDuplicate).Sum(t => t.Amount);
+        var unallocated = credits.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate && !t.IsSkipped);
+        var unallocAmt  = credits.Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && !t.IsSkipped).Sum(t => t.Amount);
         return new Dictionary<string, AttributeValue>
         {
             ["PK"]               = new() { S = Pk(s.StatementId) },

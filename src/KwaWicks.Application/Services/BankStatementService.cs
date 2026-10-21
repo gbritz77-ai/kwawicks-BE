@@ -498,6 +498,48 @@ public class BankStatementService : IBankStatementService
         return MapToResponse(statement);
     }
 
+    // ── Skip (overlapping import) ──────────────────────────────────────────
+
+    public async Task<BankStatementResponse> SkipAsync(string statementId, string transactionId, CancellationToken ct)
+    {
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
+        if (tx.IsAllocated)
+            throw new InvalidOperationException("Cannot skip an already-allocated transaction.");
+        tx.IsSkipped  = true;
+        tx.SkippedAt  = DateTime.UtcNow;
+        await _repo.UpdateAsync(statement, ct);
+        return MapToResponse(statement);
+    }
+
+    public async Task<BankStatementResponse> UnskipAsync(string statementId, string transactionId, CancellationToken ct)
+    {
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+        var tx = statement.Transactions.FirstOrDefault(t => t.TransactionId == transactionId)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
+        tx.IsSkipped = false;
+        tx.SkippedAt = null;
+        await _repo.UpdateAsync(statement, ct);
+        return MapToResponse(statement);
+    }
+
+    public async Task<BankStatementResponse> SkipAllDuplicatesAsync(string statementId, CancellationToken ct)
+    {
+        var statement = await _repo.GetAsync(statementId, ct)
+            ?? throw new InvalidOperationException($"Bank statement {statementId} not found.");
+        var now = DateTime.UtcNow;
+        foreach (var tx in statement.Transactions.Where(t => t.IsPossibleDuplicate && !t.IsAllocated && !t.IsSkipped))
+        {
+            tx.IsSkipped = true;
+            tx.SkippedAt = now;
+        }
+        await _repo.UpdateAsync(statement, ct);
+        return MapToResponse(statement);
+    }
+
     // ── Delete statement ───────────────────────────────────────────────────
 
     public async Task DeleteAsync(string statementId, CancellationToken ct)
@@ -953,11 +995,15 @@ public class BankStatementService : IBankStatementService
         // separately so staff don't accidentally re-allocate a payment already reconciled
         // under a different (overlapping) statement upload.
         var possibleDuplicates = s.Transactions
-            .Where(t => !t.IsAllocated && t.IsPossibleDuplicate)
+            .Where(t => !t.IsAllocated && !t.IsSkipped && t.IsPossibleDuplicate)
+            .ToList();
+
+        var skipped = s.Transactions
+            .Where(t => t.IsSkipped)
             .ToList();
 
         var unallocated = s.Transactions
-            .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate)
+            .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && !t.IsSkipped)
             .ToList();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -982,13 +1028,14 @@ public class BankStatementService : IBankStatementService
             CreditCount      = s.CreditCount,
             TotalCredits     = s.TotalCredits,
             AllocatedCount   = s.Transactions.Count(t => t.IsAllocated && t.Type == "Credit"),
-            UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit"),
+            UnallocatedCount = s.Transactions.Count(t => !t.IsAllocated && !t.IsPossibleDuplicate && !t.IsSkipped && t.Type == "Credit"),
             UnallocatedAmount = s.Transactions
-                .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && t.Type == "Credit")
+                .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && !t.IsSkipped && t.Type == "Credit")
                 .Sum(t => t.Amount),
             UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
             Transactions     = unallocated.Select(MapTx).ToList(),
-            PossibleDuplicates = possibleDuplicates.Select(MapTx).ToList()
+            PossibleDuplicates = possibleDuplicates.Select(MapTx).ToList(),
+            Skipped          = skipped.Select(MapTx).ToList()
         };
     }
 
@@ -1024,6 +1071,7 @@ public class BankStatementService : IBankStatementService
         AllocatedClientId      = t.AllocatedClientId,
         AllocatedClientName    = t.AllocatedClientName,
         ExpenseCategory        = t.ExpenseCategory,
+        IsSkipped                      = t.IsSkipped,
         IsPossibleDuplicate           = t.IsPossibleDuplicate,
         DuplicateOfStatementFileName  = t.DuplicateOfStatementFileName,
         DuplicateOfAllocationSummary  = t.DuplicateOfAllocationSummary,

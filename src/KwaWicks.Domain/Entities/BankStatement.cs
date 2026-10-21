@@ -39,6 +39,13 @@ public class BankTransaction
     /// <summary>When AllocationType == "SplitClientCredit", the individual lines that sum to Amount.</summary>
     public List<BankTransactionSplitLine> SplitLines { get; set; } = new();
 
+    // ── Skip (overlapping import) ────────────────────────────────────────
+    /// <summary>True when the user explicitly dismissed this transaction as a duplicate from
+    /// an overlapping import. Skipped transactions are not treated as unallocated and do not
+    /// block statement deletion.</summary>
+    public bool IsSkipped { get; set; }
+    public DateTime? SkippedAt { get; set; }
+
     // ── Cross-statement duplicate detection ──────────────────────────────
     /// <summary>True when this transaction matches (same date + amount) a transaction that
     /// was already allocated in a different, previously-imported statement — almost always

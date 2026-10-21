@@ -16,6 +16,9 @@ public interface IBankStatementService
     Task<AllocateResponse> AllocateExpenseAsync(string statementId, string transactionId, AllocateExpenseRequest request, CancellationToken ct);
     Task<AllocateResponse> AllocatePettyCashAsync(string statementId, string transactionId, CancellationToken ct);
     Task<BankStatementResponse> DeallocateAsync(string statementId, string transactionId, CancellationToken ct);
+    Task<BankStatementResponse> SkipAsync(string statementId, string transactionId, CancellationToken ct);
+    Task<BankStatementResponse> UnskipAsync(string statementId, string transactionId, CancellationToken ct);
+    Task<BankStatementResponse> SkipAllDuplicatesAsync(string statementId, CancellationToken ct);
     Task DeleteAsync(string statementId, CancellationToken ct);
     Task<List<BankReconAllocationReportItem>> GetAllocationReportAsync(DateTime? from, DateTime? to, CancellationToken ct);
     Task<DebitReportResponse> GetDebitReportAsync(DateTime? from, DateTime? to, CancellationToken ct);

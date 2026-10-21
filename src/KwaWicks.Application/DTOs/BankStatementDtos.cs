@@ -94,6 +94,9 @@ public class BankTransactionResponse
     // ── Split allocation ─────────────────────────────────────────────────
     public List<SplitAllocationLineResponse> SplitLines { get; set; } = new();
 
+    // ── Skip ─────────────────────────────────────────────────────────────
+    public bool IsSkipped { get; set; }
+
     // ── Cross-statement duplicate detection ──────────────────────────────
     public bool IsPossibleDuplicate { get; set; }
     public string DuplicateOfStatementFileName { get; set; } = "";
@@ -125,6 +128,8 @@ public class BankStatementResponse
     /// <summary>Unallocated transactions that match (same date + amount) a transaction already
     /// allocated in a different statement — hidden from the main list, shown separately with a warning.</summary>
     public List<BankTransactionResponse> PossibleDuplicates { get; set; } = new();
+    /// <summary>Transactions the user has explicitly skipped (dismissed as overlapping duplicates).</summary>
+    public List<BankTransactionResponse> Skipped { get; set; } = new();
 }
 
 public class BankStatementSummaryResponse
