@@ -46,6 +46,9 @@ public class CreateInvoiceFromDeliveryRequest
 
     /// <summary>Optional phone to save on the client if they don't already have one.</summary>
     public string? ClientPhone { get; set; }
+
+    /// <summary>Base64-encoded PNG of the client's signature captured on the tablet.</summary>
+    public string? ClientSignatureBase64 { get; set; }
 }
 
 public class CreateInvoiceFromDeliveryLine
@@ -155,6 +158,7 @@ public class InvoiceResponse
     public string PaymentType { get; set; } = "";
     public string PaymentStatus { get; set; } = "";
     public string ReceiptS3Key { get; set; } = "";
+    public string ClientSignatureS3Key { get; set; } = "";
     public decimal SubTotal { get; set; }
     public decimal VatTotal { get; set; }
     public decimal GrandTotal { get; set; }

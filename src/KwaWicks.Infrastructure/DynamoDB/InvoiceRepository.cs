@@ -232,6 +232,7 @@ public class InvoiceRepository : IInvoiceRepository
             ["PaymentType"] = new AttributeValue { S = inv.PaymentType ?? "" },
             ["PaymentStatus"] = new AttributeValue { S = inv.PaymentStatus ?? "Pending" },
             ["ReceiptS3Key"] = new AttributeValue { S = inv.ReceiptS3Key ?? "" },
+            ["ClientSignatureS3Key"] = new AttributeValue { S = inv.ClientSignatureS3Key ?? "" },
 
             ["SubTotal"] = new AttributeValue { N = inv.SubTotal.ToString(CultureInfo.InvariantCulture) },
             ["VatTotal"] = new AttributeValue { N = inv.VatTotal.ToString(CultureInfo.InvariantCulture) },
@@ -276,6 +277,7 @@ public class InvoiceRepository : IInvoiceRepository
             PaymentType = item.TryGetValue("PaymentType", out var pt) ? pt.S ?? "" : "",
             PaymentStatus = item.TryGetValue("PaymentStatus", out var ps) ? ps.S ?? "Pending" : "Pending",
             ReceiptS3Key = item.TryGetValue("ReceiptS3Key", out var rk) ? rk.S ?? "" : "",
+            ClientSignatureS3Key = item.TryGetValue("ClientSignatureS3Key", out var csk) ? csk.S ?? "" : "",
 
             SubTotal = item.TryGetValue("SubTotal", out var sub) ? decimal.Parse(sub.N, CultureInfo.InvariantCulture) : 0m,
             VatTotal = item.TryGetValue("VatTotal", out var vat) ? decimal.Parse(vat.N, CultureInfo.InvariantCulture) : 0m,

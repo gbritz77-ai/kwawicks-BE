@@ -46,7 +46,14 @@ public class InvoiceNotificationService : IInvoiceNotificationService
                 speciesNames.Add((sid, species?.Name ?? sid));
             }
 
-            var pdfBytes = await _pdfService.GenerateInvoicePdfAsync(invoice, client, speciesNames, ct);
+            byte[]? sigBytes = null;
+            if (!string.IsNullOrEmpty(invoice.ClientSignatureS3Key))
+            {
+                try { sigBytes = await _s3Service.DownloadObjectAsync(invoice.ClientSignatureS3Key, ct); }
+                catch { /* non-fatal */ }
+            }
+
+            var pdfBytes = await _pdfService.GenerateInvoicePdfAsync(invoice, client, speciesNames, sigBytes, ct);
 
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var s3Key = $"pdfs/invoice-{invoiceId}-{timestamp}.pdf";

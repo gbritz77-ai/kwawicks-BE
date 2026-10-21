@@ -17,6 +17,7 @@ public class Invoice
     public string PaymentType { get; set; } = ""; // Cash, EFT, Credit
     public string PaymentStatus { get; set; } = "Pending"; // Pending, Paid
     public string ReceiptS3Key { get; set; } = "";
+    public string ClientSignatureS3Key { get; set; } = "";
 
     public decimal SubTotal { get; set; }
     public decimal VatTotal { get; set; }

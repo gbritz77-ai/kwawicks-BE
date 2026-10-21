@@ -254,6 +254,24 @@ public class InvoiceService : IInvoiceService
         invoice.SubTotal = subTotal;
         invoice.VatTotal = vatTotal;
         invoice.GrandTotal = subTotal + vatTotal;
+
+        // Upload client signature PNG to S3 if provided
+        if (!string.IsNullOrWhiteSpace(request.ClientSignatureBase64))
+        {
+            try
+            {
+                var base64 = request.ClientSignatureBase64;
+                // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
+                var commaIdx = base64.IndexOf(',');
+                if (commaIdx >= 0) base64 = base64[(commaIdx + 1)..];
+                var sigBytes = Convert.FromBase64String(base64);
+                var sigKey = $"signatures/invoice-{invoice.InvoiceId}.png";
+                await _s3Service.UploadObjectAsync(sigKey, sigBytes, "image/png", ct);
+                invoice.ClientSignatureS3Key = sigKey;
+            }
+            catch { /* signature upload failure must not block invoice creation */ }
+        }
+
         await _invoiceRepo.CreateAsync(invoice, ct);
 
         // Atomically reconcile stock: release booked qty, return not-wanted to on-hand.
@@ -681,6 +699,7 @@ public class InvoiceService : IInvoiceService
         PaymentType = invoice.PaymentType,
         PaymentStatus = invoice.PaymentStatus,
         ReceiptS3Key = invoice.ReceiptS3Key,
+        ClientSignatureS3Key = invoice.ClientSignatureS3Key,
         SubTotal          = invoice.SubTotal,
         VatTotal          = invoice.VatTotal,
         GrandTotal        = invoice.GrandTotal,

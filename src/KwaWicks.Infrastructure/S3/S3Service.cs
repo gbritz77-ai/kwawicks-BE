@@ -62,6 +62,19 @@ public class S3Service : IS3Service
         return key;
     }
 
+    public async Task<byte[]> DownloadObjectAsync(string key, CancellationToken ct)
+    {
+        var response = await _s3.GetObjectAsync(new GetObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = key
+        }, ct);
+
+        using var ms = new MemoryStream();
+        await response.ResponseStream.CopyToAsync(ms, ct);
+        return ms.ToArray();
+    }
+
     public async Task<string> DownloadTextAsync(string key, CancellationToken ct)
     {
         var response = await _s3.GetObjectAsync(new GetObjectRequest

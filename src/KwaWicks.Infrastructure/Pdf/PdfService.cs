@@ -17,6 +17,7 @@ public class PdfService : IPdfService
         InvoiceResponse invoice,
         ClientDto client,
         IEnumerable<(string speciesId, string speciesName)> speciesNames,
+        byte[]? clientSignatureBytes = null,
         CancellationToken ct = default)
     {
         var speciesMap = speciesNames.ToDictionary(x => x.speciesId, x => x.speciesName);
@@ -132,6 +133,29 @@ public class PdfService : IPdfService
                             });
                         });
                     });
+
+                    // Client signature block
+                    if (clientSignatureBytes is { Length: > 0 })
+                    {
+                        col.Item().PaddingTop(20).LineHorizontal(1).LineColor("#e2e8f0");
+                        col.Item().PaddingTop(12).Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("Client Signature").Bold().FontSize(9).FontColor("#64748b");
+                                c.Item().PaddingTop(4).Image(clientSignatureBytes).FitWidth();
+                                c.Item().PaddingTop(4).Text(client.ClientName).FontSize(9).FontColor("#374151");
+                                c.Item().Text(invoice.CreatedAt.ToString("dd/MM/yyyy HH:mm")).FontSize(9).FontColor("#94a3b8");
+                            });
+                            row.ConstantItem(20);
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("Delivered by").Bold().FontSize(9).FontColor("#64748b");
+                                c.Item().PaddingTop(24).LineHorizontal(1).LineColor("#94a3b8");
+                                c.Item().PaddingTop(4).Text("Driver signature").FontSize(9).FontColor("#94a3b8");
+                            });
+                        });
+                    }
                 });
 
                 page.Footer().AlignCenter().Text(txt =>

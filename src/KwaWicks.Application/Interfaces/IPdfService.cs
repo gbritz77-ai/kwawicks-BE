@@ -8,6 +8,7 @@ public interface IPdfService
         InvoiceResponse invoice,
         ClientDto client,
         IEnumerable<(string speciesId, string speciesName)> speciesNames,
+        byte[]? clientSignatureBytes = null,
         CancellationToken ct = default);
 
     Task<byte[]> GenerateStatementPdfAsync(
