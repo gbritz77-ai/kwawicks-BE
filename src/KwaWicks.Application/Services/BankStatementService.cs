@@ -67,16 +67,28 @@ public class BankStatementService : IBankStatementService
         }
         else
         {
-            master = new BankStatement
+            // Promote the most recent existing statement to master so existing allocations are preserved.
+            var latestSummary = allSummaries.OrderByDescending(s => s.UploadedAt).FirstOrDefault();
+            if (latestSummary != null)
             {
-                FileName       = "Bank Statement",
-                S3Key          = request.S3Key,
-                IsMaster       = true,
-                ImportCount    = 0,
-                UploadedAt     = DateTime.UtcNow,
-                Transactions   = new List<BankTransaction>()
-            };
-            isNew = true;
+                master = await _repo.GetAsync(latestSummary.StatementId, ct)
+                    ?? throw new InvalidOperationException("Latest bank statement could not be loaded.");
+                master.IsMaster = true;
+                isNew = false;
+            }
+            else
+            {
+                master = new BankStatement
+                {
+                    FileName     = "Bank Statement",
+                    S3Key        = request.S3Key,
+                    IsMaster     = true,
+                    ImportCount  = 0,
+                    UploadedAt   = DateTime.UtcNow,
+                    Transactions = new List<BankTransaction>()
+                };
+                isNew = true;
+            }
         }
 
         // Build a dedup set from existing transactions: Date + Amount + Type
