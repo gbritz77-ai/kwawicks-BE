@@ -50,29 +50,69 @@ public class BankStatementService : IBankStatementService
     public async Task<BankStatementResponse> ProcessUploadAsync(ProcessBankStatementRequest request, CancellationToken ct)
     {
         var csvContent = await _s3.DownloadTextAsync(request.S3Key, ct);
-        var transactions = ParseCsv(csvContent);
+        var incoming = ParseCsv(csvContent);
 
-        var credits = transactions.Where(t => t.Type == "Credit").ToList();
+        // Find the single rolling master statement (if it exists)
+        var allSummaries = await _repo.ListAsync(ct);
+        var masterSummary = allSummaries.FirstOrDefault(s => s.IsMaster);
 
-        // Flag any credit that matches (same date + amount) a transaction already allocated in a
-        // different, previously-imported statement — almost always caused by overlapping date
-        // ranges between two bank statement exports (e.g. re-downloading "last 30 days").
-        await FlagCrossStatementDuplicatesAsync(transactions, ct);
+        BankStatement master;
+        bool isNew;
 
-        var statement = new BankStatement
+        if (masterSummary != null)
         {
-            FileName         = request.FileName,
-            S3Key            = request.S3Key,
-            TransactionCount = transactions.Count,
-            CreditCount      = credits.Count,
-            TotalCredits     = credits.Sum(t => t.Amount),
-            UploadedAt       = DateTime.UtcNow,
-            Transactions     = transactions
-        };
+            master = await _repo.GetAsync(masterSummary.StatementId, ct)
+                ?? throw new InvalidOperationException("Master bank statement could not be loaded.");
+            isNew = false;
+        }
+        else
+        {
+            master = new BankStatement
+            {
+                FileName       = "Bank Statement",
+                S3Key          = request.S3Key,
+                IsMaster       = true,
+                ImportCount    = 0,
+                UploadedAt     = DateTime.UtcNow,
+                Transactions   = new List<BankTransaction>()
+            };
+            isNew = true;
+        }
 
-        await _repo.CreateAsync(statement, ct);
-        return MapToResponse(statement);
+        // Build a dedup set from existing transactions: Date + Amount + Type
+        var existingKeys = master.Transactions
+            .Select(t => DedupKey(t))
+            .ToHashSet();
+
+        // Keep only transactions not already in the master
+        var newTxs = incoming.Where(t => !existingKeys.Contains(DedupKey(t))).ToList();
+        int duplicatesSkipped = incoming.Count - newTxs.Count;
+
+        master.Transactions.AddRange(newTxs);
+        master.ImportCount++;
+        master.LastImportedAt = DateTime.UtcNow;
+        // Update filename to show last import file
+        master.FileName = $"Bank Statement (last import: {Path.GetFileNameWithoutExtension(request.FileName)})";
+
+        var allCredits = master.Transactions.Where(t => t.Type == "Credit").ToList();
+        master.TransactionCount = master.Transactions.Count;
+        master.CreditCount      = allCredits.Count;
+        master.TotalCredits     = allCredits.Sum(t => t.Amount);
+
+        if (isNew)
+            await _repo.CreateAsync(master, ct);
+        else
+            await _repo.UpdateAsync(master, ct);
+
+        var response = MapToResponse(master);
+        // Attach import stats so the UI can show "X new transactions added"
+        response.NewTransactionsAdded = newTxs.Count;
+        response.DuplicatesSkipped    = duplicatesSkipped;
+        return response;
     }
+
+    private static string DedupKey(BankTransaction t)
+        => $"{t.Date.Date:yyyy-MM-dd}|{t.Type}|{Math.Round(t.Amount, 2):F2}|{t.Description.Trim().ToUpperInvariant()}";
 
     private async Task FlagCrossStatementDuplicatesAsync(List<BankTransaction> newTransactions, CancellationToken ct)
     {
@@ -119,7 +159,9 @@ public class BankStatementService : IBankStatementService
     public async Task<List<BankStatementSummaryResponse>> ListAsync(CancellationToken ct)
     {
         var list = await _repo.ListAsync(ct);
-        return list.Select(MapToSummary).ToList();
+        // Only expose master statements to the UI; old per-file statements are hidden but
+        // still used by reports (GetAllocationReportAsync / GetDebitReportAsync).
+        return list.Where(s => s.IsMaster).Select(MapToSummary).ToList();
     }
 
     public async Task<BankStatementResponse?> GetAsync(
@@ -1033,6 +1075,9 @@ public class BankStatementService : IBankStatementService
                 .Where(t => !t.IsAllocated && !t.IsPossibleDuplicate && !t.IsSkipped && t.Type == "Credit")
                 .Sum(t => t.Amount),
             UploadedAt       = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture),
+            IsMaster         = s.IsMaster,
+            ImportCount      = s.ImportCount,
+            LastImportedAt   = s.LastImportedAt.ToString("O", CultureInfo.InvariantCulture),
             Transactions     = unallocated.Select(MapTx).ToList(),
             PossibleDuplicates = possibleDuplicates.Select(MapTx).ToList(),
             Skipped          = skipped.Select(MapTx).ToList()
@@ -1051,6 +1096,9 @@ public class BankStatementService : IBankStatementService
         AllocatedCount    = s.AllocatedCount,
         UnallocatedCount  = s.UnallocatedCount,
         UnallocatedAmount = s.UnallocatedAmount,
+        IsMaster          = s.IsMaster,
+        ImportCount       = s.ImportCount,
+        LastImportedAt    = s.LastImportedAt.ToString("O", CultureInfo.InvariantCulture),
     };
 
     private static BankTransactionResponse MapTx(BankTransaction t) => new()

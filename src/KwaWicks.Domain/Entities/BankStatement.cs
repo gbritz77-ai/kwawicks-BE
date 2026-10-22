@@ -13,6 +13,13 @@ public class BankStatement
     public decimal UnallocatedAmount { get; set; }
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
     public List<BankTransaction> Transactions { get; set; } = new();
+
+    /// <summary>True for the single rolling master statement. All new CSV uploads are merged into this record.</summary>
+    public bool IsMaster { get; set; } = false;
+    /// <summary>How many CSV imports have been merged into this master statement.</summary>
+    public int ImportCount { get; set; } = 0;
+    /// <summary>UTC timestamp of the most recent CSV merge.</summary>
+    public DateTime LastImportedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class BankTransaction

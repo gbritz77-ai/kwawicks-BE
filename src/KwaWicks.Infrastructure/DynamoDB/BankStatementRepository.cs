@@ -68,7 +68,7 @@ public class BankStatementRepository : IBankStatementRepository
                 [":et"] = new() { S = "BankStatement" }
             },
             // Don't scan transaction JSON on list — just metadata
-            ProjectionExpression = "StatementId, FileName, S3Key, TransactionCount, CreditCount, TotalCredits, UploadedAtUtc, AllocatedCount, UnallocatedCount, UnallocatedAmount"
+            ProjectionExpression = "StatementId, FileName, S3Key, TransactionCount, CreditCount, TotalCredits, UploadedAtUtc, AllocatedCount, UnallocatedCount, UnallocatedAmount, IsMaster, ImportCount, LastImportedAtUtc"
         };
 
         var result = new List<BankStatement>();
@@ -106,8 +106,11 @@ public class BankStatementRepository : IBankStatementRepository
             ["UnallocatedCount"] = new() { N = unallocated.ToString() },
             ["UnallocatedAmount"]= new() { N = unallocAmt.ToString(CultureInfo.InvariantCulture) },
             ["TotalCredits"]     = new() { N = s.TotalCredits.ToString(CultureInfo.InvariantCulture) },
-            ["UploadedAtUtc"]    = new() { S = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture) },
-            ["TransactionsJson"] = new() { S = JsonSerializer.Serialize(s.Transactions) }
+            ["UploadedAtUtc"]      = new() { S = s.UploadedAt.ToString("O", CultureInfo.InvariantCulture) },
+            ["IsMaster"]           = new() { BOOL = s.IsMaster },
+            ["ImportCount"]        = new() { N = s.ImportCount.ToString() },
+            ["LastImportedAtUtc"]  = new() { S = s.LastImportedAt.ToString("O", CultureInfo.InvariantCulture) },
+            ["TransactionsJson"]   = new() { S = JsonSerializer.Serialize(s.Transactions) }
         };
     }
 
@@ -130,7 +133,12 @@ public class BankStatementRepository : IBankStatementRepository
             UploadedAt       = item.TryGetValue("UploadedAtUtc",    out var ua)
                                  ? DateTime.Parse(ua.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                                  : DateTime.UtcNow,
-            Transactions = transactions
+            IsMaster         = item.TryGetValue("IsMaster",         out var im)  && (im.BOOL == true),
+            ImportCount      = item.TryGetValue("ImportCount",       out var ic)  ? int.Parse(ic.N) : 0,
+            LastImportedAt   = item.TryGetValue("LastImportedAtUtc", out var lia)
+                                 ? DateTime.Parse(lia.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+                                 : DateTime.UtcNow,
+            Transactions     = transactions
         };
     }
 
@@ -188,7 +196,12 @@ public class BankStatementRepository : IBankStatementRepository
             UploadedAt       = item.TryGetValue("UploadedAtUtc",     out var ua)
                                  ? DateTime.Parse(ua.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                                  : DateTime.UtcNow,
-            Transactions = new List<BankTransaction>() // not loaded on list
+            IsMaster         = item.TryGetValue("IsMaster",          out var im)  && (im.BOOL == true),
+            ImportCount      = item.TryGetValue("ImportCount",        out var ic)  ? int.Parse(ic.N) : 0,
+            LastImportedAt   = item.TryGetValue("LastImportedAtUtc",  out var lia)
+                                 ? DateTime.Parse(lia.S!, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+                                 : DateTime.UtcNow,
+            Transactions     = new List<BankTransaction>() // not loaded on list
         };
 
     public async Task DeleteAsync(string statementId, CancellationToken ct)

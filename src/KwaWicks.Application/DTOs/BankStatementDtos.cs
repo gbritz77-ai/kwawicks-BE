@@ -124,6 +124,13 @@ public class BankStatementResponse
     public int UnallocatedCount { get; set; }
     public decimal UnallocatedAmount { get; set; }
     public string UploadedAt { get; set; } = "";
+    public bool IsMaster { get; set; }
+    public int ImportCount { get; set; }
+    public string LastImportedAt { get; set; } = "";
+    /// <summary>Set on upload response: how many transactions from the latest CSV were new.</summary>
+    public int NewTransactionsAdded { get; set; }
+    /// <summary>Set on upload response: how many transactions from the latest CSV already existed.</summary>
+    public int DuplicatesSkipped { get; set; }
     public List<BankTransactionResponse> Transactions { get; set; } = new();
     /// <summary>Unallocated transactions that match (same date + amount) a transaction already
     /// allocated in a different statement — hidden from the main list, shown separately with a warning.</summary>
@@ -143,6 +150,13 @@ public class BankStatementSummaryResponse
     public int AllocatedCount { get; set; }
     public int UnallocatedCount { get; set; }
     public decimal UnallocatedAmount { get; set; }
+    public bool IsMaster { get; set; }
+    public int ImportCount { get; set; }
+    public string LastImportedAt { get; set; } = "";
+    /// <summary>How many new transactions were added in the most recent import (set on upload response only).</summary>
+    public int NewTransactionsAdded { get; set; }
+    /// <summary>How many transactions from the latest CSV were skipped as duplicates.</summary>
+    public int DuplicatesSkipped { get; set; }
 }
 
 public class DebitReportItem
