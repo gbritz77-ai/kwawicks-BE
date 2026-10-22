@@ -159,9 +159,12 @@ public class BankStatementService : IBankStatementService
     public async Task<List<BankStatementSummaryResponse>> ListAsync(CancellationToken ct)
     {
         var list = await _repo.ListAsync(ct);
-        // Only expose master statements to the UI; old per-file statements are hidden but
-        // still used by reports (GetAllocationReportAsync / GetDebitReportAsync).
-        return list.Where(s => s.IsMaster).Select(MapToSummary).ToList();
+        // Master statement first, then older per-file statements by upload date descending.
+        return list
+            .OrderByDescending(s => s.IsMaster)
+            .ThenByDescending(s => s.UploadedAt)
+            .Select(MapToSummary)
+            .ToList();
     }
 
     public async Task<BankStatementResponse?> GetAsync(
