@@ -369,10 +369,9 @@ public class InvoiceService : IInvoiceService
 
         await _invoiceRepo.UpdateAsync(invoice, ct);
 
-        // All payment types are confirmed immediately — the ledger is updated now.
-        // For EFT and Split (EFT leg), bank recon later records the reference/date but
-        // does NOT re-post the payment credit (guarded by PaymentPostedToLedger).
-        var autoConfirmTypes = new[] { "Cash", "CardMachine", "Credit", "EFT", "Split" };
+        // EFT and Split require explicit Master confirmation before marking Paid.
+        // Cash and CardMachine are confirmed immediately (payment in hand).
+        var autoConfirmTypes = new[] { "Cash", "CardMachine", "Credit" };
         if (autoConfirmTypes.Contains(request.PaymentType))
             await ConfirmPaymentAsync(invoiceId, ct);
     }
