@@ -573,6 +573,7 @@ public class InvoiceService : IInvoiceService
         var invoice = await _invoiceRepo.GetAsync(invoiceId, ct)
             ?? throw new InvalidOperationException($"Invoice not found: {invoiceId}");
 
+        var previousAmountPaid = invoice.AmountPaid;
         var payment = request.Amount ?? invoice.GrandTotal;
         invoice.AmountPaid = Math.Min(invoice.AmountPaid + payment, invoice.GrandTotal);
 
@@ -607,9 +608,10 @@ public class InvoiceService : IInvoiceService
             }
 
             // Only post the payment credit if ConfirmPaymentAsync hasn't already done so.
-            // For EFT invoices confirmed by the admin before bank recon, the payment is already
-            // in the ledger — bank recon only updates AmountPaid and recon metadata.
-            if (payment > 0m && !invoice.PaymentPostedToLedger)
+            // Guard 1 (new invoices): PaymentPostedToLedger set by ConfirmPaymentAsync.
+            // Guard 2 (old invoices pre-flag): invoice was already fully paid before this recon.
+            var alreadyFullyPaid = previousAmountPaid >= invoice.GrandTotal;
+            if (payment > 0m && !invoice.PaymentPostedToLedger && !alreadyFullyPaid)
                 await _clientCreditService.RecordInvoicePaymentAsync(
                     invoice.CustomerId, invoiceId, payment, "EFT", ct, occurredAt: request.ReceivedAt);
         }
