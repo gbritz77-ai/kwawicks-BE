@@ -100,6 +100,10 @@ public class BankStatementService : IBankStatementService
         var newTxs = incoming.Where(t => !existingKeys.Contains(DedupKey(t))).ToList();
         int duplicatesSkipped = incoming.Count - newTxs.Count;
 
+        // Flag new transactions that were already allocated in old non-master statements
+        // so they appear as Possible Duplicates rather than unallocated entries.
+        await FlagCrossStatementDuplicatesAsync(newTxs, ct);
+
         master.Transactions.AddRange(newTxs);
         master.ImportCount++;
         master.LastImportedAt = DateTime.UtcNow;
