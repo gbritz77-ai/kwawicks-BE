@@ -105,6 +105,14 @@ public class BankStatementService : IBankStatementService
         await FlagCrossStatementDuplicatesAsync(newTxs, ct);
 
         master.Transactions.AddRange(newTxs);
+
+        // Keep the rolling window to the last 30 days.
+        // Allocated transactions are always kept regardless of age.
+        var cutoff = DateTime.UtcNow.Date.AddDays(-30);
+        master.Transactions = master.Transactions
+            .Where(t => t.IsAllocated || t.Date.Date >= cutoff)
+            .ToList();
+
         master.ImportCount++;
         master.LastImportedAt = DateTime.UtcNow;
         // Update filename to show last import file
