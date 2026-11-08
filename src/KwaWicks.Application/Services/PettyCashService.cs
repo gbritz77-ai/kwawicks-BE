@@ -40,7 +40,7 @@ public class PettyCashService : IPettyCashService
         {
             Type = request.Type == "In" ? "In" : "Out",
             Amount = request.Amount,
-            Description = request.Description.Trim(),
+            Description = request.Description.Trim().Replace("\\", ""),
             Category = string.IsNullOrWhiteSpace(request.Category) ? "Other" : request.Category,
             RecipientName = request.RecipientName?.Trim() ?? "",
             RecordedBy = recordedBy,
