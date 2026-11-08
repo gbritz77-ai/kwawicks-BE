@@ -7,8 +7,13 @@ namespace KwaWicks.Application.Services;
 public class VehicleService
 {
     private readonly IVehicleRepository _repo;
+    private readonly IFuelRepository _fuelRepo;
 
-    public VehicleService(IVehicleRepository repo) => _repo = repo;
+    public VehicleService(IVehicleRepository repo, IFuelRepository fuelRepo)
+    {
+        _repo = repo;
+        _fuelRepo = fuelRepo;
+    }
 
     public async Task<VehicleDto> CreateAsync(CreateVehicleRequest req, CancellationToken ct)
     {
@@ -65,7 +70,17 @@ public class VehicleService
                 v.Model.ToLowerInvariant().Contains(q));
         }
 
-        return active.OrderBy(v => v.FleetNumber).Select(ToDto).ToList();
+        var fuelIssues = await _fuelRepo.ListAsync(ct);
+        var latestOdo = fuelIssues
+            .Where(f => f.OdometerKm.HasValue)
+            .GroupBy(f => f.VehicleId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(f => f.IssuedAt).First().OdometerKm!.Value);
+
+        return active.OrderBy(v => v.FleetNumber)
+            .Select(v => ToDto(v, latestOdo.TryGetValue(v.VehicleId, out var odo) ? odo : null))
+            .ToList();
     }
 
     public async Task<VehicleDto?> UpdateAsync(string vehicleId, UpdateVehicleRequest req, CancellationToken ct)
@@ -115,7 +130,7 @@ public class VehicleService
         return true;
     }
 
-    private static VehicleDto ToDto(Vehicle v) => new()
+    private static VehicleDto ToDto(Vehicle v, decimal? latestOdo = null) => new()
     {
         VehicleId           = v.VehicleId,
         FleetNumber         = v.FleetNumber,
@@ -126,6 +141,7 @@ public class VehicleService
         FuelType            = v.FuelType,
         OdoType             = v.OdoType,
         OdometerKm          = v.OdometerKm,
+        LatestOdometerKm    = latestOdo ?? v.OdometerKm,
         ExpectedConsumption = v.ExpectedConsumption,
         LicenceExpiry       = v.LicenceExpiry,
         LicenceRemindDays   = v.LicenceRemindDays,

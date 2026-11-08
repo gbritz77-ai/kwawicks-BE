@@ -17,6 +17,7 @@ public class VehicleDto
     public decimal? LastServiceOdo { get; set; }
     public decimal? ServiceInterval { get; set; }
     public decimal? ServiceNotifyBefore { get; set; }
+    public decimal? LatestOdometerKm { get; set; }
     public string Notes { get; set; } = "";
     public bool IsActive { get; set; }
     public DateTime CreatedAtUtc { get; set; }
