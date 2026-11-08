@@ -530,7 +530,9 @@ public class InvoiceService : IInvoiceService
         };
 
         if (amount.HasValue)
-            invoices = invoices.Where(i => i.GrandTotal == amount.Value).ToList();
+            invoices = invoices.Where(i =>
+                i.GrandTotal == amount.Value ||
+                Math.Abs(i.GrandTotal - i.AmountPaid - amount.Value) < 0.02m).ToList();
 
 
         var now = DateTime.UtcNow;

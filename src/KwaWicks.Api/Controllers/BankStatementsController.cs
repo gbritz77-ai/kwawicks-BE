@@ -316,7 +316,7 @@ public class BankStatementsController : ControllerBase
 
         var matches = await _invoiceService.GetReconListAsync(
             paymentType: null,
-            reconStatus: "pending",
+            reconStatus: null,
             from: null,
             to: null,
             ct: ct,
