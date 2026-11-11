@@ -797,7 +797,7 @@ public class BankStatementService : IBankStatementService
 
     // ── CSV Parser ─────────────────────────────────────────────────────────
 
-    internal static List<BankTransaction> ParseCsv(string csvContent)
+    public static List<BankTransaction> ParseCsv(string csvContent)
     {
         var lines = csvContent
             .Replace("\r\n", "\n")

@@ -142,6 +142,9 @@ builder.Services.AddScoped<IOtpRepository>(sp =>
 builder.Services.AddScoped<IBankStatementRepository>(sp =>
     new BankStatementRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
+builder.Services.AddScoped<IBankTransactionRepository>(sp =>
+    new BankTransactionRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
+
 builder.Services.AddScoped<IDriverStockAllocationRepository>(sp =>
     new DriverStockAllocationRepository(sp.GetRequiredService<IAmazonDynamoDB>(), tableName));
 
@@ -205,6 +208,16 @@ builder.Services.AddScoped<ISlaughterService, SlaughterService>();
 builder.Services.AddScoped<ICostAverageService, CostAverageService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IBankStatementService>(sp => new BankStatementService(
+    sp.GetRequiredService<IBankStatementRepository>(),
+    sp.GetRequiredService<IInvoiceService>(),
+    sp.GetRequiredService<ISupplierService>(),
+    sp.GetRequiredService<IClientService>(),
+    sp.GetRequiredService<IClientCreditService>(),
+    sp.GetRequiredService<IS3Service>(),
+    sp.GetRequiredService<IPettyCashRepository>()));
+
+builder.Services.AddScoped<IBankTransactionService>(sp => new BankTransactionService(
+    sp.GetRequiredService<IBankTransactionRepository>(),
     sp.GetRequiredService<IBankStatementRepository>(),
     sp.GetRequiredService<IInvoiceService>(),
     sp.GetRequiredService<ISupplierService>(),

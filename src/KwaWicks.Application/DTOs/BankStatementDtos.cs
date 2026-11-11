@@ -190,6 +190,44 @@ public class DebitReportCategorySummary
     public decimal Total { get; set; }
 }
 
+// ── Flat transaction table DTOs ────────────────────────────────────────────
+
+public class ImportTransactionResult
+{
+    public int NewTransactionsAdded { get; set; }
+    public int DuplicatesSkipped { get; set; }
+    public int TotalTransactions { get; set; }
+    public int PendingCount { get; set; }
+    public int ReconnedCount { get; set; }
+    public string LastImportedAt { get; set; } = "";
+    public int ImportCount { get; set; }
+}
+
+public class FlatTransactionListResponse
+{
+    public List<BankTransactionResponse> Pending { get; set; } = new();
+    public List<BankTransactionResponse> Reconned { get; set; } = new();
+    public int PendingCount { get; set; }
+    public int ReconnedCount { get; set; }
+    public decimal PendingAmount { get; set; }
+    public string? LastImportedAt { get; set; }
+    public int ImportCount { get; set; }
+}
+
+public class AllocateTransactionResponse
+{
+    public BankTransactionResponse Transaction { get; set; } = new();
+    public AllocationWarning? Warning { get; set; }
+}
+
+public class MigrateResult
+{
+    public int Migrated { get; set; }
+    public int Skipped { get; set; }
+}
+
+// ── ─────────────────────────────────────────────────────────────────────────
+
 public class BankReconAllocationReportItem
 {
     public string StatementId { get; set; } = "";
